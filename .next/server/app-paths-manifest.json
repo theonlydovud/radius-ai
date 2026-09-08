@@ -1,8 +1,0 @@
-{
-  "/api/accounts/route": "app/api/accounts/route.js",
-  "/(dashboard)/playground/page": "app/(dashboard)/playground/page.js",
-  "/(dashboard)/accounts/page": "app/(dashboard)/accounts/page.js",
-  "/(dashboard)/rules/page": "app/(dashboard)/rules/page.js",
-  "/(dashboard)/leads/page": "app/(dashboard)/leads/page.js",
-  "/(dashboard)/knowledge/page": "app/(dashboard)/knowledge/page.js"
-}
