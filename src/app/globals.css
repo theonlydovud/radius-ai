@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --border: 214 20% 90%;
+  --foreground: 222 20% 12%;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  background: #FAFAFA;
+  color: hsl(var(--foreground));
+}
+
+/* Typing indicator animation */
+@keyframes typing-dot {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+.typing-dot {
+  animation: typing-dot 1.2s infinite;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.15s; }
+.typing-dot:nth-child(3) { animation-delay: 0.3s; }
+
+/* Thin scrollbar for chat panels */
+.thin-scroll::-webkit-scrollbar { width: 6px; }
+.thin-scroll::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 999px; }
+.thin-scroll::-webkit-scrollbar-track { background: transparent; }
