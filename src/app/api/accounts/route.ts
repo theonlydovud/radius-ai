@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
+import { isTelegramUserAccount, serializeTelegramUserConfig } from "@/lib/telegram";
 
 /**
  * Токены (access_token, webhook_verify_token) хранятся ИСКЛЮЧИТЕЛЬНО в
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest) {
   const supabase = createAdminClient();
   const body = await req.json();
 
-  const { platform, account_name, access_token, webhook_verify_token } = body;
+  const { platform, account_name, access_token, webhook_verify_token, auth_type, api_id, api_hash, phone_number } = body;
 
   if (!platform || !account_name || !access_token) {
     return NextResponse.json(
@@ -55,13 +56,30 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Неизвестная платформа." }, { status: 400 });
   }
 
+  let finalWebhookVerifyToken = platform === "instagram" ? webhook_verify_token ?? null : null;
+
+  if (platform === "telegram" && auth_type === "user") {
+    const parsedApiId = Number(api_id ?? 0);
+    const parsedApiHash = String(api_hash ?? "").trim();
+    if (!parsedApiId || !parsedApiHash) {
+      return NextResponse.json({ error: "Для Telegram User нужен api_id и api_hash." }, { status: 400 });
+    }
+
+    finalWebhookVerifyToken = serializeTelegramUserConfig({
+      auth_type: "user",
+      api_id: parsedApiId,
+      api_hash: parsedApiHash,
+      phone_number: phone_number ? String(phone_number) : undefined,
+    });
+  }
+
   const { data, error } = await supabase
     .from("accounts")
     .insert({
       platform,
       account_name,
       access_token,
-      webhook_verify_token: platform === "instagram" ? webhook_verify_token ?? null : null,
+      webhook_verify_token: finalWebhookVerifyToken,
       status: "connected",
     })
     .select("id, platform, account_name, status, created_at, webhook_verify_token")
@@ -69,8 +87,13 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  const isUser = isTelegramUserAccount({ platform, webhook_verify_token: data.webhook_verify_token });
   return NextResponse.json({
-    data: { ...data, access_token_preview: maskToken(access_token) },
+    data: {
+      ...data,
+      access_token_preview: maskToken(access_token),
+      is_user_account: isUser,
+    },
   });
 }
 

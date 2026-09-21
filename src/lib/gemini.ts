@@ -4,7 +4,7 @@ import type { KnowledgeItem, SandboxChatMessage, SystemRule } from "@/types";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
 
-export const GEMINI_MODEL = "gemini-3.5-flash-lite";
+export const GEMINI_MODEL = "gemini-2.5-flash";
 
 /**
  * Базовая системная инструкция. В отличие от system_rules (тон/

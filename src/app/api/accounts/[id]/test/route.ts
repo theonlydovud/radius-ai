@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
+import { getTelegramUserInfo, parseTelegramUserConfig, setTelegramBotWebhook, validateTelegramBotToken } from "@/lib/telegram";
 
 /**
  * Проверяет соединение для аккаунта, читая его токен ИЗ БД (никогда из
  * .env) и дёргая соответствующий API платформы:
- *  - Telegram: getMe (валидность bot-токена) + setWebhook на
+ *  - Telegram Bot: getMe (валидность bot-токена) + setWebhook на
  *    сгенерированный URL этого аккаунта, чтобы полностью автоматизировать
  *    привязку.
+ *  - Telegram User (MTProto/GramJS): авторизация через `session_string`
+ *    и проверка `getMe`.
  *  - Instagram: GET /me через Graph API (валидность Page Access Token).
  * Результат обновляет accounts.status на 'connected' или 'error'.
  */
@@ -18,7 +21,7 @@ export async function POST(
 
   const { data: account, error } = await supabase
     .from("accounts")
-    .select("id, platform, access_token")
+    .select("id, platform, access_token, webhook_verify_token")
     .eq("id", params.id)
     .single();
 
@@ -30,30 +33,40 @@ export async function POST(
 
   try {
     if (account.platform === "telegram") {
-      const meRes = await fetch(
-        `https://api.telegram.org/bot${account.access_token}/getMe`
-      );
-      const me = await meRes.json();
+      const telegramUserConfig = parseTelegramUserConfig(account.webhook_verify_token ?? null);
 
-      if (!me.ok) {
+      if (telegramUserConfig) {
+        const userInfo = await getTelegramUserInfo({
+          access_token: account.access_token,
+          webhook_verify_token: account.webhook_verify_token,
+        });
+
+        await setStatus(supabase, account.id, userInfo.ok ? "connected" : "error");
+        return NextResponse.json({
+          ok: userInfo.ok,
+          message: userInfo.ok
+            ? `Пользователь @${userInfo.me?.username ?? "telegram"} подключён через MTProto.`
+            : userInfo.message,
+        });
+      }
+
+      const meRes = await validateTelegramBotToken(account.access_token);
+      if (!meRes.ok) {
         await setStatus(supabase, account.id, "error");
         return NextResponse.json(
-          { ok: false, message: me.description ?? "Неверный Bot Token." },
+          { ok: false, message: meRes.description ?? "Неверный Bot Token." },
           { status: 200 }
         );
       }
 
       const webhookUrl = `${origin}/api/webhooks/telegram/${account.id}`;
-      const hookRes = await fetch(
-        `https://api.telegram.org/bot${account.access_token}/setWebhook?url=${encodeURIComponent(webhookUrl)}`
-      );
-      const hook = await hookRes.json();
+      const hookRes = await setTelegramBotWebhook(account.access_token, webhookUrl);
 
       await setStatus(supabase, account.id, "connected");
       return NextResponse.json({
         ok: true,
-        message: `Бот @${me.result.username} подключён.${
-          hook.ok ? " Webhook установлен автоматически." : ""
+        message: `Бот @${meRes.result.username} подключён.${
+          hookRes.ok ? " Webhook установлен автоматически." : ""
         }`,
       });
     }

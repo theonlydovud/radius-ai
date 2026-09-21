@@ -50,6 +50,15 @@ export default function AccountsPage() {
   const [verifyToken, setVerifyToken] = useState("");
   const [showToken, setShowToken] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [telegramMode, setTelegramMode] = useState<"bot" | "user">("bot");
+  const [apiId, setApiId] = useState("");
+  const [apiHash, setApiHash] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [phoneCode, setPhoneCode] = useState("");
+  const [password, setPassword] = useState("");
+  const [codeSent, setCodeSent] = useState(false);
+  const [telegramAuthMessage, setTelegramAuthMessage] = useState("");
+  const [telegramAuthBusy, setTelegramAuthBusy] = useState(false);
 
   // Состояние карточек: проверка соединения / копирование URL.
   const [testingId, setTestingId] = useState<string | null>(null);
@@ -74,9 +83,86 @@ export default function AccountsPage() {
     setToken("");
     setVerifyToken("");
     setShowToken(false);
+    setTelegramMode("bot");
+    setApiId("");
+    setApiHash("");
+    setPhoneNumber("");
+    setPhoneCode("");
+    setPassword("");
+    setCodeSent(false);
+    setTelegramAuthMessage("");
+    setTelegramAuthBusy(false);
   }
 
   async function handleConnect() {
+    if (platform === "telegram" && telegramMode === "user") {
+      if (!codeSent) {
+        if (!accountName.trim() || !apiId.trim() || !apiHash.trim() || !phoneNumber.trim()) return;
+
+        setTelegramAuthBusy(true);
+        const res = await fetch("/api/telegram/auth/start", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            phone_number: phoneNumber,
+            api_id: Number(apiId),
+            api_hash: apiHash,
+          }),
+        });
+        const data = await res.json();
+        setTelegramAuthBusy(false);
+        setTelegramAuthMessage(data.message ?? "");
+
+        if (!data.ok) return;
+        setCodeSent(true);
+        return;
+      }
+
+      if (!phoneCode.trim()) return;
+      setTelegramAuthBusy(true);
+      const res = await fetch("/api/telegram/auth/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone_number: phoneNumber,
+          api_id: Number(apiId),
+          api_hash: apiHash,
+          phone_code: phoneCode,
+          password: password || undefined,
+        }),
+      });
+      const data = await res.json();
+      setTelegramAuthBusy(false);
+      setTelegramAuthMessage(data.message ?? "");
+
+      if (!data.ok || !data.sessionString) return;
+
+      const saveRes = await fetch("/api/accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          platform: "telegram",
+          account_name: accountName,
+          access_token: data.sessionString,
+          auth_type: "user",
+          api_id: Number(apiId),
+          api_hash: apiHash,
+          phone_number: phoneNumber,
+        }),
+      });
+
+      const saved = await saveRes.json();
+      if (!saveRes.ok) {
+        setTelegramAuthMessage(saved.error ?? "Не удалось сохранить Telegram-аккаунт.");
+        return;
+      }
+
+      resetForm();
+      setOpen(false);
+      load();
+      return;
+    }
+
     if (!accountName.trim() || !token.trim()) return;
     setSaving(true);
     // Токен сохраняется напрямую в таблицу accounts в Supabase через наш
@@ -182,29 +268,27 @@ export default function AccountsPage() {
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <Label>{platform === "telegram" ? "Bot Token" : "Access Token (Page Access Token)"}</Label>
-                <div className="relative">
-                  <Input
-                    value={token}
-                    onChange={(e) => setToken(e.target.value)}
-                    type={showToken ? "text" : "password"}
-                    placeholder={
-                      platform === "telegram"
-                        ? "123456:AAExampleTelegramBotToken"
-                        : "EAAExampleInstagramPageAccessToken"
-                    }
-                    className="pr-9"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowToken((v) => !v)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                  >
-                    {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
+              {platform === "instagram" && (
+                <div className="space-y-1.5">
+                  <Label>Access Token (Page Access Token)</Label>
+                  <div className="relative">
+                    <Input
+                      value={token}
+                      onChange={(e) => setToken(e.target.value)}
+                      type={showToken ? "text" : "password"}
+                      placeholder="EAAExampleInstagramPageAccessToken"
+                      className="pr-9"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowToken((v) => !v)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {platform === "instagram" && (
                 <div className="space-y-1.5">
@@ -221,14 +305,127 @@ export default function AccountsPage() {
                   </p>
                 </div>
               )}
+
+              {platform === "telegram" && (
+                <>
+                  <div className="space-y-1.5">
+                    <Label>Режим подключения</Label>
+                    <Select value={telegramMode} onValueChange={(v) => setTelegramMode(v as "bot" | "user")}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="bot">Bot (по токену)</SelectItem>
+                        <SelectItem value="user">User (MTProto/GramJS)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {telegramMode === "bot" ? (
+                    <div className="space-y-1.5">
+                      <Label>Bot Token</Label>
+                      <div className="relative">
+                        <Input
+                          value={token}
+                          onChange={(e) => setToken(e.target.value)}
+                          type={showToken ? "text" : "password"}
+                          placeholder="123456:AAExampleTelegramBotToken"
+                          className="pr-9"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowToken((v) => !v)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        >
+                          {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="space-y-1.5">
+                        <Label>API ID</Label>
+                        <Input value={apiId} onChange={(e) => setApiId(e.target.value)} placeholder="Ваш API ID" />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label>API Hash</Label>
+                        <Input value={apiHash} onChange={(e) => setApiHash(e.target.value)} placeholder="Ваш API Hash" />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label>Номер телефона</Label>
+                        <Input value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} placeholder="+14155552671" />
+                      </div>
+
+                      {codeSent && (
+                        <div className="space-y-1.5">
+                          <Label>Код из Telegram</Label>
+                          <Input value={phoneCode} onChange={(e) => setPhoneCode(e.target.value)} placeholder="12345" />
+                        </div>
+                      )}
+
+                      {codeSent && (
+                        <div className="space-y-1.5">
+                          <Label>Пароль 2FA (если включён)</Label>
+                          <Input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="Необязательно" />
+                        </div>
+                      )}
+
+                      {!codeSent && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={async () => {
+                            if (!accountName.trim() || !apiId.trim() || !apiHash.trim() || !phoneNumber.trim()) return;
+                            setTelegramAuthBusy(true);
+                            setTelegramAuthMessage("");
+                            const res = await fetch("/api/telegram/auth/start", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                phone_number: phoneNumber,
+                                api_id: Number(apiId),
+                                api_hash: apiHash,
+                              }),
+                            });
+                            const data = await res.json();
+                            setCodeSent(data.ok);
+                            setTelegramAuthMessage(data.message ?? "");
+                            setTelegramAuthBusy(false);
+                          }}
+                          disabled={telegramAuthBusy || !accountName.trim() || !apiId.trim() || !apiHash.trim() || !phoneNumber.trim()}
+                          className="w-full"
+                        >
+                          {telegramAuthBusy ? "Отправка..." : "Отправить код"}
+                        </Button>
+                      )}
+
+                      {telegramAuthMessage && (
+                        <p className="text-xs text-slate-500">{telegramAuthMessage}</p>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
 
             <DialogFooter>
               <Button variant="outline" size="sm" onClick={() => setOpen(false)}>
                 Отмена
               </Button>
-              <Button size="sm" onClick={handleConnect} disabled={saving || !accountName.trim() || !token.trim()}>
-                {saving ? "Подключение..." : "Подключить"}
+              <Button
+                size="sm"
+                onClick={handleConnect}
+                disabled={
+                  saving ||
+                  (!accountName.trim() && !(platform === "telegram" && telegramMode === "user")) ||
+                  (platform === "telegram" && telegramMode === "bot" && !token.trim()) ||
+                  (platform === "telegram" && telegramMode === "user" && (!accountName.trim() || !apiId.trim() || !apiHash.trim() || !phoneNumber.trim() || !phoneCode.trim()))
+                }
+              >
+                {saving ? "Подключение..." : platform === "telegram" && telegramMode === "user" ? (codeSent ? "Подтвердить" : "Подключить") : "Подключить"}
               </Button>
             </DialogFooter>
           </DialogContent>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { buildSystemInstruction, GeminiRateLimitError, sendToGemini } from "@/lib/gemini";
 import { getOrCreateSession, getHistory, maybeCreateOrUpdateLead } from "@/lib/conversation";
+import { ensureTelegramUserListener, isTelegramUserAccount, parseTelegramUserConfig } from "@/lib/telegram";
 
 /**
  * Webhook для конкретного Telegram-аккаунта.
@@ -23,14 +24,17 @@ export async function POST(
   try {
     const { data: account } = await supabase
       .from("accounts")
-      .select("id, platform, account_name, access_token, status")
+      .select("id, platform, account_name, access_token, status, webhook_verify_token")
       .eq("id", params.accountId)
       .eq("platform", "telegram")
       .maybeSingle();
 
     if (!account || !account.access_token) {
-      // Неизвестный или неподключённый аккаунт — тихо игнорируем апдейт,
-      // чтобы Telegram не долбил ретраями.
+      return NextResponse.json({ ok: true });
+    }
+
+    if (isTelegramUserAccount(account)) {
+      await ensureTelegramUserListener(supabase, account);
       return NextResponse.json({ ok: true });
     }
 
