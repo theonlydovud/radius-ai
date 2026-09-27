@@ -218,3 +218,56 @@ export async function sendToGemini(
     throw err;
   }
 }
+
+/**
+ * Извлекает структурированные поля заявки (город отправления, назначения, вес, тип груза, телефон)
+ * из диалога с помощью Gemini. Работает лучше чем регулярные выражения для многоязычного контента.
+ */
+export async function extractLeadFieldsWithGemini(conversation: string) {
+  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+
+  const extractionPrompt = `Ты — ассистент логистической компании. Твоя задача — извлечь из диалога клиента структурированные данные заявки.
+
+Диалог:
+${conversation}
+
+Извлеки и верни ТОЛЬКО JSON (без булков, без префикса, только валидный JSON) со следующей структурой:
+{
+  "origin_city": "город отправления или null",
+  "destination_city": "город назначения или null", 
+  "weight": "вес с единицей (например '4 т', '100 кг') или null",
+  "cargo_type": "тип груза или null",
+  "phone": "номер телефона или null"
+}
+
+ПРАВИЛА:
+- Жди узбекские падежи: "-дан"/"-dan" = ИЗ, "-га"/"-ga"/"-ка"/"-ka" = В
+- Не выдумывай страны, если их явно не указали
+- Phone: ищи последовательность цифр длины 10+ с возможными +, пробелами, тире, скобками
+- Верни только JSON, никаких комментариев или пояснений`;
+
+  try {
+    const result = await model.generateContent(extractionPrompt);
+    const jsonText = result.response.text().trim();
+    const parsed = JSON.parse(jsonText);
+    
+    // Нормализуем результат
+    return {
+      origin_city: parsed.origin_city || undefined,
+      destination_city: parsed.destination_city || undefined,
+      weight: parsed.weight || undefined,
+      cargo_type: parsed.cargo_type || undefined,
+      phone: parsed.phone || undefined,
+    };
+  } catch (err: any) {
+    console.error("[Gemini Lead Extraction] Error:", err?.message);
+    // Fallback на пустой результат если что-то пошло не так
+    return {
+      origin_city: undefined,
+      destination_city: undefined,
+      weight: undefined,
+      cargo_type: undefined,
+      phone: undefined,
+    };
+  }
+}

@@ -21,6 +21,7 @@ export async function POST(req: Request) {
       ok: true,
       message: "Код отправлен в Telegram.",
       phoneCodeHash: result.phoneCodeHash,
+      sessionString: result.sessionString,
       isCodeViaApp: result.isCodeViaApp,
     });
   } catch (error: any) {

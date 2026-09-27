@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   Plus,
   Instagram,
@@ -59,11 +59,15 @@ export default function AccountsPage() {
   const [codeSent, setCodeSent] = useState(false);
   const [telegramAuthMessage, setTelegramAuthMessage] = useState("");
   const [telegramAuthBusy, setTelegramAuthBusy] = useState(false);
+  const [phoneCodeHash, setPhoneCodeHash] = useState("");
+  const [telegramSessionString, setTelegramSessionString] = useState("");
 
   // Состояние карточек: проверка соединения / копирование URL.
   const [testingId, setTestingId] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<Record<string, { ok: boolean; message: string }>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const telegramAuthLockRef = useRef(false);
 
   async function load() {
     setLoading(true);
@@ -75,6 +79,10 @@ export default function AccountsPage() {
 
   useEffect(() => {
     load();
+    // Инициализируем слушателей для Telegram User-аккаунтов при загрузке
+    fetch("/api/init-listeners", { method: "POST" }).catch(() => {
+      // Ошибку игнорируем, listeners are optional
+    });
   }, []);
 
   function resetForm() {
@@ -92,74 +100,102 @@ export default function AccountsPage() {
     setCodeSent(false);
     setTelegramAuthMessage("");
     setTelegramAuthBusy(false);
+    setPhoneCodeHash("");
+    setTelegramSessionString("");
+    telegramAuthLockRef.current = false;
   }
 
   async function handleConnect() {
+    if (telegramAuthLockRef.current) return;
+    if (telegramAuthBusy) return;
+
     if (platform === "telegram" && telegramMode === "user") {
       if (!codeSent) {
         if (!accountName.trim() || !apiId.trim() || !apiHash.trim() || !phoneNumber.trim()) return;
 
+        telegramAuthLockRef.current = true;
         setTelegramAuthBusy(true);
-        const res = await fetch("/api/telegram/auth/start", {
+        try {
+          const res = await fetch("/api/telegram/auth/start", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              phone_number: phoneNumber,
+              api_id: Number(apiId),
+              api_hash: apiHash,
+            }),
+          });
+          const data = await res.json();
+          setTelegramAuthMessage(data.message ?? "");
+
+          if (!data.ok) return;
+
+          setPhoneCodeHash(data.phoneCodeHash ?? "");
+          setTelegramSessionString(data.sessionString ?? "");
+          setCodeSent(true);
+        } finally {
+          telegramAuthLockRef.current = false;
+          setTelegramAuthBusy(false);
+        }
+        return;
+      }
+
+      if (!phoneCode.trim()) return;
+      telegramAuthLockRef.current = true;
+      setTelegramAuthBusy(true);
+      try {
+        const res = await fetch("/api/telegram/auth/confirm", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             phone_number: phoneNumber,
             api_id: Number(apiId),
             api_hash: apiHash,
+            phone_code: phoneCode,
+            password: password || undefined,
+            phone_code_hash: phoneCodeHash || undefined,
+            session_string: telegramSessionString || undefined,
           }),
         });
         const data = await res.json();
-        setTelegramAuthBusy(false);
         setTelegramAuthMessage(data.message ?? "");
 
-        if (!data.ok) return;
-        setCodeSent(true);
-        return;
+        if (!data.ok || !data.sessionString) return;
+
+        const saveRes = await fetch("/api/accounts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            platform: "telegram",
+            account_name: accountName,
+            access_token: data.sessionString,
+            auth_type: "user",
+            api_id: Number(apiId),
+            api_hash: apiHash,
+            phone_number: phoneNumber,
+          }),
+        });
+
+        const saved = await saveRes.json();
+        if (!saveRes.ok) {
+          setTelegramAuthMessage(saved.error ?? "Не удалось сохранить Telegram-аккаунт.");
+          return;
+        }
+
+        // После успешного сохранения, инициализируем слушателей для User-аккаунта Telegram
+        try {
+          await fetch("/api/init-listeners", { method: "POST" });
+        } catch (err) {
+          console.warn("Не удалось инициализировать Telegram listener", err);
+        }
+
+        resetForm();
+        setOpen(false);
+        load();
+      } finally {
+        telegramAuthLockRef.current = false;
+        setTelegramAuthBusy(false);
       }
-
-      if (!phoneCode.trim()) return;
-      setTelegramAuthBusy(true);
-      const res = await fetch("/api/telegram/auth/confirm", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          phone_number: phoneNumber,
-          api_id: Number(apiId),
-          api_hash: apiHash,
-          phone_code: phoneCode,
-          password: password || undefined,
-        }),
-      });
-      const data = await res.json();
-      setTelegramAuthBusy(false);
-      setTelegramAuthMessage(data.message ?? "");
-
-      if (!data.ok || !data.sessionString) return;
-
-      const saveRes = await fetch("/api/accounts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          platform: "telegram",
-          account_name: accountName,
-          access_token: data.sessionString,
-          auth_type: "user",
-          api_id: Number(apiId),
-          api_hash: apiHash,
-          phone_number: phoneNumber,
-        }),
-      });
-
-      const saved = await saveRes.json();
-      if (!saveRes.ok) {
-        setTelegramAuthMessage(saved.error ?? "Не удалось сохранить Telegram-аккаунт.");
-        return;
-      }
-
-      resetForm();
-      setOpen(false);
-      load();
       return;
     }
 
@@ -378,24 +414,34 @@ export default function AccountsPage() {
                           size="sm"
                           variant="outline"
                           onClick={async () => {
+                            if (telegramAuthLockRef.current || telegramAuthBusy) return;
                             if (!accountName.trim() || !apiId.trim() || !apiHash.trim() || !phoneNumber.trim()) return;
+                            telegramAuthLockRef.current = true;
                             setTelegramAuthBusy(true);
                             setTelegramAuthMessage("");
-                            const res = await fetch("/api/telegram/auth/start", {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({
-                                phone_number: phoneNumber,
-                                api_id: Number(apiId),
-                                api_hash: apiHash,
-                              }),
-                            });
-                            const data = await res.json();
-                            setCodeSent(data.ok);
-                            setTelegramAuthMessage(data.message ?? "");
-                            setTelegramAuthBusy(false);
+                            try {
+                              const res = await fetch("/api/telegram/auth/start", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  phone_number: phoneNumber,
+                                  api_id: Number(apiId),
+                                  api_hash: apiHash,
+                                }),
+                              });
+                              const data = await res.json();
+                              setCodeSent(data.ok);
+                              setTelegramAuthMessage(data.message ?? "");
+                              if (!data.ok) return;
+                              setPhoneCodeHash(data.phoneCodeHash ?? "");
+                              setTelegramSessionString(data.sessionString ?? "");
+                              setCodeSent(true);
+                            } finally {
+                              telegramAuthLockRef.current = false;
+                              setTelegramAuthBusy(false);
+                            }
                           }}
-                          disabled={telegramAuthBusy || !accountName.trim() || !apiId.trim() || !apiHash.trim() || !phoneNumber.trim()}
+                          disabled={telegramAuthBusy || telegramAuthLockRef.current || !accountName.trim() || !apiId.trim() || !apiHash.trim() || !phoneNumber.trim()}
                           className="w-full"
                         >
                           {telegramAuthBusy ? "Отправка..." : "Отправить код"}
@@ -420,6 +466,7 @@ export default function AccountsPage() {
                 onClick={handleConnect}
                 disabled={
                   saving ||
+                  telegramAuthBusy ||
                   (!accountName.trim() && !(platform === "telegram" && telegramMode === "user")) ||
                   (platform === "telegram" && telegramMode === "bot" && !token.trim()) ||
                   (platform === "telegram" && telegramMode === "user" && (!accountName.trim() || !apiId.trim() || !apiHash.trim() || !phoneNumber.trim() || !phoneCode.trim()))

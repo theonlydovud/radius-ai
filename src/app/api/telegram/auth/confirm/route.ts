@@ -9,6 +9,8 @@ export async function POST(req: Request) {
     const apiHash = String(body.api_hash ?? "").trim();
     const phoneCode = String(body.phone_code ?? "").trim();
     const password = String(body.password ?? "").trim();
+    const phoneCodeHash = String(body.phone_code_hash ?? "").trim();
+    const sessionString = String(body.session_string ?? "").trim();
 
     if (!phoneNumber || !apiId || !apiHash || !phoneCode) {
       return NextResponse.json(
@@ -17,7 +19,15 @@ export async function POST(req: Request) {
       );
     }
 
-    const result = await finishTelegramUserLogin(phoneNumber, apiId, apiHash, phoneCode, password || undefined);
+    const result = await finishTelegramUserLogin(
+      phoneNumber,
+      apiId,
+      apiHash,
+      phoneCode,
+      password || undefined,
+      phoneCodeHash || undefined,
+      sessionString || undefined
+    );
 
     return NextResponse.json({
       ok: true,

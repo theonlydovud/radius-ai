@@ -15,8 +15,8 @@ export interface ExtractedLeadFields {
 }
 
 const PHONE_REGEX = /(\+?\d[\d\s\-()]{8,}\d)/;
-const ROUTE_REGEX = /из\s+([А-ЯЁа-яё\w-]+)\s+(?:в|до)\s+([А-ЯЁа-яё\w-]+)/i;
-const WEIGHT_REGEX = /(\d+(?:[.,]\d+)?)\s*(кг|тонн|т\.?|kg|ton)/i;
+const ROUTE_REGEX = /(?:из|от)\s+([А-ЯЁа-яё\w\s-]+)\s+(?:в|до|ге)\s+([А-ЯЁа-яё\w\s-]+)/i;
+const WEIGHT_REGEX = /(\d+(?:[.,]\d+)?)\s*(кг|тонн|т\.?|тон|kg|ton|tonna|t)/i;
 const CARGO_KEYWORDS = [
   "одежда",
   "техника",
@@ -25,6 +25,13 @@ const CARGO_KEYWORDS = [
   "стройматериалы",
   "запчасти",
   "оборудование",
+  "тольки",
+  "salt",
+  "соль",
+  "tuz",
+  "mal",
+  "goods",
+  "material",
 ];
 
 export function extractLeadFields(text: string): ExtractedLeadFields {
@@ -35,16 +42,25 @@ export function extractLeadFields(text: string): ExtractedLeadFields {
 
   const routeMatch = text.match(ROUTE_REGEX);
   if (routeMatch) {
-    fields.origin_city = routeMatch[1];
-    fields.destination_city = routeMatch[2];
+    fields.origin_city = routeMatch[1].trim();
+    fields.destination_city = routeMatch[2].trim();
   }
 
   const weightMatch = text.match(WEIGHT_REGEX);
-  if (weightMatch) fields.weight = `${weightMatch[1]} ${weightMatch[2]}`;
+  if (weightMatch) {
+    const number = weightMatch[1];
+    const unit = weightMatch[2].toLowerCase();
+    // Нормализуем единицы к одному формату
+    const normalized = ["тонн", "тон", "ton", "tonna", "t"].includes(unit) ? "т" : "кг";
+    fields.weight = `${number} ${normalized}`;
+  }
 
-  const cargoMatch = CARGO_KEYWORDS.find((kw) => text.toLowerCase().includes(kw));
+  // Ищем тип груза - улучшенная логика
+  const textLower = text.toLowerCase();
+  const cargoMatch = CARGO_KEYWORDS.find((kw) => textLower.includes(kw));
   if (cargoMatch) fields.cargo_type = cargoMatch;
 
+  console.log("[Lead Extract Debug]", { text: text.slice(0, 100), fields });
   return fields;
 }
 

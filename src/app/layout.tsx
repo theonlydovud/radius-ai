@@ -4,6 +4,10 @@ import type { Metadata } from "next";
 // даёт тот же шрифт и тот же паттерн подключения через CSS-переменную.
 import { GeistSans } from "geist/font/sans";
 import "./globals.css";
+import { initTelegramListeners } from "@/lib/init-telegram-listeners";
+
+// Инициализируем Telegram User-аккаунты слушателей при старте сервера
+initTelegramListeners().catch(console.error);
 
 export const metadata: Metadata = {
   title: "Radius AI — Платформа автоматизации консультирования",

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
-import { isTelegramUserAccount, serializeTelegramUserConfig } from "@/lib/telegram";
+import { isTelegramUserAccount, serializeTelegramUserConfig, stopTelegramUserPolling } from "@/lib/telegram";
 
 /**
  * Токены (access_token, webhook_verify_token) хранятся ИСКЛЮЧИТЕЛЬНО в
@@ -102,6 +102,9 @@ export async function DELETE(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id обязателен." }, { status: 400 });
+
+  // Остановляем polling для Telegram User-аккаунта, если он был активен
+  stopTelegramUserPolling(id);
 
   const { error } = await supabase.from("accounts").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

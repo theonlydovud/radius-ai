@@ -1,4 +1,5 @@
 import { extractLeadFields, isLeadComplete } from "@/lib/lead-extraction";
+import { extractLeadFieldsWithGemini } from "@/lib/gemini";
 
 /**
  * Общие хелперы для вебхуков Instagram/Telegram: находят или создают
@@ -51,34 +52,78 @@ export async function maybeCreateOrUpdateLead(
   history: { role: string; text: string }[],
   latestReply: string
 ) {
-  const conversation = history.map((h) => h.text).join("\n") + "\n" + latestReply;
-  const fields = extractLeadFields(conversation);
-  if (!isLeadComplete(fields)) return;
+  try {
+    const conversation = history.map((h) => h.text).join("\n") + "\n" + latestReply;
+    
+    // Сначала пробуем быстрое извлечение с регулярными выражениями
+    let fields = extractLeadFields(conversation);
+    console.log("[Lead Extraction] Regex extracted fields:", fields);
+    
+    // Если регулярные выражения не дали полных данных, используем Gemini
+    if (!isLeadComplete(fields)) {
+      console.log("[Lead Extraction] Trying Gemini extraction...");
+      const geminiFields = await extractLeadFieldsWithGemini(conversation);
+      fields = { ...fields, ...geminiFields }; // Меджим результаты: Gemini может дополнить regex
+      console.log("[Lead Extraction] Gemini extracted fields:", geminiFields);
+    }
+    
+    console.log("[Lead Extraction] Final fields:", fields);
+    if (!isLeadComplete(fields)) {
+      console.log("[Lead Extraction] Lead not complete. Missing:", {
+        origin_city: !fields.origin_city,
+        destination_city: !fields.destination_city,
+        weight: !fields.weight,
+        phone: !fields.phone,
+      });
+      return;
+    }
+    console.log("[Lead Extraction] Lead is complete! Creating/updating...");
 
-  const { data: existingLead } = await supabase
-    .from("leads")
-    .select("id")
-    .eq("session_id", sessionId)
-    .maybeSingle();
-
-  if (existingLead) {
-    await supabase
+    const { data: existingLead, error: selectError } = await supabase
       .from("leads")
-      .update({ collected_data: fields, client_phone: fields.phone ?? "" })
-      .eq("id", existingLead.id);
-    return;
-  }
+      .select("id")
+      .eq("session_id", sessionId)
+      .maybeSingle();
 
-  await supabase.from("leads").insert({
-    session_id: sessionId,
-    client_name: clientName,
-    client_phone: fields.phone ?? "",
-    collected_data: {
-      origin_city: fields.origin_city,
-      destination_city: fields.destination_city,
-      weight: fields.weight,
-      cargo_type: fields.cargo_type,
-    },
-    status: "pending_quote",
-  });
+    if (selectError) {
+      console.error("[Lead Extraction] Error selecting existing lead:", selectError?.message);
+    }
+
+    if (existingLead) {
+      console.log("[Lead Extraction] Updating existing lead:", existingLead.id);
+      const { error: updateError } = await supabase
+        .from("leads")
+        .update({ collected_data: fields, client_phone: fields.phone ?? "" })
+        .eq("id", existingLead.id);
+      
+      if (updateError) {
+        console.error("[Lead Extraction] Error updating lead:", updateError?.message);
+        return;
+      }
+      console.log("[Lead Extraction] Lead updated successfully");
+      return;
+    }
+
+    console.log("[Lead Extraction] Creating new lead for session:", sessionId);
+    const { error: insertError } = await supabase.from("leads").insert({
+      session_id: sessionId,
+      client_name: clientName,
+      client_phone: fields.phone ?? "",
+      collected_data: {
+        origin_city: fields.origin_city,
+        destination_city: fields.destination_city,
+        weight: fields.weight,
+        cargo_type: fields.cargo_type,
+      },
+      status: "pending_quote",
+    });
+
+    if (insertError) {
+      console.error("[Lead Extraction] Error creating lead:", insertError?.message);
+      return;
+    }
+    console.log("[Lead Extraction] Lead created successfully");
+  } catch (error: any) {
+    console.error("[Lead Extraction] Unexpected error:", error?.message);
+  }
 }
