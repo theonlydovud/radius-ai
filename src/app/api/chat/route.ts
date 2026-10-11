@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { buildSystemInstruction, GeminiRateLimitError, sendToGemini } from "@/lib/gemini";
 import type { SandboxChatMessage } from "@/types";
 
+// Без этого Next.js выполняет GET один раз при `next build` и отдаёт замороженный результат.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 // Задержка перед ответом ИИ, чтобы поведение в песочнице совпадало с
 // продакшн-ботом (там задержка имитирует "живой" набор текста).
 const MIN_DELAY_MS = 2500;
@@ -17,6 +21,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const message: string = body.message;
     const history: SandboxChatMessage[] = body.history ?? [];
+    const accountId: string | null = body.account_id ?? null;
 
     if (!message || typeof message !== "string") {
       return NextResponse.json(
@@ -26,7 +31,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Системные инструкции целиком собираются из БД (system_rules + knowledge).
-    const systemInstruction = await buildSystemInstruction(message);
+    const systemInstruction = await buildSystemInstruction(message, accountId);
 
     const [replyText] = await Promise.all([
       sendToGemini(systemInstruction, history, message),

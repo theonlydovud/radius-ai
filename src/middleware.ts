@@ -44,6 +44,6 @@ export const config = {
      * Пропускаем статику Next.js и вебхуки — их не должна касаться
      * логика обновления пользовательской сессии.
      */
-    "/((?!_next/static|_next/image|favicon.ico|api/webhooks).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/webhooks|api/health|ping|health).*)",
   ],
 };

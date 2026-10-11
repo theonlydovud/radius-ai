@@ -20,6 +20,7 @@ export type RuleType = "tone" | "qualification_requirements" | "general";
 
 export interface SystemRule {
   id: string;
+  account_id?: string;
   rule_type: RuleType;
   title: string;
   rule_text: string;
@@ -28,6 +29,7 @@ export interface SystemRule {
 
 export interface KnowledgeItem {
   id: string;
+  account_id?: string;
   title: string;
   content: string;
   embedding?: number[] | null;

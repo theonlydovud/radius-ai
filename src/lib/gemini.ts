@@ -4,7 +4,9 @@ import type { KnowledgeItem, SandboxChatMessage, SystemRule } from "@/types";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
 
-export const GEMINI_MODEL = "gemini-2.5-flash";
+// Модель можно переопределить на Render: GEMINI_MODEL=gemini-2.5-flash-lite
+// (быстрее и дешевле; у 2.5-flash по умолчанию включён «thinking», это +секунды).
+export const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
 /**
  * Базовая системная инструкция. В отличие от system_rules (тон/
@@ -30,30 +32,74 @@ const BASE_SYSTEM_INSTRUCTION = `Ты — профессиональный AI-к
 - Веди диалог поэтапно, коротко и дружелюбно. Когда все 4 пункта собраны — поблагодари и сообщи, что логист свяжется для точного расчета.
 - Ты — консультант, а не менеджер по продажам: точную цену клиенту самостоятельно не называешь, только собираешь данные для расчёта логистом.`;
 
+// ---------------------------------------------------------------------
+// Кэш правил/знаний по аккаунту (TTL 30 с). Лежит в globalThis, чтобы
+// сбрасываться из route handlers (см. invalidateAccountCache).
+// ---------------------------------------------------------------------
+type CacheEntry<T> = { at: number; value: T };
+const cg = globalThis as unknown as { __radiusAiCache?: Map<string, CacheEntry<any>> };
+const cache = (cg.__radiusAiCache ??= new Map());
+const CACHE_TTL_MS = 30_000;
+const SMALL_KB_LIMIT = 12; // до стольки статей кладём в промпт целиком, без эмбеддингов
+
+async function cached<T>(key: string, load: () => Promise<T>): Promise<T> {
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.value as T;
+  const value = await load();
+  cache.set(key, { at: Date.now(), value });
+  return value;
+}
+
+export function invalidateAccountCache(accountId?: string | null) {
+  if (!accountId) return cache.clear();
+  cache.delete(`rules:${accountId}`);
+  cache.delete(`kb:${accountId}`);
+}
+
+async function loadRules(accountId?: string | null): Promise<SystemRule[]> {
+  const run = async () => {
+    const supabase = createAdminClient();
+    let q = supabase
+      .from("system_rules")
+      .select("id, rule_type, title, rule_text, is_active")
+      .eq("is_active", true);
+    if (accountId) q = q.eq("account_id", accountId);
+    const { data } = await q;
+    return (data ?? []) as SystemRule[];
+  };
+  return accountId ? cached(`rules:${accountId}`, run) : run();
+}
+
+async function loadKnowledge(accountId?: string | null): Promise<KnowledgeItem[]> {
+  const run = async () => {
+    const supabase = createAdminClient();
+    let q = supabase
+      .from("knowledge")
+      .select("id, title, content, created_at")
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (accountId) q = q.eq("account_id", accountId);
+    const { data } = await q;
+    return (data ?? []) as KnowledgeItem[];
+  };
+  return accountId ? cached(`kb:${accountId}`, run) : run();
+}
+
 /**
  * Собирает системный промпт целиком из базы данных: никакого хардкода
  * инструкций в коде. Тон, требования к квалификации лида и общие правила
- * подтягиваются из таблицы system_rules, а релевантные знания — из knowledge.
+ * подтягиваются из system_rules, релевантные знания — из knowledge.
+ * Если передан accountId — берутся ТОЛЬКО правила и знания этого аккаунта.
  */
-export async function buildSystemInstruction(userMessage: string) {
-  const supabase = createAdminClient();
+export async function buildSystemInstruction(userMessage: string, accountId?: string | null) {
+  const [rules, knowledgeSnippets] = await Promise.all([
+    loadRules(accountId),
+    retrieveRelevantKnowledge(userMessage, accountId),
+  ]);
 
-  const { data: rules } = await supabase
-    .from("system_rules")
-    .select("id, rule_type, title, rule_text, is_active")
-    .eq("is_active", true);
-
-  const toneRules = (rules ?? []).filter(
-    (r: SystemRule) => r.rule_type === "tone"
-  );
-  const qualificationRules = (rules ?? []).filter(
-    (r: SystemRule) => r.rule_type === "qualification_requirements"
-  );
-  const generalRules = (rules ?? []).filter(
-    (r: SystemRule) => r.rule_type === "general"
-  );
-
-  const knowledgeSnippets = await retrieveRelevantKnowledge(userMessage);
+  const toneRules = rules.filter((r) => r.rule_type === "tone");
+  const qualificationRules = rules.filter((r) => r.rule_type === "qualification_requirements");
+  const generalRules = rules.filter((r) => r.rule_type === "general");
 
   const sections: string[] = [];
 
@@ -95,36 +141,37 @@ export async function buildSystemInstruction(userMessage: string) {
 }
 
 /**
- * Простой RAG-поиск по pgvector. Если для запроса ещё не считан embedding,
- * функция откатывается к текстовому поиску ILIKE, чтобы песочница
- * продолжала работать даже без сервиса эмбеддингов.
+ * RAG по знаниям аккаунта.
+ *  - Небольшая база (<= SMALL_KB_LIMIT статей): кладём всё в промпт. Это быстрее
+ *    (нет вызова embedding + RPC на каждое сообщение) и надёжнее: в проекте
+ *    эмбеддинги статей нигде не считаются, и прежний код при пустом ответе RPC
+ *    возвращал [] — т.е. модель вообще не видела базу знаний.
+ *  - Большая база: pgvector с фильтром по аккаунту; если пусто/ошибка — свежие статьи.
  */
 async function retrieveRelevantKnowledge(
   query: string,
+  accountId?: string | null,
   limit = 4
 ): Promise<KnowledgeItem[]> {
-  const supabase = createAdminClient();
+  const all = await loadKnowledge(accountId);
+  if (all.length <= SMALL_KB_LIMIT) return all;
 
   try {
     const embedding = await embedText(query);
     if (embedding) {
+      const supabase = createAdminClient();
       const { data, error } = await supabase.rpc("match_knowledge", {
         query_embedding: embedding,
         match_count: limit,
+        filter_account_id: accountId ?? null,
       });
-      if (!error && data) return data as KnowledgeItem[];
+      if (!error && Array.isArray(data) && data.length) return data as KnowledgeItem[];
     }
   } catch {
-    // Падаем в текстовый поиск ниже.
+    // падаем в фолбэк ниже
   }
 
-  const { data } = await supabase
-    .from("knowledge")
-    .select("id, title, content, created_at")
-    .order("created_at", { ascending: false })
-    .limit(limit);
-
-  return (data ?? []) as KnowledgeItem[];
+  return all.slice(0, limit);
 }
 
 async function embedText(text: string): Promise<number[] | null> {
@@ -149,11 +196,30 @@ async function embedText(text: string): Promise<number[] | null> {
 function normalizeHistory(history: SandboxChatMessage[]): SandboxChatMessage[] {
   const normalized: SandboxChatMessage[] = [];
 
+  // Если история содержит служебные/системные сообщения, они не должны
+  // передаваться в `history` — systemInstruction уже отправляется отдельно.
+  // Кроме того, Gemini ожидает, что история не будет начинаться с ответа
+  // модели: ведущие `model`-ходы безопаснее игнорировать.
+  let seenUser = false;
+
   for (const turn of history) {
     if (!turn?.text) continue;
-    const role = turn.role === "model" ? "model" : "user";
-    const last = normalized[normalized.length - 1];
 
+    // Нормализуем возможные варианты ролей: допускаем 'model', 'assistant', 'ai' и 'user'.
+    const raw = (turn.role || "").toString().toLowerCase();
+    if (raw === "system") {
+      // Пропускаем системные сообщения: они передаются отдельно в systemInstruction
+      continue;
+    }
+
+    const role = raw === "model" || raw === "assistant" || raw === "ai" ? "model" : "user";
+
+    // Игнорируем ведущие ответы модели до первого пользовательского хода.
+    if (!seenUser && role === "model") continue;
+
+    if (role === "user") seenUser = true;
+
+    const last = normalized[normalized.length - 1];
     if (last && last.role === role) {
       last.text = `${last.text}\n${turn.text}`;
     } else {
@@ -162,9 +228,7 @@ function normalizeHistory(history: SandboxChatMessage[]): SandboxChatMessage[] {
   }
 
   // История, передаваемая в startChat(), не должна заканчиваться на "user" —
-  // этот ход добавит следующий вызов sendMessage(). Если оставить его здесь,
-  // получится дубль текущего сообщения и разрыв чередования ролей, из-за
-  // которого Gemini начинает "путать" контекст диалога.
+  // этот ход будет передан как отдельный аргумент в sendMessage().
   if (normalized.length && normalized[normalized.length - 1].role === "user") {
     normalized.pop();
   }

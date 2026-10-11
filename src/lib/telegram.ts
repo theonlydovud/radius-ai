@@ -1,11 +1,6 @@
 import { Api, TelegramClient } from "telegram";
 import { StringSession } from "telegram/sessions";
-import { buildSystemInstruction, sendToGemini } from "@/lib/gemini";
-import { getHistory, getOrCreateSession, maybeCreateOrUpdateLead } from "@/lib/conversation";
 
-const activeUserClients = new Map<string, TelegramClient>();
-const pollingIntervals = new Map<string, NodeJS.Timeout>();
-const processedMessageIds = new Map<string, Set<number>>();
 const pendingTelegramAuth = new Map<
   string,
   {
@@ -16,6 +11,7 @@ const pendingTelegramAuth = new Map<
     sessionString: string;
     createdAt: number;
     client: TelegramClient;
+    awaitingPassword?: boolean;
   }
 >();
 const usedTelegramAuthHashes = new Map<string, number>();
@@ -69,7 +65,20 @@ export function isTelegramUserAccount(account: { webhook_verify_token?: string |
   return !!parseTelegramUserConfig(account.webhook_verify_token ?? null);
 }
 
+const PENDING_AUTH_TTL_MS = 10 * 60_000;
+
+function cleanupPendingTelegramAuth() {
+  const now = Date.now();
+  pendingTelegramAuth.forEach((entry, key) => {
+    if (now - entry.createdAt > PENDING_AUTH_TTL_MS) {
+      entry.client.disconnect().catch(() => {});
+      pendingTelegramAuth.delete(key);
+    }
+  });
+}
+
 export async function startTelegramUserLogin(phoneNumber: string, apiId: number, apiHash: string) {
+  cleanupPendingTelegramAuth();
   const client = new TelegramClient(new StringSession(""), Number(apiId), apiHash, {
     connectionRetries: 5,
   });
@@ -118,8 +127,9 @@ export async function finishTelegramUserLogin(
   }
 
   const authHashId = `${apiId}:${apiHash}:${normalizeTelegramPhoneNumber(phoneNumber)}:${resolvedHash}`;
+  const resumingWith2fa = !!pendingAuth?.awaitingPassword && !!password?.trim();
   const lastUsedAt = usedTelegramAuthHashes.get(authHashId);
-  if (lastUsedAt && Date.now() - lastUsedAt < 30_000) {
+  if (!resumingWith2fa && lastUsedAt && Date.now() - lastUsedAt < 30_000) {
     throw new Error("Этот Telegram auth-код уже подтверждён. Попросите отправить новый код.");
   }
 
@@ -134,21 +144,28 @@ export async function finishTelegramUserLogin(
   await client.connect();
 
   try {
-    const signInResult = await client.invoke(
-      new Api.auth.SignIn({
-        phoneNumber,
-        phoneCodeHash: resolvedHash,
-        phoneCode,
-      })
-    );
+    // Код уже принят (Telegram ответил SESSION_PASSWORD_NEEDED) — повторно его слать нельзя,
+    // остаётся только ввести пароль 2FA.
+    if (!resumingWith2fa) {
+      const signInResult = await client.invoke(
+        new Api.auth.SignIn({
+          phoneNumber,
+          phoneCodeHash: resolvedHash,
+          phoneCode,
+        })
+      );
 
-    if (signInResult instanceof Api.auth.AuthorizationSignUpRequired) {
-      throw new Error("Для этого Telegram-аккаунта требуется регистрация, а не вход.");
+      if (signInResult instanceof Api.auth.AuthorizationSignUpRequired) {
+        throw new Error("Для этого Telegram-аккаунта требуется регистрация, а не вход.");
+      }
+    } else {
+      throw Object.assign(new Error("SESSION_PASSWORD_NEEDED"), { errorMessage: "SESSION_PASSWORD_NEEDED" });
     }
   } catch (error: any) {
     if (error?.errorMessage === "SESSION_PASSWORD_NEEDED" || error?.message === "SESSION_PASSWORD_NEEDED") {
       if (!password || !password.trim()) {
-        throw new Error("Нужен пароль двухфакторной авторизации Telegram.");
+        if (pendingAuth) pendingAuth.awaitingPassword = true;
+        throw new Error("Нужен пароль двухфакторной авторизации Telegram. Введите его и нажмите «Подтвердить» ещё раз.");
       }
 
       await client.signInWithPassword(
@@ -172,6 +189,11 @@ export async function finishTelegramUserLogin(
   pendingTelegramAuth.delete(pendingKey);
   usedTelegramAuthHashes.delete(authHashId);
 
+  // КРИТИЧНО: закрываем login-клиент. Постоянный слушатель поднимется с этой же
+  // session string; два одновременных соединения на один auth key дают
+  // AUTH_KEY_DUPLICATED, и Telegram может аннулировать сессию.
+  await client.disconnect().catch(() => {});
+
   return {
     ok: true,
     sessionString: savedSession,
@@ -179,210 +201,6 @@ export async function finishTelegramUserLogin(
     firstName: (me as any)?.firstName ?? "",
     lastName: (me as any)?.lastName ?? "",
   };
-}
-
-export async function ensureTelegramUserListener(
-  supabase: any,
-  account: {
-    id: string;
-    platform: string;
-    account_name: string;
-    access_token: string;
-    webhook_verify_token?: string | null;
-  }
-) {
-  if (activeUserClients.has(account.id)) {
-    return activeUserClients.get(account.id)!;
-  }
-
-  const config = parseTelegramUserConfig(account.webhook_verify_token ?? null);
-  if (!config) return null;
-
-  const client = new TelegramClient(
-    new StringSession(account.access_token),
-    Number(config.api_id),
-    config.api_hash,
-    { connectionRetries: 5 }
-  );
-
-  try {
-    await client.connect();
-    await client.getMe();
-  } catch (error: any) {
-    console.error(`[Telegram Listener] Failed to connect account ${account.id}:`, error?.message);
-    return null;
-  }
-
-  activeUserClients.set(account.id, client);
-  processedMessageIds.set(account.id, new Set());
-
-  // Запускаем polling для проверки сообщений
-  startPollingForAccount(supabase, account, client);
-
-  return client;
-}
-
-/**
- * Polling функция для периодической проверки входящих сообщений User-аккаунта Telegram.
- * Запускается в фоне и проверяет новые сообщения каждые 3 секунды.
- */
-function startPollingForAccount(
-  supabase: any,
-  account: { id: string; platform: string; account_name: string; access_token: string; webhook_verify_token?: string | null },
-  client: TelegramClient
-) {
-  // Стопим старый polling если есть
-  if (pollingIntervals.has(account.id)) {
-    clearInterval(pollingIntervals.get(account.id)!);
-  }
-
-  const pollingInterval = setInterval(async () => {
-    try {
-      // Проверяем что клиент ещё подключен
-      if (!client.connected) {
-        console.log(`[Telegram Polling] Reconnecting account ${account.id}...`);
-        try {
-          await client.connect();
-        } catch (e) {
-          console.warn(`[Telegram Polling] Reconnect failed for ${account.id}`);
-          return;
-        }
-      }
-
-      // Получаем все диалоги
-      const dialogs = await client.getDialogs({ limit: 100 });
-
-      for (const dialog of dialogs) {
-        try {
-          const chatId = dialog.id;
-          if (!chatId) continue; // Пропускаем если нет ID
-          const unread = dialog.unreadCount || 0;
-          
-          // Конвертируем BigInteger в number для сравнения
-          const chatIdNum = typeof chatId === "number" ? chatId : Number(chatId);
-
-          // Только личные сообщения (chatId > 0), исключаем группы и каналы (chatId < 0)
-          if (chatIdNum < 0) continue;
-
-          if (unread === 0) continue;
-
-          // Получаем последние сообщения из конверсации
-          const messages = await client.getMessages(chatId, { limit: unread + 5 });
-
-          for (const msg of messages) {
-            if (!msg.text || msg.out) continue; // Пропускаем исходящие и пустые
-
-            const msgId = msg.id;
-            const processedSet = processedMessageIds.get(account.id) || new Set();
-
-            if (processedSet.has(msgId)) continue; // Уже обработали
-            processedSet.add(msgId);
-            processedMessageIds.set(account.id, processedSet);
-
-            const text = String(msg.text);
-            const senderName =
-              ((msg.sender as any)?.firstName || "") ||
-              ((msg.sender as any)?.lastName || "") ||
-              ((msg.sender as any)?.username || "") ||
-              account.account_name ||
-              "Клиент Telegram";
-
-            console.log(`[Telegram Polling] New message from ${senderName} in chat ${chatId}: "${text.slice(0, 50)}..."`);
-
-            // Создаем/получаем сессию
-            const session = await getOrCreateSession(supabase, account.id, String(chatId), senderName);
-
-            // Сохраняем входящее сообщение
-            await supabase.from("messages").insert({ session_id: session.id, sender: "user", text });
-
-            // Пропускаем если менеджер takeover
-            if (session.status === "manager_takeover") continue;
-
-            // Получаем историю и отправляем в ИИ
-            const history = await getHistory(supabase, session.id);
-            const systemInstruction = await buildSystemInstruction(text);
-            const reply = await sendToGemini(systemInstruction, history, text);
-
-            // Сохраняем ответ ИИ
-            await supabase.from("messages").insert({ session_id: session.id, sender: "ai", text: reply });
-            
-            // Пытаемся создать/обновить заявку
-            try {
-              console.log(`[Telegram Polling] About to extract lead for session ${session.id}`);
-              await maybeCreateOrUpdateLead(supabase, session.id, session.client_name, history, reply);
-              console.log(`[Telegram Polling] Lead extraction completed for session ${session.id}`);
-            } catch (leadErr: any) {
-              console.error(`[Telegram Polling] Lead extraction error for session ${session.id}:`, leadErr?.message);
-            }
-
-            // Отправляем ответ в Telegram
-            try {
-              await client.sendMessage(dialog as any, { message: reply });
-              console.log(`[Telegram Polling] Sent response to ${chatId}`);
-            } catch (err: any) {
-              console.error(`[Telegram Polling] Failed to send message to ${chatId}:`, err?.message);
-            }
-          }
-        } catch (error: any) {
-          console.error(`[Telegram Polling] Error processing dialog:`, error?.message);
-        }
-      }
-    } catch (error: any) {
-      console.error(`[Telegram Polling] Polling error for account ${account.id}:`, error?.message);
-    }
-  }, 10000); // Проверяем каждые 10 секунд (было 3 сек, но вызывает flood wait на Telegram)
-
-  pollingIntervals.set(account.id, pollingInterval);
-  console.log(`[Telegram Polling] Started polling for account ${account.id}`);
-}
-
-/**
- * Остановить polling для User-аккаунта Telegram
- */
-export function stopTelegramUserPolling(accountId: string) {
-  const interval = pollingIntervals.get(accountId);
-  if (interval) {
-    clearInterval(interval);
-    pollingIntervals.delete(accountId);
-    console.log(`[Telegram Polling] Stopped polling for account ${accountId}`);
-  }
-
-  const client = activeUserClients.get(accountId);
-  if (client) {
-    try {
-      client.disconnect();
-    } catch {
-      // ignore disconnect errors
-    }
-    activeUserClients.delete(accountId);
-  }
-
-  processedMessageIds.delete(accountId);
-}
-
-export async function sendTelegramReplyByAccount(
-  supabase: any,
-  account: {
-    id: string;
-    platform: string;
-    account_name: string;
-    access_token: string;
-    webhook_verify_token?: string | null;
-  },
-  chatId: number | string,
-  text: string
-) {
-  const config = parseTelegramUserConfig(account.webhook_verify_token ?? null);
-
-  if (!config) {
-    return false;
-  }
-
-  const client = await ensureTelegramUserListener(supabase, account);
-  if (!client) return false;
-
-  await client.sendMessage(chatId, { message: text });
-  return true;
 }
 
 export async function validateTelegramBotToken(botToken: string) {

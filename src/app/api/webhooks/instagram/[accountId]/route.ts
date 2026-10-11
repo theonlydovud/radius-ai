@@ -3,6 +3,10 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { buildSystemInstruction, GeminiRateLimitError, sendToGemini } from "@/lib/gemini";
 import { getOrCreateSession, getHistory, maybeCreateOrUpdateLead } from "@/lib/conversation";
 
+// Без этого Next.js выполняет GET один раз при `next build` и отдаёт замороженный результат.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 /**
  * Webhook для конкретного Instagram-аккаунта.
  *
@@ -75,7 +79,7 @@ export async function POST(
         if (session.status === "manager_takeover") continue;
 
         const history = await getHistory(supabase, session.id);
-        const systemInstruction = await buildSystemInstruction(text);
+        const systemInstruction = await buildSystemInstruction(text, account.id);
         const reply = await sendToGemini(systemInstruction, history, text);
 
         await supabase.from("messages").insert({ session_id: session.id, sender: "ai", text: reply });

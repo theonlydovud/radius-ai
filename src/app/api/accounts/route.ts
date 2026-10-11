@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
-import { isTelegramUserAccount, serializeTelegramUserConfig, stopTelegramUserPolling } from "@/lib/telegram";
+import { isTelegramUserAccount, serializeTelegramUserConfig } from "@/lib/telegram";
+import { ensureTelegramUserListener, stopTelegramUserListener } from "@/lib/telegram-listener";
+
+// Без этого Next.js выполняет GET один раз при `next build` и отдаёт замороженный результат.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 /**
  * Токены (access_token, webhook_verify_token) хранятся ИСКЛЮЧИТЕЛЬНО в
@@ -88,6 +93,17 @@ export async function POST(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const isUser = isTelegramUserAccount({ platform, webhook_verify_token: data.webhook_verify_token });
+
+  // Новый user-аккаунт сразу получает свой слушатель (в фоне, ответ не ждёт MTProto).
+  if (isUser) {
+    void ensureTelegramUserListener(supabase, {
+      id: data.id,
+      platform,
+      account_name,
+      access_token,
+      webhook_verify_token: data.webhook_verify_token,
+    });
+  }
   return NextResponse.json({
     data: {
       ...data,
@@ -103,8 +119,8 @@ export async function DELETE(req: NextRequest) {
   const id = searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id обязателен." }, { status: 400 });
 
-  // Остановляем polling для Telegram User-аккаунта, если он был активен
-  stopTelegramUserPolling(id);
+  // Гасим MTProto-клиент аккаунта. ВНИМАНИЕ: ON DELETE CASCADE удалит и его знания/правила.
+  await stopTelegramUserListener(id);
 
   const { error } = await supabase.from("accounts").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

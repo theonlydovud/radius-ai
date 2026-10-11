@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: radius-ai
+    runtime: node
+    plan: starter            # Free засыпает через 15 мин без HTTP-трафика — см. инструкцию
+    buildCommand: npm ci && npm run build
+    startCommand: npm start  # next start сам слушает process.env.PORT
+    healthCheckPath: /api/health
+    autoDeploy: true
+    numInstances: 1          # ВАЖНО: ровно один инстанс (один MTProto-клиент на сессию)
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: GOOGLE_GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash-lite

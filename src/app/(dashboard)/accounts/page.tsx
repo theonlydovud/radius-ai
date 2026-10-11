@@ -71,18 +71,15 @@ export default function AccountsPage() {
 
   async function load() {
     setLoading(true);
-    const res = await fetch("/api/accounts");
+    const res = await fetch("/api/accounts", { cache: "no-store" });
     const data = await res.json();
     setAccounts(data.data ?? []);
     setLoading(false);
   }
 
   useEffect(() => {
+    // Слушатели поднимаются на сервере сами (instrumentation.ts) — кнопки/вызовов не нужно.
     load();
-    // Инициализируем слушателей для Telegram User-аккаунтов при загрузке
-    fetch("/api/init-listeners", { method: "POST" }).catch(() => {
-      // Ошибку игнорируем, listeners are optional
-    });
   }, []);
 
   function resetForm() {
@@ -182,13 +179,7 @@ export default function AccountsPage() {
           return;
         }
 
-        // После успешного сохранения, инициализируем слушателей для User-аккаунта Telegram
-        try {
-          await fetch("/api/init-listeners", { method: "POST" });
-        } catch (err) {
-          console.warn("Не удалось инициализировать Telegram listener", err);
-        }
-
+        // Слушатель нового аккаунта стартует на сервере в POST /api/accounts.
         resetForm();
         setOpen(false);
         load();
@@ -290,7 +281,7 @@ export default function AccountsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="instagram">Instagram Direct</SelectItem>
-                    <SelectItem value="telegram">Telegram Bot</SelectItem>
+                    <SelectItem value="telegram">Telegram (бот или личный аккаунт)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -352,7 +343,7 @@ export default function AccountsPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="bot">Bot (по токену)</SelectItem>
-                        <SelectItem value="user">User (MTProto/GramJS)</SelectItem>
+                        <SelectItem value="user">Личный аккаунт (номер → код → 2FA)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

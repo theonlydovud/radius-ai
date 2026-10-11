@@ -18,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { BotSelector, useSelectedBot } from "@/components/bot-selector";
 import type { RuleType, SystemRule } from "@/types";
 
 const RULE_TYPE_LABELS: Record<RuleType, string> = {
@@ -27,6 +28,7 @@ const RULE_TYPE_LABELS: Record<RuleType, string> = {
 };
 
 export default function RulesPage() {
+  const { bots, botId, setBotId, ready } = useSelectedBot();
   const [rules, setRules] = useState<SystemRule[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -43,16 +45,25 @@ export default function RulesPage() {
   const [deleting, setDeleting] = useState(false);
 
   async function load() {
+    if (!botId) return;
     setLoading(true);
-    const res = await fetch("/api/rules");
+    const res = await fetch(`/api/rules?bot_id=${botId}`);
     const data = await res.json();
     setRules(data.data ?? []);
     setLoading(false);
   }
 
+  // Перезагружаем список при смене бота.
   useEffect(() => {
+    if (!ready) return;
+    if (!botId) {
+      setRules([]);
+      setLoading(false);
+      return;
+    }
     load();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [botId, ready]);
 
   function openCreateDialog() {
     setEditingId(null);
@@ -84,7 +95,7 @@ export default function RulesPage() {
       await fetch("/api/rules", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, rule_text: ruleText, rule_type: ruleType }),
+        body: JSON.stringify({ title, rule_text: ruleText, rule_type: ruleType, account_id: botId }),
       });
     }
 
@@ -129,9 +140,11 @@ export default function RulesPage() {
             откуда, куда, вес/объём и телефон клиента.
           </p>
         </div>
+        <div className="flex items-center gap-3">
+        <BotSelector bots={bots} botId={botId} onChange={setBotId} />
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button size="sm" onClick={openCreateDialog}>
+            <Button size="sm" onClick={openCreateDialog} disabled={!botId}>
               <Plus className="h-3.5 w-3.5" />
               Новое правило
             </Button>
@@ -193,9 +206,14 @@ export default function RulesPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
-      {loading ? (
+      {ready && bots.length === 0 ? (
+        <Card className="p-8 text-center text-sm text-slate-500">
+          Нет подключённых аккаунтов. Сначала подключите бота на вкладке «Аккаунты».
+        </Card>
+      ) : loading ? (
         <p className="text-sm text-slate-400">Загрузка...</p>
       ) : (
         <div className="space-y-8">

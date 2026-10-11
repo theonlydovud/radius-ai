@@ -342,3 +342,10 @@ npx next build     # успешная продакшн-сборка, все 19 �
 ```
 
 `src/middleware.ts` уже настроен на обновление сессии Supabase Auth на каждом запросе (кроме статики и `/api/webhooks/*`) — пригодится, если добавите вход для менеджера через Supabase Auth; сама платформа сейчас работает как внутренний дашборд без обязательной авторизации.
+
+## Мультиаккаунтинг и деплой на Render (обновление)
+
+- Знания (`knowledge`) и правила (`system_rules`) привязаны к аккаунту через `account_id → accounts(id) ON DELETE CASCADE`. Миграция: `migration.sql`.
+- MTProto-слушатели стартуют при запуске сервера из `src/instrumentation.ts` (по одному клиенту на аккаунт, событие `NewMessage`), watchdog раз в минуту подхватывает новые аккаунты.
+- Healthcheck: `GET /api/health` (также `/ping`, `/health`). Деплой: `render.yaml`, ровно 1 инстанс.
+- Рекомендуется `GEMINI_MODEL=gemini-2.5-flash-lite`.

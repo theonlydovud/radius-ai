@@ -30,7 +30,7 @@ export default function InboxPage() {
   useEffect(() => {
     (async () => {
       setLoadingSessions(true);
-      const res = await fetch("/api/sessions");
+      const res = await fetch("/api/sessions", { cache: "no-store" });
       const data = await res.json();
       const list: ChatSession[] = data.data ?? [];
       setSessions(list);
@@ -43,7 +43,7 @@ export default function InboxPage() {
     if (!activeId) return;
     (async () => {
       setLoadingMessages(true);
-      const res = await fetch(`/api/messages?session_id=${activeId}`);
+      const res = await fetch(`/api/messages?session_id=${activeId}`, { cache: "no-store" });
       const data = await res.json();
       setMessages(data.data ?? []);
       setLoadingMessages(false);

@@ -53,6 +53,8 @@ export default function PlaygroundPage() {
         body: JSON.stringify({
           message: text,
           history: historyForRequest,
+          // Тестируем поведение выбранного бота (см. components/bot-selector.tsx).
+          account_id: typeof window !== "undefined" ? window.localStorage.getItem("radius.botId") : null,
         }),
       });
 

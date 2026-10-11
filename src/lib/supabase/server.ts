@@ -41,11 +41,18 @@ export function createClient() {
  * Only ever import this from server-side code (Route Handlers), never
  * from client components.
  */
+let adminClient: any = null;
+
 export function createAdminClient() {
-  const { createClient: createSupabaseClient } = require("@supabase/supabase-js");
-  return createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
-  );
+  // Один клиент на процесс: createClient() на каждый вызов (а их десятки на
+  // сообщение) — лишние аллокации и новые HTTP-агенты.
+  if (!adminClient) {
+    const { createClient: createSupabaseClient } = require("@supabase/supabase-js");
+    adminClient = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { persistSession: false } }
+    );
+  }
+  return adminClient;
 }

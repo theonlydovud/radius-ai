@@ -29,7 +29,7 @@ export default function LeadsPage() {
 
   async function load() {
     setLoading(true);
-    const res = await fetch("/api/leads");
+    const res = await fetch("/api/leads", { cache: "no-store" });
     const data = await res.json();
     setLeads(data.data ?? []);
     setLoading(false);

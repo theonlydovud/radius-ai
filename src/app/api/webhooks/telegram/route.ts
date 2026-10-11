@@ -3,6 +3,10 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { buildSystemInstruction, GeminiRateLimitError, sendToGemini } from "@/lib/gemini";
 import { extractLeadFields, isLeadComplete } from "@/lib/lead-extraction";
 
+// Без этого Next.js выполняет GET один раз при `next build` и отдаёт замороженный результат.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 /**
  * Webhook для Telegram Bot API. Настраивается через
  * https://api.telegram.org/bot<TOKEN>/setWebhook?url=<APP_URL>/api/webhooks/telegram
@@ -18,6 +22,11 @@ export async function POST(req: NextRequest) {
     const update = await req.json();
     const msg = update.message;
     if (!msg?.text || !msg?.chat?.id) {
+      return NextResponse.json({ ok: true });
+    }
+
+    if (msg.chat.type !== "private" || msg.from?.is_bot) {
+      // Группы, супергруппы, каналы и другие боты — игнорируем.
       return NextResponse.json({ ok: true });
     }
 
@@ -41,7 +50,7 @@ export async function POST(req: NextRequest) {
     }
 
     const history = await getHistory(supabase, session.id);
-    const systemInstruction = await buildSystemInstruction(msg.text);
+    const systemInstruction = await buildSystemInstruction(msg.text, account.id);
     const reply = await sendToGemini(systemInstruction, history, msg.text);
 
     await supabase.from("messages").insert({

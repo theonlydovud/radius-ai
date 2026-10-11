@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
-import { getTelegramUserInfo, parseTelegramUserConfig, setTelegramBotWebhook, validateTelegramBotToken } from "@/lib/telegram";
+import { parseTelegramUserConfig, setTelegramBotWebhook, validateTelegramBotToken } from "@/lib/telegram";
+import { getTelegramUserInfoForAccount } from "@/lib/telegram-listener";
+
+// Без этого Next.js выполняет GET один раз при `next build` и отдаёт замороженный результат.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 /**
  * Проверяет соединение для аккаунта, читая его токен ИЗ БД (никогда из
@@ -36,7 +41,10 @@ export async function POST(
       const telegramUserConfig = parseTelegramUserConfig(account.webhook_verify_token ?? null);
 
       if (telegramUserConfig) {
-        const userInfo = await getTelegramUserInfo({
+        const userInfo = await getTelegramUserInfoForAccount({
+          id: account.id,
+          platform: "telegram",
+          account_name: "",
           access_token: account.access_token,
           webhook_verify_token: account.webhook_verify_token,
         });

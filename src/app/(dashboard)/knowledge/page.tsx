@@ -16,9 +16,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDate } from "@/lib/utils";
+import { BotSelector, useSelectedBot } from "@/components/bot-selector";
 import type { KnowledgeItem } from "@/types";
 
 export default function KnowledgePage() {
+  const { bots, botId, setBotId, ready } = useSelectedBot();
   const [items, setItems] = useState<KnowledgeItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -34,16 +36,25 @@ export default function KnowledgePage() {
   const [deleting, setDeleting] = useState(false);
 
   async function load() {
+    if (!botId) return;
     setLoading(true);
-    const res = await fetch("/api/knowledge");
+    const res = await fetch(`/api/knowledge?bot_id=${botId}`);
     const data = await res.json();
     setItems(data.data ?? []);
     setLoading(false);
   }
 
+  // Перезагружаем список при смене бота.
   useEffect(() => {
+    if (!ready) return;
+    if (!botId) {
+      setItems([]);
+      setLoading(false);
+      return;
+    }
     load();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [botId, ready]);
 
   function openCreateDialog() {
     setEditingId(null);
@@ -76,7 +87,7 @@ export default function KnowledgePage() {
       await fetch("/api/knowledge", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, content }),
+        body: JSON.stringify({ title, content, account_id: botId }),
       });
     }
 
@@ -103,9 +114,11 @@ export default function KnowledgePage() {
             Статьи, направления и регламенты доставки, которые ИИ использует как источник фактов (RAG).
           </p>
         </div>
+        <div className="flex items-center gap-3">
+        <BotSelector bots={bots} botId={botId} onChange={setBotId} />
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button size="sm" onClick={openCreateDialog}>
+            <Button size="sm" onClick={openCreateDialog} disabled={!botId}>
               <Plus className="h-3.5 w-3.5" />
               Добавить статью
             </Button>
@@ -143,9 +156,14 @@ export default function KnowledgePage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
-      {loading ? (
+      {ready && bots.length === 0 ? (
+        <Card className="p-8 text-center text-sm text-slate-500">
+          Нет подключённых аккаунтов. Сначала подключите бота на вкладке «Аккаунты».
+        </Card>
+      ) : loading ? (
         <p className="text-sm text-slate-400">Загрузка...</p>
       ) : items.length === 0 ? (
         <Card className="flex flex-col items-center gap-2 p-12 text-center">

@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { finishTelegramUserLogin } from "@/lib/telegram";
 
+// Без этого Next.js выполняет GET один раз при `next build` и отдаёт замороженный результат.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();

@@ -14,35 +14,55 @@ export async function getOrCreateSession(
   clientId: string,
   clientName: string
 ) {
-  const { data: existing } = await supabase
-    .from("chat_sessions")
-    .select("*")
-    .eq("account_id", accountId)
-    .eq("client_id", clientId)
-    .neq("status", "closed")
-    .maybeSingle();
+  // Берём самую свежую незакрытую сессию ЭТОГО клиента в ЭТОМ аккаунте.
+  // Раньше здесь был .maybeSingle(): при двух и более открытых сессиях он
+  // возвращает ошибку, existing становился null, и на КАЖДОЕ сообщение
+  // создавалась новая сессия — отсюда «бот не помнит предыдущие сообщения».
+  const findOpen = async () => {
+    const { data } = await supabase
+      .from("chat_sessions")
+      .select("*")
+      .eq("account_id", accountId)
+      .eq("client_id", clientId)
+      .neq("status", "closed")
+      .order("created_at", { ascending: false })
+      .limit(1);
+    return data?.[0] ?? null;
+  };
+
+  const existing = await findOpen();
   if (existing) return existing;
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("chat_sessions")
     .insert({ account_id: accountId, client_id: clientId, client_name: clientName, status: "ai_active" })
     .select()
     .single();
+
+  // Гонка: параллельный запрос успел создать сессию раньше — берём её.
+  if (error) return findOpen();
   return data;
 }
 
-export async function getHistory(supabase: any, sessionId: string) {
+/**
+ * Последние `limit` сообщений сессии в хронологическом порядке.
+ * Раньше было order(asc).limit(20) — это ПЕРВЫЕ 20 сообщений диалога,
+ * и после 20-го бот переставал видеть свежую переписку.
+ */
+export async function getHistory(supabase: any, sessionId: string, limit = 40) {
   const { data } = await supabase
     .from("messages")
     .select("sender, text")
     .eq("session_id", sessionId)
-    .order("created_at", { ascending: true })
-    .limit(20);
+    .order("created_at", { ascending: false })
+    .limit(limit);
 
-  return (data ?? []).map((m: { sender: string; text: string }) => ({
-    role: m.sender === "user" ? "user" : "model",
-    text: m.text,
-  }));
+  return ((data ?? []) as { sender: string; text: string }[])
+    .reverse()
+    .map((m) => ({
+      role: (m.sender === "user" ? "user" : "model") as "user" | "model",
+      text: m.text,
+    }));
 }
 
 export async function maybeCreateOrUpdateLead(
