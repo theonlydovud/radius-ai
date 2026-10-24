@@ -1,19 +1,18 @@
 services:
   - type: web
-    name: radius-ai
+    name: radius-ai-backend
     runtime: node
-    plan: starter            # Free засыпает через 15 мин без HTTP-трафика — см. инструкцию
+    rootDir: backend          # деплоится только backend; frontend живёт на Vercel
+    plan: starter             # Free засыпает через 15 мин без HTTP-трафика
     buildCommand: npm ci && npm run build
-    startCommand: npm start  # next start сам слушает process.env.PORT
+    startCommand: npm start   # слушает process.env.PORT
     healthCheckPath: /api/health
     autoDeploy: true
-    numInstances: 1          # ВАЖНО: ровно один инстанс (один MTProto-клиент на сессию)
+    numInstances: 1           # ВАЖНО: ровно один инстанс (один MTProto-клиент на сессию)
     envVars:
       - key: NODE_VERSION
         value: 20
-      - key: NEXT_PUBLIC_SUPABASE_URL
-        sync: false
-      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+      - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
@@ -21,3 +20,15 @@ services:
         sync: false
       - key: GEMINI_MODEL
         value: gemini-2.5-flash-lite
+      - key: TELEGRAM_LEADS_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_LEADS_CHAT_ID
+        sync: false
+      - key: FRONTEND_URL      # https://<проект>.vercel.app — для CORS и OAuth-редиректов
+        sync: false
+      - key: INSTAGRAM_APP_ID
+        sync: false
+      - key: INSTAGRAM_APP_SECRET
+        sync: false
+      - key: INSTAGRAM_WEBHOOK_VERIFY_TOKEN
+        sync: false

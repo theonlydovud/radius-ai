@@ -4,51 +4,46 @@ B2B SaaS-платформа автоматизации консультиров�
 
 ## Стек
 
-- **Next.js 14** (App Router, Route Handlers)
-- **Supabase** (PostgreSQL + `pgvector` + Auth-ready клиенты)
-- **Google Gemini 2.5 Flash-Lite** (`@google/generative-ai`) + `text-embedding-004` для RAG
-- **Tailwind CSS**, **shadcn/ui**-подобные примитивы, **Lucide Icons**
-- Шрифт **Geist** (`next/font/google`)
+- **frontend/** — Next.js 14 (App Router, только страницы), Tailwind CSS, shadcn/ui-подобные примитивы, Lucide, шрифт Geist. Деплой: **Vercel**.
+- **backend/** — Node.js + [Hono](https://hono.dev), Supabase (PostgreSQL + `pgvector`), Google Gemini (`@google/generative-ai`), GramJS (MTProto-слушатели Telegram). Деплой: **Render**.
 
 ## Архитектура
 
 ```
-src/
-├── app/
-│   ├── layout.tsx                     # Geist, глобальные стили
-│   ├── page.tsx                       # редирект на /playground
-│   ├── (dashboard)/                   # layout с левым сайдбаром
-│   │   ├── layout.tsx
-│   │   ├── playground/page.tsx        # 1. Диалог с ИИ (песочница)
-│   │   ├── knowledge/page.tsx         # 2. Знания ИИ (RAG)
-│   │   ├── rules/page.tsx             # 3. Правила общения
-│   │   ├── leads/page.tsx             # 4. Заявки
-│   │   ├── inbox/page.tsx             # 5. История чатов
-│   │   └── accounts/page.tsx          # 6. Аккаунты (интеграции)
-│   └── api/
-│       ├── chat/route.ts              # песочница: вызов Gemini + защита от 429
-│       ├── knowledge/route.ts         # CRUD базы знаний
-│       ├── rules/route.ts             # CRUD системных правил
-│       ├── leads/route.ts             # список заявок
-│       ├── leads/[id]/route.ts        # выставление цены логистом
-│       ├── accounts/route.ts          # CRUD подключённых аккаунтов
-│       ├── sessions/route.ts          # список диалогов
-│       ├── sessions/[id]/route.ts     # перехват диалога менеджером
-│       ├── messages/route.ts          # сообщения диалога
-│       └── webhooks/
-│           ├── telegram/route.ts      # приём сообщений из Telegram Bot API
-│           └── instagram/route.ts     # приём сообщений из Instagram Messaging API
-├── middleware.ts                      # обновление сессии Supabase Auth (готово к подключению входа для менеджера)
-├── components/
-│   ├── sidebar.tsx
-│   └── ui/                            # button, card, input, textarea, badge,
-│                                       # dialog, table, tabs, select, switch, label
-├── lib/
-│   ├── gemini.ts                      # сборка системного промпта из БД + RAG + вызов Gemini
-│   ├── lead-extraction.ts             # эвристическое извлечение полей заявки
-│   ├── utils.ts
-│   └── supabase/{client,server}.ts
-└── types/index.ts
+браузер ──► Vercel (frontend, статические страницы)
+              │  fetch("/api/...")  — rewrite в next.config.js
+              ▼
+            Render (backend, Hono) ◄── вебхуки Telegram / Instagram (напрямую)
+              │
+              ├── Supabase
+              ├── Gemini
+              └── MTProto-слушатели Telegram (живут всё время работы процесса)
+```
+
+```
+frontend/
+├── next.config.js                     # rewrites /api/* → NEXT_PUBLIC_BACKEND_URL
+└── src/
+    ├── app/
+    │   ├── layout.tsx, page.tsx       # редирект на /playground
+    │   └── (dashboard)/               # playground, knowledge, rules, leads, inbox, accounts
+    ├── components/                    # sidebar, bot-selector, ui/*
+    ├── lib/utils.ts
+    └── types/index.ts
+
+backend/
+└── src/
+    ├── index.ts                       # HTTP-сервер, таблица роутов, старт TG-слушателей, graceful shutdown
+    ├── routes/                        # бывшие src/app/api/**/route.ts (тот же формат хендлеров)
+    │   ├── chat.ts                    # песочница: вызов Gemini + защита от 429
+    │   ├── knowledge.ts, rules.ts     # CRUD базы знаний и правил
+    │   ├── leads.ts, leads-id.ts      # заявки
+    │   ├── accounts.ts, accounts-test.ts
+    │   ├── sessions.ts, sessions-id.ts, messages.ts
+    │   ├── telegram-auth-*.ts         # вход Telegram User-аккаунта
+    │   └── webhooks-*.ts              # Telegram Bot API / Instagram Messaging API
+    ├── lib/                           # gemini, conversation, lead-extraction, telegram(-listener), supabase, urls
+    └── types/index.ts                 # копия frontend/src/types — держите синхронными
 ```
 
 ### Как работает ИИ-консультант (важно)
@@ -73,28 +68,52 @@ src/
 
 `api/chat/route.ts` держит вызов Gemini и `setTimeout` (2.5–3.0 сек, случайная величина) в одном `Promise.all`, так что общая задержка ответа не превышает время самого долгого из двух, но никогда не бывает короче 2.5 сек. Пока идёт ожидание, фронтенд (`playground/page.tsx`) показывает анимацию «ИИ печатает...» с тремя пульсирующими точками.
 
-## Установка
+## Локальный запуск
 
 ```bash
+# терминал 1 — backend (http://localhost:4000)
+cd backend
+npm install
+cp .env.example .env      # заполните ключами Supabase и Gemini
+npm run dev
+
+# терминал 2 — frontend (http://localhost:3000)
+cd frontend
 npm install
 cp .env.example .env.local
-# заполните .env.local ключами Supabase и Gemini
 npm run dev
 ```
 
-Откройте `http://localhost:3000` — вас перенаправит на `/playground`.
+> Не запускайте локальный backend с боевыми ключами, пока работает прод на Render: оба процесса подключатся к одним и тем же Telegram-сессиям (`AUTH_KEY_DUPLICATED`).
+
+## Деплой
+
+**Backend → Render.** New → Blueprint из этого репозитория (`render.yaml` в корне, `rootDir: backend`) или Web Service вручную: Root Directory `backend`, Build `npm ci && npm run build`, Start `npm start`, Health Check `/api/health`, ровно 1 инстанс. Заполните переменные из `backend/.env.example`.
+
+**Frontend → Vercel.** Import Project → Root Directory `frontend` (фреймворк Next.js определится сам). Переменная `NEXT_PUBLIC_BACKEND_URL` = адрес Render-сервиса, например `https://radius-ai-backend.onrender.com`. После деплоя пропишите адрес Vercel в `FRONTEND_URL` на Render.
+
+После переезда нажмите «Проверить» у Telegram-ботов во вкладке «Аккаунты» — вебхук перепривяжется на адрес backend. Для Instagram обновите Callback URL в Meta for Developers.
 
 ## Переменные окружения
 
+**backend** (Render)
+
 | Переменная | Назначение |
 |---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | URL проекта Supabase |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | anon-ключ Supabase (клиентские запросы) |
-| `SUPABASE_SERVICE_ROLE_KEY` | service-role ключ (используется только на сервере, в Route Handlers) |
-| `GOOGLE_GEMINI_API_KEY` | ключ Gemini API |
-| `TELEGRAM_BOT_TOKEN` | токен бота для вебхука Telegram (опционально) |
-| `INSTAGRAM_VERIFY_TOKEN` | произвольная строка для верификации вебхука Meta (опционально) |
-| `INSTAGRAM_PAGE_ACCESS_TOKEN` | токен страницы Instagram для отправки сообщений (опционально) |
+| `SUPABASE_URL` | URL проекта Supabase (старое имя `NEXT_PUBLIC_SUPABASE_URL` тоже читается) |
+| `SUPABASE_SERVICE_ROLE_KEY` | service-role ключ |
+| `GOOGLE_GEMINI_API_KEY`, `GEMINI_MODEL` | ключ и модель Gemini |
+| `TELEGRAM_LEADS_BOT_TOKEN`, `TELEGRAM_LEADS_CHAT_ID` | куда отправлять уведомления о заявках |
+| `FRONTEND_URL` | адрес дашборда на Vercel (CORS, редиректы после Facebook OAuth) |
+| `BACKEND_PUBLIC_URL` | внешний адрес backend; на Render не нужен (`RENDER_EXTERNAL_URL`) |
+| `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET` | приложение Meta (Instagram API with Instagram Login) |
+| `INSTAGRAM_WEBHOOK_VERIFY_TOKEN` | verify token общего вебхука Instagram |
+
+**frontend** (Vercel)
+
+| Переменная | Назначение |
+|---|---|
+| `NEXT_PUBLIC_BACKEND_URL` | адрес backend на Render |
 
 ## Настройка Supabase (SQL)
 
@@ -346,6 +365,40 @@ npx next build     # успешная продакшн-сборка, все 19 �
 ## Мультиаккаунтинг и деплой на Render (обновление)
 
 - Знания (`knowledge`) и правила (`system_rules`) привязаны к аккаунту через `account_id → accounts(id) ON DELETE CASCADE`. Миграция: `migration.sql`.
-- MTProto-слушатели стартуют при запуске сервера из `src/instrumentation.ts` (по одному клиенту на аккаунт, событие `NewMessage`), watchdog раз в минуту подхватывает новые аккаунты.
+- MTProto-слушатели стартуют при запуске backend из `backend/src/index.ts` (по одному клиенту на аккаунт, событие `NewMessage`), watchdog раз в минуту подхватывает новые аккаунты.
 - Healthcheck: `GET /api/health` (также `/ping`, `/health`). Деплой: `render.yaml`, ровно 1 инстанс.
 - Рекомендуется `GEMINI_MODEL=gemini-2.5-flash-lite`.
+
+## Агенты: общие знания для нескольких аккаунтов
+
+Миграция: `migration-agents-instagram.sql` (выполнить в Supabase до деплоя backend).
+
+- **Агент** — аккаунт со своими знаниями и правилами (`accounts.knowledge_source_id IS NULL`).
+- Любой другой аккаунт можно подключить к агенту (на карточке аккаунта или при подключении: «Знания и правила как у …»). Бот такого аккаунта отвечает по знаниям и правилам агента — писать их дважды не нужно.
+- Во вкладках «Знания ИИ» и «Правила общения» выбирается агент; рядом показаны подключённые к нему аккаунты.
+- При удалении агента его знания и правила передаются первому подключённому аккаунту.
+
+## Instagram Direct (Instagram API with Instagram Login)
+
+Facebook-страница не нужна — профессиональный аккаунт Instagram (Business/Creator) входит напрямую.
+
+1. [Meta for Developers](https://developers.facebook.com/apps) → приложение типа **Business** → продукт **Instagram** → **API setup with Instagram login**.
+2. Скопируйте **Instagram app ID** и **Instagram app secret** в `INSTAGRAM_APP_ID` / `INSTAGRAM_APP_SECRET` на Render.
+3. **Business login settings → OAuth redirect URIs**: `https://<backend>/api/auth/instagram/callback`.
+4. **Configure webhooks**: Callback URL `https://<backend>/api/webhooks/instagram`, Verify token = `INSTAGRAM_WEBHOOK_VERIFY_TOKEN`, подписка на поле **messages**.
+5. **App roles → Roles → Instagram Testers**: добавьте аккаунт(ы) Instagram и примите приглашение в приложении Instagram (Настройки → Приложения и сайты). Пока приложение не прошло App Review, работают только аккаунты с ролями.
+6. В профиле Instagram: Настройки → Сообщения → **Разрешить доступ к сообщениям** (Connected tools → Allow access to messages).
+7. Дашборд → «Аккаунты» → «Подключить аккаунт» → Instagram → «Войти через Instagram». Либо вставьте токен из шага «Generate token» вручную.
+
+Один вебхук обслуживает все аккаунты: backend находит аккаунт по `entry.id` (`accounts.platform_account_id`). Токены живут 60 дней и продлеваются backend'ом раз в сутки. Чтобы отвечать клиентам, которые не являются тестерами приложения, нужен App Review с Advanced Access для `instagram_business_manage_messages`.
+
+## Уведомления о заявках в Telegram
+
+Миграция: `migration-lead-notifications.sql` (таблица `app_settings`).
+
+Дашборд → **Настройки**: токен бота (от @BotFather) и Telegram ID получателей — можно несколько, менять в любой момент без деплоя. Как только ИИ собрал заявку, backend отправляет её всем получателям.
+
+- Получатель должен один раз открыть бота и нажать **/start** — иначе Telegram не даст боту написать первым. Для группы/канала добавьте туда бота.
+- «Найти мой ID» показывает, кто недавно писал боту (не работает для бота, подключённого как аккаунт с вебхуком — используйте отдельного бота для уведомлений или @userinfobot).
+- «Отправить тест» показывает результат по каждому получателю.
+- Если в настройках ничего не задано, используются `TELEGRAM_LEADS_BOT_TOKEN` / `TELEGRAM_LEADS_CHAT_ID` из окружения.

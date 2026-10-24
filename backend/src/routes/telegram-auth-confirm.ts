@@ -1,0 +1,45 @@
+import { finishTelegramUserLogin } from "../lib/telegram";
+
+export async function POST(req: Request) {
+  try {
+    const body = await req.json();
+    const phoneNumber = String(body.phone_number ?? "").trim();
+    const apiId = Number(body.api_id ?? 0);
+    const apiHash = String(body.api_hash ?? "").trim();
+    const phoneCode = String(body.phone_code ?? "").trim();
+    const password = String(body.password ?? "").trim();
+    const phoneCodeHash = String(body.phone_code_hash ?? "").trim();
+    const sessionString = String(body.session_string ?? "").trim();
+
+    if (!phoneNumber || !apiId || !apiHash || !phoneCode) {
+      return Response.json(
+        { ok: false, message: "Нужны phone_number, api_id, api_hash и phone_code." },
+        { status: 400 }
+      );
+    }
+
+    const result = await finishTelegramUserLogin(
+      phoneNumber,
+      apiId,
+      apiHash,
+      phoneCode,
+      password || undefined,
+      phoneCodeHash || undefined,
+      sessionString || undefined
+    );
+
+    return Response.json({
+      ok: true,
+      message: "Telegram-аккаунт успешно привязан.",
+      sessionString: result.sessionString,
+      username: result.username,
+      firstName: result.firstName,
+      lastName: result.lastName,
+    });
+  } catch (error: any) {
+    return Response.json(
+      { ok: false, message: error?.message ?? "Не удалось подтвердить код Telegram." },
+      { status: 200 }
+    );
+  }
+}
