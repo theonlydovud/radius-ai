@@ -219,7 +219,24 @@ export function verifyWebhookSignature(rawBody: string, header: string | null) {
 }
 
 type IgAccount = { id: string; account_name: string; access_token: string };
-type IgEvent = { sender?: { id?: string }; recipient?: { id?: string }; message?: { mid?: string; text?: string; is_echo?: boolean } };
+type IgEvent = {
+  sender?: { id?: string };
+  recipient?: { id?: string };
+  message?: { mid?: string; text?: string; is_echo?: boolean; attachments?: unknown[]; is_deleted?: boolean };
+  [key: string]: unknown;
+};
+
+/** Что за событие пришло, если в нём нет текста — для логов. */
+function describeEvent(event: IgEvent, field?: string) {
+  if (event.read) return "прочтение (messaging_seen)";
+  if (event.reaction) return "реакция на сообщение";
+  if (event.postback) return "нажатие кнопки (postback)";
+  if (event.referral) return "переход по ссылке (referral)";
+  if (event.message_edit) return "редактирование сообщения";
+  if (event.message?.is_deleted) return "удаление сообщения";
+  if (event.message?.attachments) return "вложение (фото/видео/стикер/голосовое)";
+  return `неизвестное событие${field ? ` (поле ${field})` : ""}: ${JSON.stringify(event).slice(0, 400)}`;
+}
 
 const g = globalThis as unknown as {
   __radiusIg?: { seen: Set<string>; queues: Map<string, Promise<void>>; names: Map<string, string> };
@@ -236,16 +253,18 @@ export async function handleInstagramWebhook(body: any, fixedAccountId?: string)
 
   for (const entry of body?.entry ?? []) {
     // Реальные события приходят в messaging[], тестовые из кабинета Meta — в changes[].
-    const events: IgEvent[] =
-      entry.messaging ??
-      (entry.changes ?? []).filter((c: any) => c.field === "messages").map((c: any) => c.value);
+    const changes: any[] = entry.changes ?? [];
+    for (const c of changes.filter((c) => c.field !== "messages")) {
+      console.log(`[ig] событие поля «${c.field}» — не сообщение, пропускаю`);
+    }
+    const events: IgEvent[] = entry.messaging ?? changes.filter((c) => c.field === "messages").map((c) => c.value);
 
     for (const event of events) {
       const senderId = event.sender?.id;
       const text = event.message?.text;
       if (event.message?.is_echo) continue; // echo = наш же ответ
       if (!senderId || !text) {
-        console.log("[ig] пропущено событие без текста (реакция, прочтение, вложение и т.п.)");
+        console.log(`[ig] пропущено (нет текста): ${describeEvent(event)}`);
         continue;
       }
       if (senderId === String(entry.id)) continue;
