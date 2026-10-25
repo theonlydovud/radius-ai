@@ -20,6 +20,8 @@ export async function GET() {
       env,
       redirect_uri: instagramRedirectUri(),
       webhook_url: backendUrl("/api/webhooks/instagram"),
+      deauthorize_url: backendUrl("/api/instagram/deauthorize"),
+      data_deletion_url: backendUrl("/api/instagram/data-deletion"),
       privacy_url: frontendUrl("/privacy"),
     },
   });

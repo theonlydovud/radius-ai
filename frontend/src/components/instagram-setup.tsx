@@ -9,6 +9,8 @@ type InstagramConfig = {
   env: Record<string, boolean>;
   redirect_uri: string;
   webhook_url: string;
+  deauthorize_url: string;
+  data_deletion_url: string;
   privacy_url: string;
 };
 
@@ -93,6 +95,8 @@ export function InstagramSetup({ onReady }: { onReady: (ready: boolean) => void 
       <div className="space-y-2">
         <CopyRow label="Business login settings → OAuth redirect URIs" value={config.redirect_uri} />
         <CopyRow label="Configure webhooks → Callback URL (поле messages)" value={config.webhook_url} />
+        <CopyRow label="Business login settings → Deauthorize callback URL" value={config.deauthorize_url} />
+        <CopyRow label="Business login settings → Data deletion request URL" value={config.data_deletion_url} />
         <CopyRow label="App settings → Basic → Privacy Policy URL (для режима Live)" value={config.privacy_url} />
       </div>
 
