@@ -28,7 +28,14 @@ export async function POST(req: Request) {
   }
 
   try {
-    await handleInstagramWebhook(JSON.parse(raw));
+    const body = JSON.parse(raw);
+    // Диагностика: видно, что Meta вообще присылает события.
+    const entries = (body?.entry ?? []) as any[];
+    const events = entries.reduce((n, e) => n + (e.messaging?.length ?? e.changes?.length ?? 0), 0);
+    console.log(
+      `[webhooks/instagram] получено: object=${body?.object}, аккаунт(ы)=${entries.map((e) => e.id).join(",")}, событий=${events}`
+    );
+    await handleInstagramWebhook(body);
   } catch (err) {
     console.error("[webhooks/instagram] error:", err);
   }

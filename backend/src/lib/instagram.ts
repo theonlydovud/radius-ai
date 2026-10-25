@@ -243,7 +243,11 @@ export async function handleInstagramWebhook(body: any, fixedAccountId?: string)
     for (const event of events) {
       const senderId = event.sender?.id;
       const text = event.message?.text;
-      if (!senderId || !text || event.message?.is_echo) continue; // echo = наш же ответ
+      if (event.message?.is_echo) continue; // echo = наш же ответ
+      if (!senderId || !text) {
+        console.log("[ig] пропущено событие без текста (реакция, прочтение, вложение и т.п.)");
+        continue;
+      }
       if (senderId === String(entry.id)) continue;
 
       const mid = event.message?.mid ?? `${senderId}:${text}`;
@@ -300,7 +304,10 @@ async function processInstagramMessage(account: IgAccount, senderId: string, tex
   // История ДО записи текущего сообщения, иначе оно уйдёт в модель дважды.
   const history = await getHistory(supabase, session.id);
   await supabase.from("messages").insert({ session_id: session.id, sender: "user", text });
-  if (session.status === "manager_takeover") return;
+  if (session.status === "manager_takeover") {
+    console.log(`[ig:${account.id.slice(0, 8)}] диалог у менеджера — ИИ не отвечает`);
+    return;
+  }
 
   let reply: string;
   try {
@@ -311,7 +318,15 @@ async function processInstagramMessage(account: IgAccount, senderId: string, tex
     reply = RATE_LIMIT_REPLY;
   }
 
-  await sendInstagramMessage(account.access_token, senderId, reply);
+  const tag = `[ig:${account.id.slice(0, 8)}]`;
+  console.log(`${tag} сообщение от ${senderId}: «${text.slice(0, 60)}»`);
+  try {
+    await sendInstagramMessage(account.access_token, senderId, reply);
+  } catch (e: any) {
+    console.error(`${tag} не удалось отправить ответ: ${e?.message}`);
+    throw e;
+  }
+  console.log(`${tag} ответ отправлен (${reply.length} симв.)`);
   await supabase.from("messages").insert({ session_id: session.id, sender: "ai", text: reply });
   if (reply !== RATE_LIMIT_REPLY) {
     await maybeCreateOrUpdateLead(supabase, session.id, session.client_name, [...history, { role: "user", text }], reply);
