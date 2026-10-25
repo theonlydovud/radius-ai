@@ -6,7 +6,13 @@
 export async function GET() {
   const clients = ((globalThis as any).__radiusTg?.clients as Map<string, unknown> | undefined)?.size ?? 0;
   return Response.json(
-    { ok: true, uptime_s: Math.round(process.uptime()), telegram_listeners: clients },
+    {
+      ok: true,
+      // Render сам кладёт хеш задеплоенного коммита — видно, какая версия работает.
+      commit: process.env.RENDER_GIT_COMMIT?.slice(0, 7) ?? null,
+      uptime_s: Math.round(process.uptime()),
+      telegram_listeners: clients,
+    },
     { headers: { "Cache-Control": "no-store" } }
   );
 }

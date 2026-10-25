@@ -77,12 +77,17 @@ export function instagramAuthUrl(state: string) {
     response_type: "code",
     scope: SCOPES.join(","),
     state,
+    // Всегда спрашиваем логин/пароль: так в браузере, где открыт другой
+    // Instagram, не привяжется случайно не тот аккаунт.
+    force_reauth: "true",
   });
   return `https://www.instagram.com/oauth/authorize?${params}`;
 }
 
 /** code → долгоживущий (60 дней) токен. */
-export async function exchangeCodeForToken(code: string) {
+export async function exchangeCodeForToken(rawCode: string) {
+  // Instagram дописывает к code "#_" — это не часть кода.
+  const code = rawCode.replace(/#_$/, "");
   const form = new URLSearchParams({
     client_id: process.env.INSTAGRAM_APP_ID ?? "",
     client_secret: process.env.INSTAGRAM_APP_SECRET ?? "",

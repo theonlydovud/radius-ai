@@ -34,6 +34,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { cn, formatDate } from "@/lib/utils";
 import type { AccountPublic, Platform } from "@/types";
+import { InstagramSetup } from "@/components/instagram-setup";
 
 function webhookUrlFor(platform: Platform, accountId: string) {
   // Вебхуки принимает backend (Render) напрямую, минуя Vercel-прокси.
@@ -75,6 +76,8 @@ export default function AccountsPage() {
   const [formError, setFormError] = useState("");
   // Результат входа через Instagram (backend возвращает на /accounts?ig=…).
   const [banner, setBanner] = useState<{ ok: boolean; text: string } | null>(null);
+  // Готов ли backend к входу через Instagram (переменные заданы).
+  const [igReady, setIgReady] = useState(false);
 
   // Состояние карточек: проверка соединения / копирование URL.
   const [testingId, setTestingId] = useState<string | null>(null);
@@ -387,11 +390,7 @@ export default function AccountsPage() {
               )}
 
               {platform === "instagram" && igMode === "login" && (
-                <p className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-500">
-                  Откроется окно входа Instagram. Нужен профессиональный аккаунт (Business или Creator),
-                  добавленный в роли приложения в Meta for Developers. После входа аккаунт появится
-                  здесь автоматически и сразу начнёт отвечать в Direct.
-                </p>
+                <InstagramSetup onReady={setIgReady} />
               )}
 
               {!(platform === "instagram" && igMode === "login") && (
@@ -559,6 +558,7 @@ export default function AccountsPage() {
                   saving ||
                   telegramAuthBusy ||
                   (platform === "instagram" && igMode === "token" && !token.trim()) ||
+                  (platform === "instagram" && igMode === "login" && !igReady) ||
                   (platform === "telegram" && !accountName.trim()) ||
                   (platform === "telegram" && telegramMode === "bot" && !token.trim()) ||
                   (platform === "telegram" && telegramMode === "user" && (!accountName.trim() || !apiId.trim() || !apiHash.trim() || !phoneNumber.trim() || !phoneCode.trim()))

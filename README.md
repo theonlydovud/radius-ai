@@ -388,7 +388,8 @@ Facebook-страница не нужна — профессиональный �
 4. **Configure webhooks**: Callback URL `https://<backend>/api/webhooks/instagram`, Verify token = `INSTAGRAM_WEBHOOK_VERIFY_TOKEN`, подписка на поле **messages**.
 5. **App roles → Roles → Instagram Testers**: добавьте аккаунт(ы) Instagram и примите приглашение в приложении Instagram (Настройки → Приложения и сайты). Пока приложение не прошло App Review, работают только аккаунты с ролями.
 6. В профиле Instagram: Настройки → Сообщения → **Разрешить доступ к сообщениям** (Connected tools → Allow access to messages).
-7. Дашборд → «Аккаунты» → «Подключить аккаунт» → Instagram → «Войти через Instagram». Либо вставьте токен из шага «Generate token» вручную.
+7. Дашборд → «Аккаунты» → «Подключить аккаунт» → Instagram → «Войти через Instagram». В окне подключения видно, какие переменные заданы на backend, и точные адреса для шагов 3–4 (кнопки копирования). Окно входа Instagram всегда спрашивает логин (`force_reauth`), чтобы не привязать чужой аккаунт из браузера.
+8. Чтобы бот получал сообщения от обычных клиентов, переведите приложение в **Live**: App settings → Basic → Privacy Policy URL = `https://<frontend>/privacy`, Data deletion instructions URL = `https://<frontend>/privacy#data-deletion`.
 
 Один вебхук обслуживает все аккаунты: backend находит аккаунт по `entry.id` (`accounts.platform_account_id`). Токены живут 60 дней и продлеваются backend'ом раз в сутки. Чтобы отвечать клиентам, которые не являются тестерами приложения, нужен App Review с Advanced Access для `instagram_business_manage_messages`.
 
