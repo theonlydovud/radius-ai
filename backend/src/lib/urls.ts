@@ -5,8 +5,10 @@
  *    задавать: платформа сама кладёт его в RENDER_EXTERNAL_URL.
  *  - FRONTEND_URL — адрес дашборда на Vercel (для OAuth-редиректов и CORS).
  */
+/** Убирает слэш в конце и добавляет https://, если адрес вписали без протокола. */
 function trimSlash(url: string) {
-  return url.replace(/\/+$/, "");
+  const clean = url.trim().replace(/\/+$/, "");
+  return /^https?:\/\//i.test(clean) ? clean : `https://${clean}`;
 }
 
 export function backendUrl(path = "", fallbackOrigin?: string) {
