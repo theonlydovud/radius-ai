@@ -1,4 +1,4 @@
-import { connectInstagramAccount } from "../lib/instagram";
+import { connectInstagramAccount, getInstagramSubscriptions } from "../lib/instagram";
 import { backendUrl } from "../lib/urls";
 import { createAdminClient } from "../lib/supabase/server";
 import { parseTelegramUserConfig, setTelegramBotWebhook, validateTelegramBotToken } from "../lib/telegram";
@@ -85,9 +85,20 @@ export async function POST(
           .from("accounts")
           .update({ status: "connected", platform_account_id: profile.platform_account_id })
           .eq("id", account.id);
+        const fields = await getInstagramSubscriptions(account.access_token).catch((e: any) => {
+          console.warn(`[ig] не удалось прочитать подписки: ${e?.message}`);
+          return null;
+        });
+        console.log(`[ig] проверка @${profile.username}: id=${profile.platform_account_id}, подписки=${fields?.join(",") ?? "?"}`);
+        if (fields && !fields.includes("messages")) {
+          return Response.json({
+            ok: false,
+            message: `@${profile.username}: Meta не подписала аккаунт на сообщения (подписки: ${fields.join(", ") || "нет"}).`,
+          });
+        }
         return Response.json({
           ok: true,
-          message: `Instagram @${profile.username} подключён, вебхук messages активен.`,
+          message: `Instagram @${profile.username} подключён. Подписка Meta: ${fields?.join(", ") ?? "не удалось проверить"}.`,
         });
       } catch (e: any) {
         await setStatus(supabase, account.id, "error");

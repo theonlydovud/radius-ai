@@ -141,6 +141,14 @@ export async function subscribeInstagramWebhooks(token: string) {
   );
 }
 
+/** На какие поля вебхука аккаунт подписан на стороне Meta (для диагностики). */
+export async function getInstagramSubscriptions(token: string): Promise<string[]> {
+  const host = isInstagramLoginToken(token) ? IG_GRAPH : FB_GRAPH;
+  const r = await graph(`${host}/me/subscribed_apps?access_token=${encodeURIComponent(token)}`);
+  const rows: any[] = r.data ?? [];
+  return [...new Set(rows.flatMap((row) => row.subscribed_fields ?? []))].map(String);
+}
+
 /** Полная проверка/подготовка аккаунта: профиль + подписка на вебхуки. */
 export async function connectInstagramAccount(token: string) {
   const profile = await getInstagramProfile(token);
