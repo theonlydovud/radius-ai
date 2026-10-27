@@ -5,7 +5,7 @@ import { ArrowLeft, Instagram, Send as TelegramIcon, UserCog, Inbox as InboxIcon
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { cn, formatDate } from "@/lib/utils";
+import { cn, dayKey, formatDate, formatDay, formatTime } from "@/lib/utils";
 import type { ChatSession, Message, SessionStatus } from "@/types";
 
 const STATUS_LABEL: Record<SessionStatus, string> = {
@@ -171,25 +171,39 @@ export default function InboxPage() {
                   <p className="text-sm text-slate-400">Загрузка сообщений...</p>
                 ) : (
                   <div className="flex flex-col gap-3">
-                    {messages.map((m) => (
-                      <div
-                        key={m.id}
-                        className={cn("flex", m.sender === "user" ? "justify-start" : "justify-end")}
-                      >
-                        <div
-                          className={cn(
-                            "max-w-[85%] whitespace-pre-wrap break-words rounded-xl px-4 py-2 text-sm sm:max-w-[75%]",
-                            m.sender === "user"
-                              ? "bg-slate-100 text-slate-800"
-                              : m.sender === "manager"
-                              ? "bg-indigo-50 text-indigo-900"
-                              : "bg-slate-900 text-white"
+                    {messages.map((m, i) => {
+                      const mine = m.sender !== "user";
+                      const newDay = i === 0 || dayKey(messages[i - 1].created_at) !== dayKey(m.created_at);
+                      return (
+                        <div key={m.id} className="flex flex-col gap-3">
+                          {newDay && (
+                            <div className="flex justify-center">
+                              <span className="rounded-full bg-slate-100 px-3 py-0.5 text-[11px] text-slate-500">
+                                {formatDay(m.created_at)}
+                              </span>
+                            </div>
                           )}
-                        >
-                          {m.text}
+                          <div className={cn("flex flex-col", mine ? "items-end" : "items-start")}>
+                            <div
+                              className={cn(
+                                "max-w-[85%] whitespace-pre-wrap break-words rounded-xl px-4 py-2 text-sm sm:max-w-[75%]",
+                                m.sender === "user"
+                                  ? "bg-slate-100 text-slate-800"
+                                  : m.sender === "manager"
+                                  ? "bg-indigo-50 text-indigo-900"
+                                  : "bg-slate-900 text-white"
+                              )}
+                            >
+                              {m.text}
+                            </div>
+                            <span className="mt-1 px-1 text-[11px] tabular-nums text-slate-400">
+                              {m.sender === "manager" ? "Менеджер · " : m.sender === "ai" ? "ИИ · " : ""}
+                              {formatTime(m.created_at)}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
