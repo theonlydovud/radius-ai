@@ -1,4 +1,4 @@
-import { extractLeadFields, isLeadComplete } from "./lead-extraction";
+import { extractPhone, isLeadComplete, sanitizeLeadFields, type ExtractedLeadFields } from "./lead-extraction";
 import { extractLeadFieldsWithGemini } from "./gemini";
 import { notifyNewLead } from "./lead-notify";
 
@@ -66,21 +66,20 @@ export async function getHistory(supabase: any, sessionId: string, limit = 40) {
     }));
 }
 
-type LeadFields = Awaited<ReturnType<typeof extractLeadFieldsWithGemini>>;
+type Line = { who: "Клиент" | "Бот" | "Менеджер"; text: string };
 
-/** Объединяет поля, не затирая найденное значениями undefined/null. */
-function mergeFields(base: LeadFields, extra: Partial<LeadFields>): LeadFields {
-  const out: any = { ...base };
-  for (const [k, v] of Object.entries(extra)) if (v) out[k] = v;
-  return out;
+function speaker(roleOrSender: string): Line["who"] {
+  if (roleOrSender === "user") return "Клиент";
+  if (roleOrSender === "manager") return "Менеджер";
+  return "Бот";
 }
 
-async function extractFields(conversation: string): Promise<LeadFields> {
-  let fields = extractLeadFields(conversation) as LeadFields;
-  if (!isLeadComplete(fields)) {
-    fields = mergeFields(fields, await extractLeadFieldsWithGemini(conversation));
-  }
-  return fields;
+/** Поля заявки: извлекает Gemini, телефон подстраховывается регуляркой по словам клиента. */
+async function extractFields(lines: Line[]): Promise<ExtractedLeadFields> {
+  const conversation = lines.map((l) => `${l.who}: ${l.text}`).join("\n");
+  const clientText = lines.filter((l) => l.who === "Клиент").map((l) => l.text).join("\n");
+  const ai = await extractLeadFieldsWithGemini(conversation);
+  return sanitizeLeadFields({ ...ai, phone: ai.phone ?? extractPhone(clientText) });
 }
 
 /**
@@ -107,22 +106,22 @@ export async function maybeCreateOrUpdateLead(
     if (selectError) console.error("[Lead Extraction] Error selecting last lead:", selectError?.message);
     const lastLead = lastLeads?.[0] ?? null;
 
-    let conversation: string;
+    // Переписка с метками «Клиент/Бот»: модель берёт факты только из слов клиента.
+    let lines: Line[];
     if (lastLead) {
       const { data: fresh } = await supabase
         .from("messages")
-        .select("text")
+        .select("sender, text")
         .eq("session_id", sessionId)
         .gt("created_at", lastLead.created_at)
         .order("created_at", { ascending: true });
-      const texts: string[] = (fresh ?? []).map((m: { text: string }) => m.text);
-      if (texts[texts.length - 1] !== latestReply) texts.push(latestReply);
-      conversation = texts.join("\n");
+      lines = ((fresh ?? []) as { sender: string; text: string }[]).map((m) => ({ who: speaker(m.sender), text: m.text }));
     } else {
-      conversation = history.map((h) => h.text).join("\n") + "\n" + latestReply;
+      lines = history.map((h) => ({ who: speaker(h.role), text: h.text }));
     }
+    if (lines[lines.length - 1]?.text !== latestReply) lines.push({ who: "Бот", text: latestReply });
 
-    const fields = await extractFields(conversation);
+    const fields = await extractFields(lines);
     console.log(`[Lead Extraction] session ${sessionId.slice(0, 8)}: ${lastLead ? "после последней заявки" : "новая"} →`, fields);
 
     if (isLeadComplete(fields)) {

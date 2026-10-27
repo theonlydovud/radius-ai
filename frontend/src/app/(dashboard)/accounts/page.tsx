@@ -309,7 +309,7 @@ export default function AccountsPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-start justify-between">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-lg font-semibold text-slate-900">Аккаунты</h1>
           <p className="mt-1 text-sm text-slate-500">

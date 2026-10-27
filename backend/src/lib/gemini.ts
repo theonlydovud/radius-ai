@@ -304,56 +304,53 @@ export async function sendToGemini(
 }
 
 /**
- * Извлекает структурированные поля заявки (город отправления, назначения, вес, тип груза, телефон)
- * из диалога с помощью Gemini. Работает лучше чем регулярные выражения для многоязычного контента.
+ * Извлекает поля заявки из переписки. conversation — строки вида
+ * «Клиент: …» / «Бот: …»: факты берутся только из слов клиента.
+ * Результат дополнительно проверяется в sanitizeLeadFields (lead-extraction.ts).
  */
-export async function extractLeadFieldsWithGemini(conversation: string) {
-  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+export async function extractLeadFieldsWithGemini(conversation: string): Promise<Record<string, unknown>> {
+  const model = genAI.getGenerativeModel({
+    model: GEMINI_MODEL,
+    generationConfig: { responseMimeType: "application/json", temperature: 0 },
+  });
 
-  const extractionPrompt = `Ты — ассистент логистической компании. Твоя задача — извлечь из диалога клиента структурированные данные заявки.
+  const extractionPrompt = `Ты извлекаешь данные заявки на грузоперевозку из переписки клиента с ботом логистической компании Radius Logistics.
+Строки «Клиент:» — сообщения клиента, «Бот:» — ответы бота, «Менеджер:» — ответы сотрудника.
+Факты бери из сообщений клиента. Исключение: если бот подытожил данные (например «Xitoydan Toshkentga unitaz, 30 t…»),
+а клиент после этого не возразил и не поправил — такие данные считаются подтверждёнными клиентом.
 
-Диалог:
+Переписка:
 ${conversation}
 
-Извлеки и верни ТОЛЬКО JSON (без булков, без префикса, только валидный JSON) со следующей структурой:
+Верни JSON строго такого вида:
 {
-  "origin_city": "город отправления или null",
-  "destination_city": "город назначения или null", 
-  "weight": "вес с единицей (например '4 т', '100 кг') или null",
-  "cargo_type": "тип груза или null",
-  "phone": "номер телефона или null"
+  "is_cargo_request": true или false,
+  "origin_city": "..." или null,
+  "destination_city": "..." или null,
+  "weight": "..." или null,
+  "cargo_type": "..." или null,
+  "phone": "..." или null
 }
 
 ПРАВИЛА:
-- Жди узбекские падежи: "-дан"/"-dan" = ИЗ, "-га"/"-ga"/"-ка"/"-ka" = В
-- Не выдумывай страны, если их явно не указали
-- Phone: ищи последовательность цифр длины 10+ с возможными +, пробелами, тире, скобками
-- Верни только JSON, никаких комментариев или пояснений`;
+- is_cargo_request = true, только если клиент действительно хочет перевезти груз. Приветствие, шутка, вопрос не по теме, спам — false.
+- origin_city и destination_city — ТОЛЬКО реальные географические названия (город, область или страна), по-русски в именительном падеже: «Ташкент», «Шэньчжэнь», «Китай», «Москва».
+  Предмет, товар, имя или непонятное слово — это НЕ город, ставь null. Пример: «unitazga» значит «для унитаза/на унитаз», а не город.
+- Узбекские окончания: «-dan/-дан» = откуда, «-ga/-га/-ka/-ка/-qa/-қа» = куда. «Xitoydan Toshkentga» → «Китай» → «Ташкент».
+- weight — вес или объём с единицами, как сказал клиент: «15 т», «300 кг», «1 контейнер 40 футов», «20 м³». Без числа — null.
+- cargo_type — что конкретно везут: «мебель», «унитазы», «одежда», «запчасти в 40-футовом контейнере».
+  Общие слова без конкретики («yuk», «груз», «товар», «mahsulot», «cargo») — null.
+- phone — номер телефона клиента, как он его написал (цифры, можно с +). Нет номера — null.
+- Ничего не придумывай и не угадывай. Если клиент не сказал явно — null.`;
 
   try {
     const result = await model.generateContent(extractionPrompt);
-    // Модель нередко оборачивает ответ в ```json … ``` — берём только сам объект.
+    // JSON-режим обычно отдаёт чистый объект, но на всякий случай вырезаем {...}.
     const raw = result.response.text();
-    const jsonText = raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1);
-    const parsed = JSON.parse(jsonText);
-    
-    // Нормализуем результат
-    return {
-      origin_city: parsed.origin_city || undefined,
-      destination_city: parsed.destination_city || undefined,
-      weight: parsed.weight || undefined,
-      cargo_type: parsed.cargo_type || undefined,
-      phone: parsed.phone || undefined,
-    };
+    return JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1));
   } catch (err: any) {
     console.error("[Gemini Lead Extraction] Error:", err?.message);
-    // Fallback на пустой результат если что-то пошло не так
-    return {
-      origin_city: undefined,
-      destination_city: undefined,
-      weight: undefined,
-      cargo_type: undefined,
-      phone: undefined,
-    };
+    // Без ответа модели заявку не создаём: лучше дождаться следующего сообщения, чем записать мусор.
+    return {};
   }
 }

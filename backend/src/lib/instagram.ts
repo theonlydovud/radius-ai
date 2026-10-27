@@ -2,6 +2,7 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { createAdminClient } from "./supabase/server";
 import { buildSystemInstruction, GeminiRateLimitError, sendToGemini } from "./gemini";
 import { getHistory, getOrCreateSession, maybeCreateOrUpdateLead } from "./conversation";
+import { scheduleReply, splitPending } from "./burst";
 import { backendUrl } from "./urls";
 
 /**
@@ -293,18 +294,21 @@ export async function handleInstagramWebhook(body: any, fixedAccountId?: string)
         continue;
       }
 
-      // Сообщения одного клиента — строго по порядку, разные клиенты — параллельно.
-      const key = `${account.id}:${senderId}`;
-      const next = (reg.queues.get(key) ?? Promise.resolve())
-        .catch(() => {})
-        .then(() => processInstagramMessage(account, senderId, text))
-        .catch((e: any) => console.error(`[ig:${account.id.slice(0, 8)}] ${e?.message ?? e}`))
-        .finally(() => {
-          if (reg.queues.get(key) === next) reg.queues.delete(key);
-        });
-      reg.queues.set(key, next);
+      enqueue(`${account.id}:${senderId}`, () => receiveInstagramMessage(account, senderId, text));
     }
   }
+}
+
+/** Действия по одному клиенту — строго по порядку, разные клиенты — параллельно. */
+function enqueue(key: string, task: () => Promise<void>) {
+  const next = (reg.queues.get(key) ?? Promise.resolve())
+    .catch(() => {})
+    .then(task)
+    .catch((e: any) => console.error(`[ig] ${key.slice(0, 8)}: ${e?.message ?? e}`))
+    .finally(() => {
+      if (reg.queues.get(key) === next) reg.queues.delete(key);
+    });
+  reg.queues.set(key, next);
 }
 
 async function clientName(token: string, senderId: string) {
@@ -323,39 +327,53 @@ async function clientName(token: string, senderId: string) {
   return name;
 }
 
-async function processInstagramMessage(account: IgAccount, senderId: string, text: string) {
+/** Сообщение клиента: сразу в БД, ответ — после паузы (см. burst.ts). */
+async function receiveInstagramMessage(account: IgAccount, senderId: string, text: string) {
   const supabase = createAdminClient();
+  const tag = `[ig:${account.id.slice(0, 8)}]`;
   const session = await getOrCreateSession(supabase, account.id, senderId, await clientName(account.access_token, senderId));
   if (!session) return;
 
-  // История ДО записи текущего сообщения, иначе оно уйдёт в модель дважды.
-  const history = await getHistory(supabase, session.id);
   await supabase.from("messages").insert({ session_id: session.id, sender: "user", text });
+  console.log(`${tag} сообщение от ${senderId}: «${text.slice(0, 60)}»`);
   if (session.status === "manager_takeover") {
-    console.log(`[ig:${account.id.slice(0, 8)}] диалог у менеджера — ИИ не отвечает`);
+    console.log(`${tag} диалог у менеджера — ИИ не отвечает`);
     return;
   }
 
+  const key = `${account.id}:${senderId}`;
+  scheduleReply(key, () => enqueue(key, () => replyInstagram(account, senderId)));
+}
+
+/** Один ответ на все сообщения клиента, пришедшие после последнего ответа. */
+async function replyInstagram(account: IgAccount, senderId: string) {
+  const supabase = createAdminClient();
+  const tag = `[ig:${account.id.slice(0, 8)}]`;
+  const session = await getOrCreateSession(supabase, account.id, senderId, "Клиент Instagram");
+  if (!session || session.status === "manager_takeover") return;
+
+  const { before, pending } = splitPending(await getHistory(supabase, session.id));
+  if (!pending) return; // уже ответили (например, менеджер)
+
   let reply: string;
   try {
-    const systemInstruction = await buildSystemInstruction(text, account.id);
-    reply = await sendToGemini(systemInstruction, history, text);
+    const systemInstruction = await buildSystemInstruction(pending, account.id);
+    reply = await sendToGemini(systemInstruction, before, pending);
   } catch (err) {
     if (!(err instanceof GeminiRateLimitError)) throw err;
     reply = RATE_LIMIT_REPLY;
   }
 
-  const tag = `[ig:${account.id.slice(0, 8)}]`;
-  console.log(`${tag} сообщение от ${senderId}: «${text.slice(0, 60)}»`);
   try {
     await sendInstagramMessage(account.access_token, senderId, reply);
   } catch (e: any) {
     console.error(`${tag} не удалось отправить ответ: ${e?.message}`);
     throw e;
   }
-  console.log(`${tag} ответ отправлен (${reply.length} симв.)`);
+  const count = pending.split("\n").length;
+  console.log(`${tag} ответ отправлен (${reply.length} симв., на ${count} сообщ.)`);
   await supabase.from("messages").insert({ session_id: session.id, sender: "ai", text: reply });
   if (reply !== RATE_LIMIT_REPLY) {
-    await maybeCreateOrUpdateLead(supabase, session.id, session.client_name, [...history, { role: "user", text }], reply);
+    await maybeCreateOrUpdateLead(supabase, session.id, session.client_name, [...before, { role: "user", text: pending }], reply);
   }
 }

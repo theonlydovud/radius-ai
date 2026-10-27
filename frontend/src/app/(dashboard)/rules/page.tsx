@@ -132,7 +132,7 @@ export default function RulesPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-start justify-between">
+      <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h1 className="text-lg font-semibold text-slate-900">Правила общения</h1>
           <p className="mt-1 text-sm text-slate-500">
@@ -140,7 +140,7 @@ export default function RulesPage() {
             откуда, куда, вес/объём и телефон клиента.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap sm:gap-3">
         <BotSelector bots={bots} botId={botId} onChange={setBotId} />
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>

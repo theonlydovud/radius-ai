@@ -4,6 +4,7 @@ import { NewMessage, NewMessageEvent } from "telegram/events";
 import { createAdminClient } from "./supabase/server";
 import { buildSystemInstruction, GeminiRateLimitError, sendToGemini } from "./gemini";
 import { getHistory, getOrCreateSession, maybeCreateOrUpdateLead } from "./conversation";
+import { scheduleReply, splitPending } from "./burst";
 import { isTelegramUserAccount, parseTelegramUserConfig } from "./telegram";
 
 /**
@@ -205,17 +206,27 @@ async function handleIncoming(account: AccountRow, client: TelegramClient, event
   // Очередь на чат: сообщения одного клиента — по порядку,
   // разные клиенты и разные аккаунты — параллельно.
   const queueKey = `${account.id}:${chatId}`;
-  const prev = reg.chatQueues.get(queueKey) ?? Promise.resolve();
-  const next = prev
-    .catch(() => {})
-    .then(() => processMessage(account, client, event, chatId))
-    .finally(() => {
-      if (reg.chatQueues.get(queueKey) === next) reg.chatQueues.delete(queueKey);
-    });
-  reg.chatQueues.set(queueKey, next);
+  enqueue(queueKey, () => receiveMessage(account, client, event, chatId));
 }
 
-async function processMessage(
+/** Действия по одному чату — строго по порядку. */
+function enqueue(key: string, task: () => Promise<void>) {
+  const prev = reg.chatQueues.get(key) ?? Promise.resolve();
+  const next = prev
+    .catch(() => {})
+    .then(task)
+    .catch((e) => log(key, `chat task error: ${e?.message ?? e}`))
+    .finally(() => {
+      if (reg.chatQueues.get(key) === next) reg.chatQueues.delete(key);
+    });
+  reg.chatQueues.set(key, next);
+}
+
+/**
+ * Сообщение клиента: сразу в БД и в память чата, а ответ откладывается до
+ * паузы в переписке (см. burst.ts) — на 3–4 сообщения подряд бот ответит один раз.
+ */
+async function receiveMessage(
   account: AccountRow,
   client: TelegramClient,
   event: NewMessageEvent,
@@ -224,7 +235,6 @@ async function processMessage(
   const m = event.message;
   const text = String(m.message);
   const supabase = createAdminClient();
-  const t0 = Date.now();
 
   // Отправитель должен быть настоящим человеком: не бот, не удалённый аккаунт,
   // не мы сами, не служебный Telegram. Не удалось определить — молчим (безопаснее).
@@ -235,55 +245,69 @@ async function processMessage(
     sender?.firstName || sender?.lastName || sender?.username || "Клиент Telegram";
 
   const peer = (await m.getInputChat().catch(() => null)) ?? m.peerId;
-
-  // «Прочитано» + «печатает…» — fire-and-forget, ответ не задерживают.
   client.markAsRead(peer as any).catch(() => {});
-  client
-    .invoke(new Api.messages.SetTyping({ peer: peer as any, action: new Api.SendMessageTypingAction() }))
-    .catch(() => {});
 
   const session = await getOrCreateSession(supabase, account.id, chatId, senderName);
   if (!session) return;
 
   const memKey = `${account.id}:${chatId}`;
-
-  // Сообщение пишем в БД параллельно с остальной подготовкой (для /inbox и аналитики).
-  const insertUser = supabase.from("messages").insert({ session_id: session.id, sender: "user", text });
+  await supabase.from("messages").insert({ session_id: session.id, sender: "user", text });
 
   if (session.status === "manager_takeover") {
-    await insertUser;
     // Менеджер пишет сам — наша память устарела, после возврата ИИ перечитаем её из БД.
     reg.memory.delete(memKey);
     return;
   }
 
-  // ПАМЯТЬ ЧАТА. Источник правды — БД, но горячая копия держится в памяти процесса:
-  // следующее сообщение не зависит от скорости записи в БД и экономит запрос.
-  // Если памяти нет (старт/рестарт/другая сессия) — поднимаем из БД.
-  let memory = reg.memory.get(memKey);
-  const needsLoad = !memory || memory.sessionId !== session.id;
-
-  const [loaded, systemInstruction] = await Promise.all([
-    needsLoad ? getHistory(supabase, session.id, MEMORY_TURNS) : Promise.resolve(null),
-    buildSystemInstruction(text, account.id), // знания/правила именно ЭТОГО аккаунта
-    insertUser,
-  ]);
-
-  if (needsLoad || !memory) {
-    const turns: Turn[] = (loaded ?? []) as Turn[];
-    // Гонка с insertUser: текущее сообщение могло уже попасть в выборку — убираем дубль.
-    const last = turns[turns.length - 1];
-    if (last && last.role === "user" && last.text === text) turns.pop();
-    memory = { sessionId: session.id, turns };
-    reg.memory.set(memKey, memory);
+  // ПАМЯТЬ ЧАТА. Источник правды — БД, но горячая копия держится в памяти процесса.
+  // Если памяти нет (старт/рестарт/другая сессия) — поднимаем из БД: только что
+  // записанное сообщение уже попадёт в выборку.
+  const memory = reg.memory.get(memKey);
+  if (!memory || memory.sessionId !== session.id) {
+    const turns = (await getHistory(supabase, session.id, MEMORY_TURNS)) as Turn[];
+    reg.memory.set(memKey, { sessionId: session.id, turns });
+  } else {
+    memory.turns.push({ role: "user", text });
   }
 
-  const historyForModel: Turn[] = memory.turns.slice(-MEMORY_TURNS);
-  memory.turns.push({ role: "user", text });
+  scheduleReply(memKey, () => enqueue(memKey, () => replyToChat(account, client, peer, chatId, session)));
+}
 
+/** Один ответ на все сообщения клиента после последнего ответа. */
+async function replyToChat(
+  account: AccountRow,
+  client: TelegramClient,
+  peer: unknown,
+  chatId: string,
+  session: { id: string; client_name: string }
+) {
+  const supabase = createAdminClient();
+  const memKey = `${account.id}:${chatId}`;
+  const t0 = Date.now();
+
+  // Пока ждали паузу, менеджер мог перехватить диалог.
+  const { data: current } = await supabase.from("chat_sessions").select("status").eq("id", session.id).maybeSingle();
+  if (current?.status === "manager_takeover") {
+    reg.memory.delete(memKey);
+    return;
+  }
+
+  const memory = reg.memory.get(memKey);
+  if (!memory) return;
+  const { before, pending } = splitPending(memory.turns);
+  if (!pending) return;
+
+  // «Печатает…» — fire-and-forget, ответ не задерживает.
+  client
+    .invoke(new Api.messages.SetTyping({ peer: peer as any, action: new Api.SendMessageTypingAction() }))
+    .catch(() => {});
+
+  const historyForModel: Turn[] = before.slice(-MEMORY_TURNS);
   let reply: string;
   try {
-    reply = await sendToGemini(systemInstruction, historyForModel, text);
+    // Знания/правила именно ЭТОГО аккаунта (или его агента).
+    const systemInstruction = await buildSystemInstruction(pending, account.id);
+    reply = await sendToGemini(systemInstruction, historyForModel, pending);
   } catch (err) {
     if (err instanceof GeminiRateLimitError) {
       log(account.id, "Gemini 429 — ответ пропущен");
@@ -292,10 +316,11 @@ async function processMessage(
     throw err;
   }
   const tLlm = Date.now() - t0;
-  const conversationForLead: Turn[] = memory.turns.slice(); // включает текущее сообщение клиента
+  const conversationForLead: Turn[] = [...before, { role: "user", text: pending }];
+  const count = memory.turns.length - before.length;
   memory.turns.push({ role: "model", text: reply });
   if (memory.turns.length > MEMORY_TURNS * 2) memory.turns.splice(0, memory.turns.length - MEMORY_TURNS);
-  log(account.id, `chat ${chatId}: в памяти ${memory.turns.length} реплик, в модель ушло ${historyForModel.length}`);
+  log(account.id, `chat ${chatId}: ответ на ${count} сообщ., в памяти ${memory.turns.length} реплик`);
 
   // 1) СНАЧАЛА отправляем клиенту...
   try {
@@ -304,19 +329,12 @@ async function processMessage(
     log(account.id, `sendMessage failed: ${err?.errorMessage ?? err?.message}`);
     return;
   }
-  log(account.id, `reply sent in ${Date.now() - t0} ms (до отправки LLM: ${tLlm} ms)`);
+  log(account.id, `reply sent in ${Date.now() - t0} ms (LLM: ${tLlm} ms)`);
 
-  // 2) ...и только потом пишем в БД и извлекаем заявку (раньше это шло ДО отправки
-  // и добавляло к ответу ещё один вызов Gemini).
+  // 2) ...и только потом пишем в БД и извлекаем заявку.
   void (async () => {
     await supabase.from("messages").insert({ session_id: session.id, sender: "ai", text: reply });
-    await maybeCreateOrUpdateLead(
-      supabase,
-      session.id,
-      session.client_name,
-      conversationForLead,
-      reply
-    );
+    await maybeCreateOrUpdateLead(supabase, session.id, session.client_name, conversationForLead, reply);
   })().catch((e) => log(account.id, `post-send error: ${e?.message}`));
 }
 

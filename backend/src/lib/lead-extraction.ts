@@ -1,12 +1,14 @@
 /**
- * Лёгкая эвристическая экстракция полей заявки из текста диалога.
- * Это намеренно простая реализация без внешних вызовов ИИ — для
- * продакшна её стоит заменить на structured output от Gemini
- * (см. buildSystemInstruction + JSON-схему ответа), но для вебхуков
- * этого достаточно, чтобы понять, когда лид готов к передаче логисту.
+ * Проверка полей заявки. Сами поля извлекает Gemini (extractLeadFieldsWithGemini):
+ * раньше первыми работали регулярки, и они ловили мусор вроде «Toshkent → unitaz»
+ * (любой дефис или окончание «-ga» считались маршрутом) или «yuk» как тип груза.
+ * Здесь — последняя линия обороны: даже если модель ошиблась, мусорное поле
+ * обнуляется, и заявка не создаётся, пока клиент не назовёт данные нормально.
  */
 
 export interface ExtractedLeadFields {
+  /** Клиент действительно хочет перевезти груз (а не болтает/спрашивает не по теме). */
+  is_cargo_request?: boolean;
   origin_city?: string;
   destination_city?: string;
   weight?: string;
@@ -14,89 +16,67 @@ export interface ExtractedLeadFields {
   phone?: string;
 }
 
-const PHONE_REGEX = /(?:\+?\d[\d\s\-()]{8,}\d)/;
-const ROUTE_REGEXES = [
-  /(?:iz|ot|from|dan|с|из|от)\s+([A-Za-zА-ЯЁа-яё\w\s-]+?)\s+(?:v|to|ga|gacha|до|в|к|dan|кеч|тў|towards|to)\s+([A-Za-zА-ЯЁа-яё\w\s-]+)/i,
-  /(?:from|dan|из|от)\s+([A-Za-zА-ЯЁа-яё\w\s-]+?)\s*(?:to|ga|gacha|до|в|к)\s*([A-Za-zА-ЯЁа-яё\w\s-]+)/i,
-  /([A-Za-zА-ЯЁа-яё\w\s-]+?)\s*(?:->|→|—|-)\s*([A-Za-zА-ЯЁа-яё\w\s-]+)/i,
-];
-const WEIGHT_REGEX = /(\d+(?:[.,]\d+)?)\s*(кг|кгм|тонн|тон|т|kg|kilo|kilogramm|tonna|ton|t)/i;
-const CARGO_KEYWORDS = [
-  "одежда",
-  "техника",
-  "продукты",
-  "мебель",
-  "стройматериалы",
-  "запчасти",
-  "оборудование",
-  "тольки",
-  "salt",
-  "соль",
-  "tuz",
-  "mal",
-  "goods",
-  "material",
-  "kiyim",
-  "texnika",
-  "mahsulot",
-  "mebel",
-  "qurilish",
-  "zapas",
-  "jihoz",
-  "yuk",
-  "mashina",
-  "texnik",
-  "elektronika",
-  "oziq-ovqat",
-  "qurilish materiallari",
-];
+const PHONE_REGEX = /\+?\d[\d\s\-()]{6,}\d/;
 
-function normalizeLeadText(text: string) {
-  return text
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .replace(/[“”]/g, "")
-    .trim();
+// Слова, которые сами по себе ничего не говорят о грузе.
+const GENERIC_CARGO = new Set([
+  "yuk", "yuklar", "yukim", "юк", "груз", "грузы", "груза", "товар", "товары", "cargo", "goods",
+  "mal", "mallar", "mahsulot", "mahsulotlar", "narsa", "narsalar", "вещи", "нарса", "посылка", "posilka",
+]);
+
+function clean(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const v = value.replace(/\s+/g, " ").trim();
+  if (!v || /^(null|none|undefined|нет|—|-)$/i.test(v)) return undefined;
+  return v;
 }
 
-export function extractLeadFields(text: string): ExtractedLeadFields {
-  const fields: ExtractedLeadFields = {};
-  const normalized = normalizeLeadText(text);
-
-  const phoneMatch = text.match(PHONE_REGEX) ?? normalized.match(/(?:\+?998[\d\s\-()]{9,}|\+?\d[\d\s\-()]{8,}\d)/);
-  if (phoneMatch) fields.phone = phoneMatch[0].replace(/\s+/g, "").trim();
-
-  for (const routeRegex of ROUTE_REGEXES) {
-    const routeMatch = text.match(routeRegex) ?? normalized.match(routeRegex);
-    if (routeMatch) {
-      const origin = routeMatch[1]?.trim();
-      const destination = routeMatch[2]?.trim();
-      if (origin && destination) {
-        fields.origin_city = origin.replace(/\s+/g, " ").trim();
-        fields.destination_city = destination.replace(/\s+/g, " ").trim();
-        break;
-      }
-    }
-  }
-
-  const weightMatch = text.match(WEIGHT_REGEX) ?? normalized.match(WEIGHT_REGEX);
-  if (weightMatch) {
-    const number = weightMatch[1];
-    const unit = weightMatch[2].toLowerCase();
-    const normalizedUnit = ["тонн", "тон", "т", "ton", "tonna", "t"].includes(unit) ? "т" : "кг";
-    fields.weight = `${number} ${normalizedUnit}`;
-  }
-
-  const textLower = normalized;
-  const cargoMatch = CARGO_KEYWORDS.find((kw) => textLower.includes(kw.toLowerCase()));
-  if (cargoMatch) fields.cargo_type = cargoMatch;
-
-  console.log("[Lead Extract Debug]", { text: text.slice(0, 120), fields });
-  return fields;
+/** Похоже на название места: буквы, без цифр, разумная длина. */
+function plausiblePlace(value: string | undefined) {
+  if (!value) return undefined;
+  if (value.length < 2 || value.length > 50) return undefined;
+  if (/\d/.test(value) || !/\p{L}/u.test(value)) return undefined;
+  return value;
 }
 
+/** Телефон из сообщений клиента — запасной вариант, если модель номер не вернула. */
+export function extractPhone(text: string): string | undefined {
+  return text.match(PHONE_REGEX)?.[0].replace(/[\s\-()]/g, "");
+}
+
+export function sanitizeLeadFields(raw: Partial<Record<keyof ExtractedLeadFields, unknown>>): ExtractedLeadFields {
+  const origin = plausiblePlace(clean(raw.origin_city));
+  let destination = plausiblePlace(clean(raw.destination_city));
+  if (origin && destination && origin.toLowerCase() === destination.toLowerCase()) destination = undefined;
+
+  const weight = clean(raw.weight);
+  let cargo = clean(raw.cargo_type);
+  if (cargo && (cargo.length < 3 || GENERIC_CARGO.has(cargo.toLowerCase()))) cargo = undefined;
+  // Груз, указанный как город (или наоборот), — явная ошибка разбора.
+  if (cargo && [origin, destination].some((p) => p && p.toLowerCase() === cargo!.toLowerCase())) cargo = undefined;
+
+  const phoneRaw = clean(raw.phone);
+  const digits = phoneRaw?.replace(/\D/g, "") ?? "";
+  const phone = digits.length >= 7 && digits.length <= 15 ? phoneRaw : undefined;
+
+  return {
+    is_cargo_request: raw.is_cargo_request === true,
+    origin_city: origin,
+    destination_city: destination,
+    weight: weight && /\d/.test(weight) ? weight : undefined,
+    cargo_type: cargo,
+    phone,
+  };
+}
+
+/** Заявка создаётся только когда известно всё: маршрут, вес/объём, что везём и телефон. */
 export function isLeadComplete(fields: ExtractedLeadFields) {
   return Boolean(
-    fields.origin_city && fields.destination_city && fields.weight && fields.phone
+    fields.is_cargo_request &&
+      fields.origin_city &&
+      fields.destination_city &&
+      fields.weight &&
+      fields.cargo_type &&
+      fields.phone
   );
 }

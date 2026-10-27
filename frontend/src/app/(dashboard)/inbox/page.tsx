@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Instagram, Send as TelegramIcon, UserCog, Inbox as InboxIcon } from "lucide-react";
+import { ArrowLeft, Instagram, Send as TelegramIcon, UserCog, Inbox as InboxIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,8 @@ export default function InboxPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  // Телефон: показываем либо список диалогов, либо открытую переписку.
+  const [mobileChat, setMobileChat] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -67,7 +69,7 @@ export default function InboxPage() {
 
   return (
     <div>
-      <div className="mb-6">
+      <div className={cn("mb-6", mobileChat && "hidden md:block")}>
         <h1 className="text-lg font-semibold text-slate-900">История чатов</h1>
         <p className="mt-1 text-sm text-slate-500">
           Все диалоги клиентов с ИИ. Перехватите диалог, чтобы ответить лично.
@@ -75,7 +77,12 @@ export default function InboxPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-[320px_1fr]">
-        <Card className="flex max-h-[calc(100vh-14rem)] flex-col overflow-hidden">
+        <Card
+          className={cn(
+            "flex max-h-[calc(100dvh-12rem)] flex-col overflow-hidden md:max-h-[calc(100vh-14rem)]",
+            mobileChat && "hidden md:flex"
+          )}
+        >
           <div className="thin-scroll flex-1 overflow-y-auto">
             {loadingSessions ? (
               <p className="p-5 text-sm text-slate-400">Загрузка...</p>
@@ -88,7 +95,10 @@ export default function InboxPage() {
               sessions.map((s) => (
                 <button
                   key={s.id}
-                  onClick={() => setActiveId(s.id)}
+                  onClick={() => {
+                    setActiveId(s.id);
+                    setMobileChat(true);
+                  }}
                   className={cn(
                     "flex w-full items-start gap-3 border-b border-slate-100 p-4 text-left transition-colors hover:bg-slate-50",
                     activeId === s.id && "bg-slate-50"
@@ -116,20 +126,35 @@ export default function InboxPage() {
           </div>
         </Card>
 
-        <Card className="flex max-h-[calc(100vh-14rem)] flex-col overflow-hidden">
+        <Card
+          className={cn(
+            "flex h-[calc(100dvh-6.5rem)] flex-col overflow-hidden md:h-auto md:max-h-[calc(100vh-14rem)]",
+            !mobileChat && "hidden md:flex"
+          )}
+        >
           {!active ? (
             <div className="flex flex-1 items-center justify-center text-sm text-slate-400">
               Выберите диалог слева
             </div>
           ) : (
             <>
-              <div className="flex items-center justify-between border-b border-slate-100 p-4">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">{active.client_name}</p>
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 p-3 sm:p-4">
+                <div className="flex min-w-0 items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setMobileChat(false)}
+                    className="-ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 md:hidden"
+                    aria-label="Назад к списку"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                  </button>
+                  <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-slate-900">{active.client_name}</p>
                   <p className="text-xs text-slate-400">
                     {active.accounts?.platform === "telegram" ? "Telegram" : "Instagram Direct"} ·{" "}
                     {active.accounts?.account_name}
                   </p>
+                  </div>
                 </div>
                 <Button
                   size="sm"
@@ -141,7 +166,7 @@ export default function InboxPage() {
                 </Button>
               </div>
 
-              <div className="thin-scroll flex-1 overflow-y-auto p-5">
+              <div className="thin-scroll flex-1 overflow-y-auto p-3 sm:p-5">
                 {loadingMessages ? (
                   <p className="text-sm text-slate-400">Загрузка сообщений...</p>
                 ) : (
@@ -153,7 +178,7 @@ export default function InboxPage() {
                       >
                         <div
                           className={cn(
-                            "max-w-[75%] rounded-xl px-4 py-2 text-sm",
+                            "max-w-[85%] whitespace-pre-wrap break-words rounded-xl px-4 py-2 text-sm sm:max-w-[75%]",
                             m.sender === "user"
                               ? "bg-slate-100 text-slate-800"
                               : m.sender === "manager"

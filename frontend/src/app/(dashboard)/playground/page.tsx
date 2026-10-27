@@ -95,8 +95,8 @@ export default function PlaygroundPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] flex-col">
-      <div className="mb-6 flex items-start justify-between">
+    <div className="flex h-[calc(100dvh-6.5rem)] flex-col md:h-[calc(100vh-4rem)]">
+      <div className="mb-4 flex items-start justify-between gap-3 md:mb-6">
         <div>
           <h1 className="text-lg font-semibold text-slate-900">Диалог с ИИ</h1>
           <p className="mt-1 text-sm text-slate-500">
@@ -119,7 +119,7 @@ export default function PlaygroundPage() {
               >
                 <div
                   className={cn(
-                    "max-w-[80%] rounded-xl px-4 py-2.5 text-sm leading-relaxed",
+                    "max-w-[88%] rounded-xl px-4 py-2.5 text-sm leading-relaxed sm:max-w-[80%]",
                     m.role === "user"
                       ? "bg-slate-900 text-white"
                       : m.isError

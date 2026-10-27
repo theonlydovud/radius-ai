@@ -97,10 +97,10 @@ export function BotSelector({
 }) {
   if (bots.length === 0) return null;
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex w-full items-center gap-2 sm:w-auto">
       <Bot className="h-4 w-4 text-slate-400" />
       <Select value={botId ?? undefined} onValueChange={onChange}>
-        <SelectTrigger className="h-9 w-80">
+        <SelectTrigger className="h-9 w-full sm:w-80">
           <SelectValue placeholder="Выберите агента" />
         </SelectTrigger>
         <SelectContent>
