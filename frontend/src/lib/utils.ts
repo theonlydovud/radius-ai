@@ -38,7 +38,7 @@ export function formatDay(iso: string) {
   return d.toLocaleDateString("ru-RU", {
     day: "numeric",
     month: "long",
-    ...(d.getFullYear() !== today.getFullYear() ? { year: "numeric" } : {}),
+    year: d.getFullYear() !== today.getFullYear() ? "numeric" : undefined,
   });
 }
 
