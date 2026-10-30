@@ -1,6 +1,7 @@
 import { extractPhone, isLeadComplete, sanitizeLeadFields, type ExtractedLeadFields } from "./lead-extraction";
 import { extractLeadFieldsWithGemini } from "./gemini";
 import { notifyNewLead } from "./lead-notify";
+import { assignNextManager } from "./managers";
 
 /**
  * Общие хелперы для вебхуков Instagram/Telegram: находят или создают
@@ -125,6 +126,7 @@ export async function maybeCreateOrUpdateLead(
     console.log(`[Lead Extraction] session ${sessionId.slice(0, 8)}: ${lastLead ? "после последней заявки" : "новая"} →`, fields);
 
     if (isLeadComplete(fields)) {
+      const manager = await assignNextManager(supabase);
       const { data: insertedLead, error: insertError } = await supabase
         .from("leads")
         .insert({
@@ -137,7 +139,8 @@ export async function maybeCreateOrUpdateLead(
             weight: fields.weight,
             cargo_type: fields.cargo_type,
           },
-          status: "pending_quote",
+          status: "new",
+          manager_id: manager?.id ?? null,
         })
         .select("id, client_name, client_phone, collected_data")
         .single();
@@ -154,12 +157,13 @@ export async function maybeCreateOrUpdateLead(
         clientName: insertedLead.client_name || clientName,
         clientPhone: insertedLead.client_phone || fields.phone || "",
         collectedData: insertedLead.collected_data || {},
+        managerName: manager?.name ?? null,
       });
       return;
     }
 
     // Неполный набор после существующей заявки — это уточнения к ней.
-    if (lastLead && lastLead.status === "pending_quote") {
+    if (lastLead && (lastLead.status === "new" || lastLead.status === "in_progress")) {
       const current = lastLead.collected_data ?? {};
       const patch: Record<string, string> = {};
       for (const k of ["origin_city", "destination_city", "weight", "cargo_type"] as const) {

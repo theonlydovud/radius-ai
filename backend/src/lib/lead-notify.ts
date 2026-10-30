@@ -131,6 +131,7 @@ export async function notifyNewLead(lead: {
   clientName: string;
   clientPhone: string;
   collectedData: Record<string, any>;
+  managerName: string | null;
 }) {
   try {
     const settings = await getLeadNotifySettings();
@@ -154,6 +155,7 @@ export async function notifyNewLead(lead: {
       `⚖️ Vazn: ${d.weight || "—"}`,
       `📦 Yuk turi: ${d.cargo_type || "—"}`,
       ...(source ? [`📲 Manba: ${source}`] : []),
+      `👨‍💼 Ответственный: ${lead.managerName || "не назначен"}`,
       "",
       "👉 Ariza panelida ko'rib chiqing.",
     ].join("\n");
