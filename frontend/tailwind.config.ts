@@ -41,7 +41,7 @@ const config: Config = {
         sm: "0.375rem",
       },
       fontFamily: {
-        sans: ["var(--font-geist)", "system-ui", "sans-serif"],
+        sans: ["var(--font-geist-sans)", "system-ui", "sans-serif"],
       },
     },
   },

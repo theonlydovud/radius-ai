@@ -277,9 +277,14 @@ export default function AccountsPage() {
     load();
   }
 
-  async function handleDisconnect(id: string) {
-    setAccounts((prev) => prev.filter((a) => a.id !== id));
-    await fetch(`/api/accounts?id=${id}`, { method: "DELETE" });
+  async function handleDisconnect(acc: AccountPublic) {
+    // В БД у чатов и заявок ON DELETE CASCADE: удаление аккаунта стирает их безвозвратно.
+    const confirmed = window.confirm(
+      `Удалить аккаунт «${acc.account_name}»?\n\nВместе с ним навсегда удалятся все его чаты и заявки, в том числе из статистики.`
+    );
+    if (!confirmed) return;
+    setAccounts((prev) => prev.filter((a) => a.id !== acc.id));
+    await fetch(`/api/accounts?id=${acc.id}`, { method: "DELETE" });
   }
 
   async function handleTestConnection(acc: AccountPublic) {
@@ -623,7 +628,7 @@ export default function AccountsPage() {
                     </div>
                   </div>
                   <button
-                    onClick={() => handleDisconnect(acc.id)}
+                    onClick={() => handleDisconnect(acc)}
                     className="text-slate-300 hover:text-red-500"
                     title="Отключить / удалить"
                   >
