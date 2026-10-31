@@ -7,11 +7,11 @@ export const STATUS_LABEL: Record<LeadStatus, string> = {
   not_sold: "Не продано",
 };
 
-export const STATUS_VARIANT: Record<LeadStatus, "warning" | "accent" | "success" | "secondary"> = {
+export const STATUS_VARIANT: Record<LeadStatus, "warning" | "accent" | "success" | "danger"> = {
   new: "warning",
   in_progress: "accent",
   sold: "success",
-  not_sold: "secondary",
+  not_sold: "danger",
 };
 
 export const LOST_REASONS: { value: LostReason; label: string }[] = [

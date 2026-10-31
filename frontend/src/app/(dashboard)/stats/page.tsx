@@ -32,10 +32,13 @@ function formatConversion(value: number | null) {
   return value === null ? "—" : `${value}%`;
 }
 
-function Tile({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
+function Tile({ label, value, hint, dot }: { label: string; value: string | number; hint?: string; dot?: string }) {
   return (
     <Card className="p-4">
-      <p className="text-xs text-slate-500">{label}</p>
+      <p className="flex items-center gap-1.5 text-xs text-slate-500">
+        {dot && <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />}
+        {label}
+      </p>
       <p className="mt-1 text-2xl font-semibold text-slate-900">{value}</p>
       {hint && <p className="mt-0.5 text-[11px] text-slate-400">{hint}</p>}
     </Card>
@@ -54,7 +57,7 @@ function ShareRow({ label, count, percent, width }: { label: string; count: numb
         </span>
       </div>
       <div className="h-1 rounded-full bg-slate-100">
-        <div className="h-1 rounded-full" style={{ width: `${width}%`, background: "#2a78d6" }} />
+        <div className="h-1 rounded-full bg-brand" style={{ width: `${width}%` }} />
       </div>
     </li>
   );
@@ -149,10 +152,10 @@ export default function StatsPage() {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <Tile label="Всего заявок" value={stats.totals.total} />
-            <Tile label="Новые" value={stats.totals.new} />
-            <Tile label="В работе" value={stats.totals.in_progress} />
-            <Tile label="Продано" value={stats.totals.sold} />
-            <Tile label="Не продано" value={stats.totals.not_sold} />
+            <Tile label="Новые" value={stats.totals.new} dot="bg-orange-500" />
+            <Tile label="В работе" value={stats.totals.in_progress} dot="bg-brand" />
+            <Tile label="Продано" value={stats.totals.sold} dot="bg-emerald-500" />
+            <Tile label="Не продано" value={stats.totals.not_sold} dot="bg-red-500" />
             <Tile label="Конверсия" value={formatConversion(stats.totals.conversion)} hint="продано / закрытые" />
           </div>
 

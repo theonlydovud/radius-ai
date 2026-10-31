@@ -612,11 +612,11 @@ export default function AccountsPage() {
               <Card key={acc.id}>
                 <CardHeader className="flex-row items-center justify-between space-y-0">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-soft">
                       {acc.platform === "telegram" ? (
-                        <TelegramIcon className="h-4 w-4 text-slate-600" />
+                        <TelegramIcon className="h-4 w-4 text-brand" />
                       ) : (
-                        <Instagram className="h-4 w-4 text-slate-600" />
+                        <Instagram className="h-4 w-4 text-brand" />
                       )}
                     </div>
                     <div>

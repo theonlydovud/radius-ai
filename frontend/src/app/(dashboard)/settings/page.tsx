@@ -135,8 +135,8 @@ export default function SettingsPage() {
       <Card className="max-w-2xl">
         <CardHeader className="flex-row items-center justify-between space-y-0">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100">
-              <Bell className="h-4 w-4 text-slate-600" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-soft">
+              <Bell className="h-4 w-4 text-brand" />
             </div>
             <div>
               <CardTitle>Заявки в Telegram</CardTitle>

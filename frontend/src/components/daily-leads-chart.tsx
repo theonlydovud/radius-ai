@@ -4,7 +4,7 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 
 /** Один ряд — один цвет. Значения дублируются в таблице под графиком. */
-const BAR_COLOR = "#2a78d6";
+const BAR_COLOR = "#1f66cc"; // фирменный синий, прошёл валидатор цвета
 const GRID_COLOR = "#e2e8f0";
 
 function formatDay(date: string) {

@@ -10,9 +10,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CloseLeadDialog, type CloseMode } from "@/components/close-lead-dialog";
+import { useCurrentUser } from "@/components/current-user";
 import { lostReasonLabel, STATUS_LABEL, STATUS_VARIANT } from "@/lib/lead-meta";
 import { dayEndISO, dayStartISO, formatDate } from "@/lib/utils";
-import type { Lead, Manager } from "@/types";
+import type { Lead } from "@/types";
 
 const TABS = [
   { value: "active", label: "Активные" },
@@ -30,7 +31,7 @@ function isClosed(lead: Lead) {
 
 export default function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [managers, setManagers] = useState<Manager[]>([]);
+  const { user, managers, ready } = useCurrentUser();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -64,16 +65,14 @@ export default function LeadsPage() {
     }
   }, [tab, managerFilter, dateFrom, dateTo]);
 
+  // Менеджер по умолчанию видит свои заявки, директор — все. Фильтр можно сменить вручную.
   useEffect(() => {
-    load();
-  }, [load]);
+    if (ready) setManagerFilter(user.managerId ?? ALL_MANAGERS);
+  }, [ready, user.managerId]);
 
   useEffect(() => {
-    fetch("/api/managers", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((json) => setManagers(json.data ?? []))
-      .catch(() => {});
-  }, []);
+    if (ready) load();
+  }, [ready, load]);
 
   async function patchLead(lead: Lead, body: Record<string, unknown>) {
     setBusyId(lead.id);
@@ -294,7 +293,6 @@ export default function LeadsPage() {
         <CloseLeadDialog
           lead={closing.lead}
           mode={closing.mode}
-          managers={managers}
           onClose={() => setClosing(null)}
           onClosed={() => {
             setClosing(null);

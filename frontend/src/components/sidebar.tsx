@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -11,11 +12,12 @@ import {
   BarChart3,
   Inbox,
   Plug,
-  Waypoints,
   Settings,
   Menu,
   X,
 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
+import { useCurrentUser } from "@/components/current-user";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
@@ -32,13 +34,52 @@ const NAV_ITEMS = [
 function Brand() {
   return (
     <div className="flex items-center gap-2">
-      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-900">
-        <Waypoints className="h-4 w-4 text-white" />
-      </div>
+      <Image src="/logo-mark.png" alt="" width={32} height={32} className="h-8 w-8" unoptimized priority />
       <div className="leading-tight">
         <p className="text-sm font-semibold text-slate-900">Radius AI</p>
         <p className="text-[11px] text-slate-400">Radius Logistics</p>
       </div>
+    </div>
+  );
+}
+
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((word) => word[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
+/** Кто работает в дашборде: директор или менеджер. */
+function UserSwitcher() {
+  const { user, options, setUserId } = useCurrentUser();
+  return (
+    <div className="border-t border-slate-200 p-2">
+      <Select value={user.id} onValueChange={setUserId}>
+        <SelectTrigger
+          aria-label="Сменить пользователя"
+          className="h-auto border-0 bg-transparent px-3 py-2 shadow-none hover:bg-slate-50"
+        >
+          <span className="flex min-w-0 items-center gap-3 text-left">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-soft text-xs font-medium text-brand">
+              {initials(user.name)}
+            </span>
+            <span className="min-w-0 leading-tight">
+              <span className="block truncate text-xs font-medium text-slate-800">{user.name}</span>
+              <span className="block truncate text-[11px] text-slate-400">{user.role}</span>
+            </span>
+          </span>
+        </SelectTrigger>
+        <SelectContent side="top" className="w-[var(--radix-select-trigger-width)]">
+          {options.map((o) => (
+            <SelectItem key={o.id} value={o.id}>
+              <span className="block text-sm">{o.name}</span>
+              <span className="block text-[11px] text-slate-400">{o.role}</span>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }
@@ -61,7 +102,7 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors md:py-2",
                 active
-                  ? "bg-slate-100 font-medium text-slate-900"
+                  ? "bg-brand-soft font-medium text-brand"
                   : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
               )}
             >
@@ -72,15 +113,7 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
         })}
       </nav>
 
-      <div className="flex items-center gap-3 border-t border-slate-200 px-5 py-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-xs font-medium text-slate-600">
-          ГР
-        </div>
-        <div className="leading-tight">
-          <p className="text-xs font-medium text-slate-800">Голиб Рахматов</p>
-          <p className="text-[11px] text-slate-400">CEO/Директор</p>
-        </div>
-      </div>
+      <UserSwitcher />
     </>
   );
 }

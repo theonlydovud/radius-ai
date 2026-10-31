@@ -1,54 +1,39 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { DIRECTOR, useCurrentUser } from "@/components/current-user";
 import { LOST_REASONS } from "@/lib/lead-meta";
 import { cn } from "@/lib/utils";
-import type { Lead, LostReason, Manager } from "@/types";
-
-const LAST_CLOSER_KEY = "radius.lastCloser";
+import type { Lead, LostReason } from "@/types";
 
 export type CloseMode = "sold" | "not_sold";
 
-/**
- * Закрытие заявки. Входа в дашборд нет, поэтому «кто закрывает» выбирают здесь:
- * по умолчанию ответственный, иначе тот, кто закрывал в этом браузере в прошлый раз.
- */
+/** Закрытие заявки. «Кто закрывает» по умолчанию — пользователь, выбранный внизу бокового меню. */
 export function CloseLeadDialog({
   lead,
   mode,
-  managers,
   onClose,
   onClosed,
 }: {
   lead: Lead;
   mode: CloseMode;
-  managers: Manager[];
   onClose: () => void;
   onClosed: () => void;
 }) {
-  const [closedBy, setClosedBy] = useState("");
+  const { user, managers } = useCurrentUser();
+  const [closedBy, setClosedBy] = useState(user.name);
   const [reason, setReason] = useState<LostReason | null>(null);
   const [comment, setComment] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    let remembered = "";
-    try {
-      remembered = window.localStorage.getItem(LAST_CLOSER_KEY) ?? "";
-    } catch {
-      /* private mode */
-    }
-    setClosedBy(lead.manager?.name ?? remembered);
-  }, [lead]);
-
-  // В списке — активные менеджеры и текущий выбор, даже если менеджера уже отключили.
-  const names = managers.filter((m) => m.is_active).map((m) => m.name);
+  // В списке — директор, активные менеджеры и текущий выбор, даже если менеджера уже отключили.
+  const names = [DIRECTOR.name, ...managers.filter((m) => m.is_active).map((m) => m.name)];
   if (closedBy && !names.includes(closedBy)) names.push(closedBy);
 
   const canSubmit = Boolean(closedBy) && (mode === "sold" || Boolean(reason)) && !saving;
@@ -71,11 +56,6 @@ export function CloseLeadDialog({
       if (!res.ok) {
         setError(json.error ?? "Не удалось закрыть заявку.");
         return;
-      }
-      try {
-        window.localStorage.setItem(LAST_CLOSER_KEY, closedBy);
-      } catch {
-        /* private mode */
       }
       onClosed();
     } catch {
@@ -122,7 +102,7 @@ export function CloseLeadDialog({
                       key={r.value}
                       className={cn(
                         "flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50",
-                        reason === r.value && "border-slate-900 bg-slate-50"
+                        reason === r.value && "border-brand bg-brand-soft"
                       )}
                     >
                       <input
@@ -131,7 +111,7 @@ export function CloseLeadDialog({
                         value={r.value}
                         checked={reason === r.value}
                         onChange={() => setReason(r.value)}
-                        className="accent-slate-900"
+                        className="accent-brand"
                       />
                       {r.label}
                     </label>

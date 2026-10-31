@@ -121,7 +121,7 @@ export default function PlaygroundPage() {
                   className={cn(
                     "max-w-[88%] rounded-xl px-4 py-2.5 text-sm leading-relaxed sm:max-w-[80%]",
                     m.role === "user"
-                      ? "bg-slate-900 text-white"
+                      ? "bg-brand text-white"
                       : m.isError
                       ? "flex items-start gap-2 bg-amber-50 text-amber-800"
                       : "bg-slate-100 text-slate-800"
@@ -154,7 +154,7 @@ export default function PlaygroundPage() {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSend()}
               placeholder="Напишите как клиент, например: «Здравствуйте, нужна доставка груза из Ташкента»"
-              className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900"
+              className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand"
             />
             <Button size="icon" onClick={handleSend} disabled={isTyping || !input.trim()}>
               <Send className="h-4 w-4" />

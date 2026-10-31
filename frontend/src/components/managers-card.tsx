@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { useCurrentUser } from "@/components/current-user";
 import type { Manager } from "@/types";
 
 const API = "/api/managers";
@@ -17,6 +18,7 @@ export function ManagersCard() {
   const [newName, setNewName] = useState("");
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState("");
+  const { reloadManagers } = useCurrentUser();
 
   async function load() {
     try {
@@ -45,7 +47,7 @@ export function ManagersCard() {
       const { [id]: _saved, ...rest } = prev;
       return rest;
     });
-    await load();
+    await Promise.all([load(), reloadManagers()]);
   }
 
   async function add() {
@@ -61,7 +63,7 @@ export function ManagersCard() {
     setError(res.ok ? "" : json.error ?? "Не удалось добавить.");
     if (res.ok) setNewName("");
     setAdding(false);
-    await load();
+    await Promise.all([load(), reloadManagers()]);
   }
 
   const noneActive = managers !== null && !managers.some((m) => m.is_active);
@@ -69,8 +71,8 @@ export function ManagersCard() {
   return (
     <Card className="mt-4 max-w-2xl">
       <CardHeader className="flex-row items-center gap-3 space-y-0">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100">
-          <Users className="h-4 w-4 text-slate-600" />
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-soft">
+          <Users className="h-4 w-4 text-brand" />
         </div>
         <div>
           <CardTitle>Менеджеры</CardTitle>
