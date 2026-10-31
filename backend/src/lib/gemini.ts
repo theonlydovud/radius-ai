@@ -8,6 +8,10 @@ const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
 // (быстрее и дешевле; у 2.5-flash по умолчанию включён «thinking», это +секунды).
 export const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
+// Без таймаута зависший запрос навсегда блокировал очередь этого чата.
+const REQUEST_TIMEOUT_MS = 30_000;
+const MAX_ATTEMPTS = 3;
+
 /**
  * Базовая системная инструкция. В отличие от system_rules (тон/
  * квалификация/общие правила, которые логист редактирует из UI), это
@@ -196,7 +200,7 @@ async function retrieveRelevantKnowledge(
 
 async function embedText(text: string): Promise<number[] | null> {
   try {
-    const model = genAI.getGenerativeModel({ model: "text-embedding-004" });
+    const model = genAI.getGenerativeModel({ model: "text-embedding-004" }, { timeout: 10_000 });
     const result = await model.embedContent(text);
     return result.embedding.values;
   } catch {
@@ -274,32 +278,36 @@ export async function sendToGemini(
   history: SandboxChatMessage[],
   message: string
 ) {
-  const model = genAI.getGenerativeModel({
-    model: GEMINI_MODEL,
-    systemInstruction,
-  });
+  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL, systemInstruction }, { timeout: REQUEST_TIMEOUT_MS });
+  const chatHistory = normalizeHistory(history).map((m) => ({
+    role: m.role,
+    parts: [{ text: m.text }],
+  }));
 
-  try {
-    const chat = model.startChat({
-      history: normalizeHistory(history).map((m) => ({
-        role: m.role,
-        parts: [{ text: m.text }],
-      })),
-      generationConfig: {
-        temperature: 0.6,
-        maxOutputTokens: 600,
-      },
-    });
+  // Временные сбои (перегрузка, таймаут, сеть) повторяем: без этого клиент оставался без ответа.
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const chat = model.startChat({
+        history: chatHistory,
+        generationConfig: {
+          temperature: 0.6,
+          maxOutputTokens: 600,
+        },
+      });
 
-    const result = await chat.sendMessage(message);
-    return result.response.text();
-  } catch (err: any) {
-    const status = err?.status ?? err?.response?.status;
-    const message: string = err?.message ?? "";
-    if (status === 429 || message.includes("429") || message.includes("RESOURCE_EXHAUSTED")) {
-      throw new GeminiRateLimitError();
+      const result = await chat.sendMessage(message);
+      return result.response.text();
+    } catch (err: any) {
+      const status = err?.status ?? err?.response?.status;
+      const text: string = err?.message ?? "";
+      if (status === 429 || text.includes("429") || text.includes("RESOURCE_EXHAUSTED")) {
+        throw new GeminiRateLimitError();
+      }
+      const permanent = typeof status === "number" && status >= 400 && status < 500;
+      if (permanent || attempt >= MAX_ATTEMPTS) throw err;
+      console.warn(`[gemini] попытка ${attempt} не удалась (${status ?? text.slice(0, 120)}), повторяю`);
+      await new Promise((resolve) => setTimeout(resolve, attempt * 1500));
     }
-    throw err;
   }
 }
 
@@ -309,10 +317,13 @@ export async function sendToGemini(
  * Результат дополнительно проверяется в sanitizeLeadFields (lead-extraction.ts).
  */
 export async function extractLeadFieldsWithGemini(conversation: string): Promise<Record<string, unknown>> {
-  const model = genAI.getGenerativeModel({
-    model: GEMINI_MODEL,
-    generationConfig: { responseMimeType: "application/json", temperature: 0 },
-  });
+  const model = genAI.getGenerativeModel(
+    {
+      model: GEMINI_MODEL,
+      generationConfig: { responseMimeType: "application/json", temperature: 0 },
+    },
+    { timeout: REQUEST_TIMEOUT_MS }
+  );
 
   const extractionPrompt = `Ты извлекаешь данные заявки на грузоперевозку из переписки клиента с ботом логистической компании Radius Logistics.
 Строки «Клиент:» — сообщения клиента, «Бот:» — ответы бота, «Менеджер:» — ответы сотрудника.

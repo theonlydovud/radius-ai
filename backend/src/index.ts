@@ -4,6 +4,7 @@ import { cors } from "hono/cors";
 import { frontendUrl } from "./lib/urls";
 import { startAllTelegramListeners, stopTelegramUserListener } from "./lib/telegram-listener";
 import { refreshInstagramTokens } from "./lib/instagram";
+import { startReplyRecovery } from "./lib/reply-recovery";
 
 import * as accounts from "./routes/accounts";
 import * as accountsTest from "./routes/accounts-test";
@@ -109,6 +110,8 @@ serve({ fetch: app.fetch, port }, () => {
   const refreshIg = () => refreshInstagramTokens().catch((e) => console.error("[ig] token refresh failed:", e?.message ?? e));
   setTimeout(refreshIg, 60_000);
   setInterval(refreshIg, 24 * 60 * 60 * 1000).unref();
+
+  startReplyRecovery();
 });
 
 // При редеплое Render шлёт SIGTERM старому инстансу. Корректно закрываем

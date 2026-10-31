@@ -1,8 +1,8 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { createAdminClient } from "./supabase/server";
-import { buildSystemInstruction, GeminiRateLimitError, sendToGemini } from "./gemini";
-import { getHistory, getOrCreateSession, maybeCreateOrUpdateLead } from "./conversation";
-import { scheduleReply, splitPending } from "./burst";
+import { getOrCreateSession } from "./conversation";
+import { scheduleReply } from "./burst";
+import { enqueueChat, replyToPending } from "./auto-reply";
 import { backendUrl } from "./urls";
 
 /**
@@ -25,8 +25,6 @@ const IG_GRAPH = `https://graph.instagram.com${VERSION}`;
 const FB_GRAPH = `https://graph.facebook.com${VERSION}`;
 const MAX_MESSAGE_LEN = 1000; // лимит длины текста в Instagram Direct
 export const SCOPES = ["instagram_business_basic", "instagram_business_manage_messages"];
-
-const RATE_LIMIT_REPLY = "Слишком большая нагрузка на сервера, повторите попытку через 1-2 минуты.";
 
 /** Токены Instagram Login начинаются с IG…, Page Access Token — с EAA…. */
 function isInstagramLoginToken(token: string) {
@@ -248,9 +246,9 @@ function describeEvent(event: IgEvent, field?: string) {
 }
 
 const g = globalThis as unknown as {
-  __radiusIg?: { seen: Set<string>; queues: Map<string, Promise<void>>; names: Map<string, string> };
+  __radiusIg?: { seen: Set<string>; names: Map<string, string> };
 };
-const reg = (g.__radiusIg ??= { seen: new Set(), queues: new Map(), names: new Map() });
+const reg = (g.__radiusIg ??= { seen: new Set(), names: new Map() });
 
 /**
  * Разбирает тело вебхука и ставит сообщения в очередь. Возвращает сразу:
@@ -294,21 +292,9 @@ export async function handleInstagramWebhook(body: any, fixedAccountId?: string)
         continue;
       }
 
-      enqueue(`${account.id}:${senderId}`, () => receiveInstagramMessage(account, senderId, text));
+      enqueueChat(`${account.id}:${senderId}`, () => receiveInstagramMessage(account, senderId, text));
     }
   }
-}
-
-/** Действия по одному клиенту — строго по порядку, разные клиенты — параллельно. */
-function enqueue(key: string, task: () => Promise<void>) {
-  const next = (reg.queues.get(key) ?? Promise.resolve())
-    .catch(() => {})
-    .then(task)
-    .catch((e: any) => console.error(`[ig] ${key.slice(0, 8)}: ${e?.message ?? e}`))
-    .finally(() => {
-      if (reg.queues.get(key) === next) reg.queues.delete(key);
-    });
-  reg.queues.set(key, next);
 }
 
 async function clientName(token: string, senderId: string) {
@@ -341,39 +327,18 @@ async function receiveInstagramMessage(account: IgAccount, senderId: string, tex
     return;
   }
 
-  const key = `${account.id}:${senderId}`;
-  scheduleReply(key, () => enqueue(key, () => replyInstagram(account, senderId)));
+  scheduleReply(`${account.id}:${senderId}`, () => retryInstagramReply(account, senderId));
 }
 
-/** Один ответ на все сообщения клиента, пришедшие после последнего ответа. */
-async function replyInstagram(account: IgAccount, senderId: string) {
-  const supabase = createAdminClient();
-  const tag = `[ig:${account.id.slice(0, 8)}]`;
-  const session = await getOrCreateSession(supabase, account.id, senderId, "Клиент Instagram");
-  if (!session || session.status === "manager_takeover") return;
-
-  const { before, pending } = splitPending(await getHistory(supabase, session.id));
-  if (!pending) return; // уже ответили (например, менеджер)
-
-  let reply: string;
-  try {
-    const systemInstruction = await buildSystemInstruction(pending, account.id);
-    reply = await sendToGemini(systemInstruction, before, pending);
-  } catch (err) {
-    if (!(err instanceof GeminiRateLimitError)) throw err;
-    reply = RATE_LIMIT_REPLY;
-  }
-
-  try {
-    await sendInstagramMessage(account.access_token, senderId, reply);
-  } catch (e: any) {
-    console.error(`${tag} не удалось отправить ответ: ${e?.message}`);
-    throw e;
-  }
-  const count = pending.split("\n").length;
-  console.log(`${tag} ответ отправлен (${reply.length} симв., на ${count} сообщ.)`);
-  await supabase.from("messages").insert({ session_id: session.id, sender: "ai", text: reply });
-  if (reply !== RATE_LIMIT_REPLY) {
-    await maybeCreateOrUpdateLead(supabase, session.id, session.client_name, [...before, { role: "user", text: pending }], reply);
-  }
+/** Ставит ответ в очередь чата; его же вызывает восстановление пропущенных ответов. */
+export function retryInstagramReply(account: Pick<IgAccount, "id" | "access_token">, senderId: string) {
+  enqueueChat(`${account.id}:${senderId}`, () =>
+    replyToPending({
+      accountId: account.id,
+      clientId: senderId,
+      clientName: "Клиент Instagram",
+      tag: `[ig:${account.id.slice(0, 8)}]`,
+      send: (text) => sendInstagramMessage(account.access_token, senderId, text),
+    })
+  );
 }
