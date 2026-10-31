@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, SchemaType, type ResponseSchema } from "@google/generative-ai";
 import { createAdminClient } from "./supabase/server";
 import type { KnowledgeItem, SandboxChatMessage, SystemRule } from "../types";
 
@@ -11,6 +11,7 @@ export const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 // Без таймаута зависший запрос навсегда блокировал очередь этого чата.
 const REQUEST_TIMEOUT_MS = 30_000;
 const MAX_ATTEMPTS = 3;
+const MAX_RATE_LIMIT_WAIT_MS = 30_000;
 
 /**
  * Базовая системная инструкция. В отличие от system_rules (тон/
@@ -273,6 +274,30 @@ export class GeminiRateLimitError extends Error {
  * при 429, которую вызывающая сторона (route.ts) превращает в понятное
  * сообщение для пользователя.
  */
+/**
+ * Повторяет запрос при временных сбоях: перегрузка (503), сеть, таймаут, битый JSON.
+ * На лимит запросов (429) Google пишет, сколько подождать: ждём столько, но не дольше 30 с.
+ * Постоянные ошибки (неверный ключ, модель) не повторяем.
+ */
+async function withRetry<T>(call: () => Promise<T>): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await call();
+    } catch (err: any) {
+      const status = err?.status ?? err?.response?.status;
+      const text: string = err?.message ?? "";
+      const rateLimited = status === 429 || text.includes("429") || text.includes("RESOURCE_EXHAUSTED");
+      if (!rateLimited && typeof status === "number" && status >= 400 && status < 500) throw err;
+      if (attempt >= MAX_ATTEMPTS) throw rateLimited ? new GeminiRateLimitError() : err;
+
+      const suggestedSec = Number(text.match(/retry in ([\d.]+)s/i)?.[1]);
+      const waitMs = rateLimited ? Math.min(((suggestedSec || 20) + 1) * 1000, MAX_RATE_LIMIT_WAIT_MS) : attempt * 1500;
+      console.warn(`[gemini] попытка ${attempt} не удалась (${status ?? text.slice(0, 120)}), повтор через ${Math.round(waitMs / 1000)} с`);
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+    }
+  }
+}
+
 export async function sendToGemini(
   systemInstruction: string,
   history: SandboxChatMessage[],
@@ -284,43 +309,45 @@ export async function sendToGemini(
     parts: [{ text: m.text }],
   }));
 
-  // Временные сбои (перегрузка, таймаут, сеть) повторяем: без этого клиент оставался без ответа.
-  for (let attempt = 1; ; attempt++) {
-    try {
-      const chat = model.startChat({
-        history: chatHistory,
-        generationConfig: {
-          temperature: 0.6,
-          maxOutputTokens: 600,
-        },
-      });
+  return withRetry(async () => {
+    const chat = model.startChat({
+      history: chatHistory,
+      generationConfig: {
+        temperature: 0.6,
+        maxOutputTokens: 600,
+      },
+    });
 
-      const result = await chat.sendMessage(message);
-      return result.response.text();
-    } catch (err: any) {
-      const status = err?.status ?? err?.response?.status;
-      const text: string = err?.message ?? "";
-      if (status === 429 || text.includes("429") || text.includes("RESOURCE_EXHAUSTED")) {
-        throw new GeminiRateLimitError();
-      }
-      const permanent = typeof status === "number" && status >= 400 && status < 500;
-      if (permanent || attempt >= MAX_ATTEMPTS) throw err;
-      console.warn(`[gemini] попытка ${attempt} не удалась (${status ?? text.slice(0, 120)}), повторяю`);
-      await new Promise((resolve) => setTimeout(resolve, attempt * 1500));
-    }
-  }
+    const result = await chat.sendMessage(message);
+    return result.response.text();
+  });
 }
+
+const nullableText = { type: SchemaType.STRING, nullable: true } as const;
+const LEAD_SCHEMA: ResponseSchema = {
+  type: SchemaType.OBJECT,
+  properties: {
+    is_cargo_request: { type: SchemaType.BOOLEAN },
+    origin_city: nullableText,
+    destination_city: nullableText,
+    weight: nullableText,
+    cargo_type: nullableText,
+    phone: nullableText,
+  },
+  required: ["is_cargo_request", "origin_city", "destination_city", "weight", "cargo_type", "phone"],
+};
 
 /**
  * Извлекает поля заявки из переписки. conversation — строки вида
  * «Клиент: …» / «Бот: …»: факты берутся только из слов клиента.
  * Результат дополнительно проверяется в sanitizeLeadFields (lead-extraction.ts).
+ * null — модель не ответила: вызывающий код сам решает, когда попробовать снова.
  */
-export async function extractLeadFieldsWithGemini(conversation: string): Promise<Record<string, unknown>> {
+export async function extractLeadFieldsWithGemini(conversation: string): Promise<Record<string, unknown> | null> {
   const model = genAI.getGenerativeModel(
     {
       model: GEMINI_MODEL,
-      generationConfig: { responseMimeType: "application/json", temperature: 0 },
+      generationConfig: { responseMimeType: "application/json", responseSchema: LEAD_SCHEMA, temperature: 0 },
     },
     { timeout: REQUEST_TIMEOUT_MS }
   );
@@ -355,13 +382,14 @@ ${conversation}
 - Ничего не придумывай и не угадывай. Если клиент не сказал явно — null.`;
 
   try {
-    const result = await model.generateContent(extractionPrompt);
-    // JSON-режим обычно отдаёт чистый объект, но на всякий случай вырезаем {...}.
-    const raw = result.response.text();
-    return JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1));
+    // Строгая схема: в обычном JSON-режиме модель заметно часто возвращала битый JSON.
+    return await withRetry(async () => {
+      const result = await model.generateContent(extractionPrompt);
+      const raw = result.response.text();
+      return JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1));
+    });
   } catch (err: any) {
     console.error("[Gemini Lead Extraction] Error:", err?.message);
-    // Без ответа модели заявку не создаём: лучше дождаться следующего сообщения, чем записать мусор.
-    return {};
+    return null;
   }
 }

@@ -67,6 +67,9 @@ export async function getHistory(supabase: any, sessionId: string, limit = 40) {
     }));
 }
 
+const LEAD_RETRY_ATTEMPTS = 5;
+const LEAD_RETRY_DELAY_MS = Number(process.env.LEAD_RETRY_DELAY_MS || 60_000);
+
 type Line = { who: "Клиент" | "Бот" | "Менеджер"; text: string };
 
 function speaker(roleOrSender: string): Line["who"] {
@@ -76,10 +79,11 @@ function speaker(roleOrSender: string): Line["who"] {
 }
 
 /** Поля заявки: извлекает Gemini, телефон подстраховывается регуляркой по словам клиента. */
-async function extractFields(lines: Line[]): Promise<ExtractedLeadFields> {
+async function extractFields(lines: Line[]): Promise<ExtractedLeadFields | null> {
   const conversation = lines.map((l) => `${l.who}: ${l.text}`).join("\n");
   const clientText = lines.filter((l) => l.who === "Клиент").map((l) => l.text).join("\n");
   const ai = await extractLeadFieldsWithGemini(conversation);
+  if (!ai) return null;
   return sanitizeLeadFields({ ...ai, phone: ai.phone ?? extractPhone(clientText) });
 }
 
@@ -95,7 +99,8 @@ export async function maybeCreateOrUpdateLead(
   sessionId: string,
   clientName: string,
   history: { role: string; text: string }[],
-  latestReply: string
+  latestReply: string,
+  attempt = 1
 ) {
   try {
     const { data: lastLeads, error: selectError } = await supabase
@@ -123,6 +128,16 @@ export async function maybeCreateOrUpdateLead(
     if (lines[lines.length - 1]?.text !== latestReply) lines.push({ who: "Бот", text: latestReply });
 
     const fields = await extractFields(lines);
+    if (!fields) {
+      // Gemini не ответил, а бот клиенту уже ответил: заявку нельзя потерять, пробуем позже.
+      if (attempt < LEAD_RETRY_ATTEMPTS) {
+        console.warn(`[Lead Extraction] session ${sessionId.slice(0, 8)}: Gemini не ответил, попытка ${attempt}, повтор через минуту`);
+        setTimeout(() => void maybeCreateOrUpdateLead(supabase, sessionId, clientName, history, latestReply, attempt + 1), LEAD_RETRY_DELAY_MS).unref();
+      } else {
+        console.error(`[Lead Extraction] session ${sessionId.slice(0, 8)}: заявка не создана, Gemini не ответил за ${attempt} попыток`);
+      }
+      return;
+    }
     console.log(`[Lead Extraction] session ${sessionId.slice(0, 8)}: ${lastLead ? "после последней заявки" : "новая"} →`, fields);
 
     if (isLeadComplete(fields)) {
