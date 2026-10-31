@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { ManagersCard } from "@/components/managers-card";
 import { cn } from "@/lib/utils";
 
 type LeadNotifySettings = {
@@ -128,7 +129,7 @@ export default function SettingsPage() {
     <div>
       <div className="mb-6">
         <h1 className="text-lg font-semibold text-slate-900">Настройки</h1>
-        <p className="mt-1 text-sm text-slate-500">Куда отправлять уведомления о новых заявках.</p>
+        <p className="mt-1 text-sm text-slate-500">Куда отправлять уведомления о новых заявках и кто их получает.</p>
       </div>
 
       <Card className="max-w-2xl">
@@ -278,6 +279,8 @@ export default function SettingsPage() {
           )}
         </CardContent>
       </Card>
+
+      <ManagersCard />
     </div>
   );
 }

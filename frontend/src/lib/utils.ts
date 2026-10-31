@@ -42,10 +42,17 @@ export function formatDay(iso: string) {
   });
 }
 
-export function formatCurrency(value: number) {
-  return new Intl.NumberFormat("ru-RU", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(value);
+/** Дата для <input type="date"> (YYYY-MM-DD) в местном времени. */
+export function toDateInput(date: Date) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+/** Начало и конец дня из <input type="date"> в местном времени — как ISO для API. */
+export function dayStartISO(day: string) {
+  return new Date(`${day}T00:00:00`).toISOString();
+}
+
+export function dayEndISO(day: string) {
+  return new Date(`${day}T23:59:59.999`).toISOString();
 }

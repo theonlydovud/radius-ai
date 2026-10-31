@@ -62,7 +62,22 @@ export interface Message {
   created_at: string;
 }
 
-export type LeadStatus = "pending_quote" | "quoted" | "closed";
+export type LeadStatus = "new" | "in_progress" | "sold" | "not_sold";
+
+export type LostReason =
+  | "too_expensive"
+  | "closed_themselves"
+  | "nothing_to_offer"
+  | "not_relevant"
+  | "no_response"
+  | "duplicate_spam";
+
+export interface Manager {
+  id: string;
+  name: string;
+  is_active: boolean;
+  sort_order: number;
+}
 
 export interface LeadCollectedData {
   origin_city?: string;
@@ -78,9 +93,38 @@ export interface Lead {
   client_name: string;
   client_phone: string;
   collected_data: LeadCollectedData;
-  quote_price: number | null;
   status: LeadStatus;
   created_at: string;
+  manager_id: string | null;
+  manager: Pick<Manager, "id" | "name"> | null;
+  source: { platform: Platform; account_name: string } | null;
+  closed_at: string | null;
+  closed_by: string | null;
+  lost_reason: LostReason | null;
+  lost_comment: string | null;
+}
+
+export interface LeadStats {
+  totals: {
+    total: number;
+    new: number;
+    in_progress: number;
+    sold: number;
+    not_sold: number;
+    conversion: number | null;
+  };
+  managers: {
+    id: string | null;
+    name: string;
+    received: number;
+    sold: number;
+    not_sold: number;
+    conversion: number | null;
+  }[];
+  reasons: { reason: LostReason; count: number; percent: number }[];
+  sources: { platform: Platform; count: number; percent: number }[];
+  routes: { route: string; count: number }[];
+  daily: { date: string; count: number }[];
 }
 
 export interface SandboxChatMessage {
