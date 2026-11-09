@@ -69,14 +69,18 @@ export function sanitizeLeadFields(raw: Partial<Record<keyof ExtractedLeadFields
   };
 }
 
-/** Заявка создаётся только когда известно всё: маршрут, вес/объём, что везём и телефон. */
+/**
+ * Заявка создаётся по тем же правилам, по которым бот говорит клиенту «передал логисту»:
+ * маршрут, телефон и характеристики груза — вес/объём ИЛИ что везём.
+ * Раньше требовались оба поля: клиент, назвавший только вес, слышал «логист свяжется»,
+ * а заявка не создавалась.
+ */
 export function isLeadComplete(fields: ExtractedLeadFields) {
   return Boolean(
     fields.is_cargo_request &&
       fields.origin_city &&
       fields.destination_city &&
-      fields.weight &&
-      fields.cargo_type &&
+      (fields.weight || fields.cargo_type) &&
       fields.phone
   );
 }
