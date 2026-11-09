@@ -22,7 +22,9 @@ services:
         value: gemini-2.5-flash-lite
       - key: TELEGRAM_LEADS_BOT_TOKEN
         sync: false
-      - key: TELEGRAM_LEADS_CHAT_ID
+      - key: TELEGRAM_LEADS_CHAT_ID   # группа менеджеров, например -1002140635125
+        sync: false
+      - key: TELEGRAM_OWNER_CHAT_ID   # необязательно: владелец в личку (дубль и запасной путь)
         sync: false
       - key: FRONTEND_URL      # https://<проект>.vercel.app — для CORS и OAuth-редиректов
         sync: false

@@ -12,7 +12,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CloseLeadDialog, type CloseMode } from "@/components/close-lead-dialog";
 import { useCurrentUser } from "@/components/current-user";
 import { lostReasonLabel, STATUS_LABEL, STATUS_VARIANT } from "@/lib/lead-meta";
-import { dayEndISO, dayStartISO, formatDate } from "@/lib/utils";
+import { cn, dayEndISO, dayStartISO, formatDate } from "@/lib/utils";
 import type { Lead } from "@/types";
 
 const TABS = [
@@ -37,6 +37,8 @@ export default function LeadsPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [closing, setClosing] = useState<{ lead: Lead; mode: CloseMode } | null>(null);
 
+  // Ссылка из Telegram: /leads?lead=<id> — показываем все заявки и подсвечиваем эту.
+  const [focusId, setFocusId] = useState<string | null>(null);
   const [tab, setTab] = useState("active");
   const [managerFilter, setManagerFilter] = useState(ALL_MANAGERS);
   const [dateFrom, setDateFrom] = useState("");
@@ -65,14 +67,29 @@ export default function LeadsPage() {
     }
   }, [tab, managerFilter, dateFrom, dateTo]);
 
-  // Менеджер по умолчанию видит свои заявки, директор — все. Фильтр можно сменить вручную.
   useEffect(() => {
-    if (ready) setManagerFilter(user.managerId ?? ALL_MANAGERS);
+    const id = new URLSearchParams(window.location.search).get("lead");
+    if (id) {
+      setFocusId(id);
+      setTab("all");
+    }
+  }, []);
+
+  // Менеджер по умолчанию видит свои заявки, директор — все. Фильтр можно сменить вручную.
+  // По ссылке на конкретную заявку фильтр не ставим, иначе она может не попасть в список.
+  useEffect(() => {
+    if (ready && !new URLSearchParams(window.location.search).get("lead")) {
+      setManagerFilter(user.managerId ?? ALL_MANAGERS);
+    }
   }, [ready, user.managerId]);
 
   useEffect(() => {
     if (ready) load();
   }, [ready, load]);
+
+  useEffect(() => {
+    if (focusId && !loading) document.getElementById(`lead-${focusId}`)?.scrollIntoView({ block: "center" });
+  }, [focusId, loading, leads]);
 
   async function patchLead(lead: Lead, body: Record<string, unknown>) {
     setBusyId(lead.id);
@@ -174,7 +191,11 @@ export default function LeadsPage() {
             // Отключённый менеджер остаётся в списке, пока он ответственный за эту заявку.
             const options = managers.filter((m) => m.is_active || m.id === lead.manager_id);
             return (
-              <Card key={lead.id} className="flex flex-col">
+              <Card
+                key={lead.id}
+                id={`lead-${lead.id}`}
+                className={cn("flex flex-col", focusId === lead.id && "ring-2 ring-brand")}
+              >
                 <CardHeader className="flex-row items-start justify-between gap-2 space-y-0">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-slate-900">{lead.client_name}</p>
@@ -222,6 +243,12 @@ export default function LeadsPage() {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {lead.taken_by && lead.taken_at && (
+                    <p className="text-xs text-slate-500">
+                      ✅ Взял в Telegram: {lead.taken_by} · {formatDate(lead.taken_at)}
+                    </p>
+                  )}
 
                   {isClosed(lead) && (
                     <div className="space-y-1 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">

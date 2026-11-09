@@ -167,13 +167,7 @@ export async function maybeCreateOrUpdateLead(
       console.log("[Lead Extraction] Lead created:", insertedLead.id);
 
       // Получатели и токен бота настраиваются на странице «Настройки» дашборда.
-      await notifyNewLead({
-        sessionId,
-        clientName: insertedLead.client_name || clientName,
-        clientPhone: insertedLead.client_phone || fields.phone || "",
-        collectedData: insertedLead.collected_data || {},
-        managerName: manager?.name ?? null,
-      });
+      await notifyNewLead(insertedLead.id);
       return;
     }
 

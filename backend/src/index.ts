@@ -5,6 +5,7 @@ import { frontendUrl } from "./lib/urls";
 import { startAllTelegramListeners, stopTelegramUserListener } from "./lib/telegram-listener";
 import { refreshInstagramTokens } from "./lib/instagram";
 import { startReplyRecovery } from "./lib/reply-recovery";
+import { ensureLeadsBotWebhook } from "./lib/lead-notify";
 
 import * as accounts from "./routes/accounts";
 import * as accountsTest from "./routes/accounts-test";
@@ -24,6 +25,7 @@ import * as messages from "./routes/messages";
 import * as rules from "./routes/rules";
 import * as sessions from "./routes/sessions";
 import * as sessionsId from "./routes/sessions-id";
+import * as telegramLeadsBot from "./routes/telegram-leads-bot";
 import * as settingsLeadNotifications from "./routes/settings-lead-notifications";
 import * as telegramAuthConfirm from "./routes/telegram-auth-confirm";
 import * as telegramAuthStart from "./routes/telegram-auth-start";
@@ -82,6 +84,7 @@ mount("/api/rules", rules);
 mount("/api/sessions", sessions);
 mount("/api/sessions/:id", sessionsId);
 mount("/api/settings/lead-notifications", settingsLeadNotifications);
+mount("/api/telegram/leads-bot", telegramLeadsBot);
 mount("/api/telegram/auth/start", telegramAuthStart);
 mount("/api/telegram/auth/confirm", telegramAuthConfirm);
 mount("/api/webhooks/instagram", webhooksInstagram);
@@ -112,6 +115,9 @@ serve({ fetch: app.fetch, port }, () => {
   setInterval(refreshIg, 24 * 60 * 60 * 1000).unref();
 
   startReplyRecovery();
+
+  // Нажатия «✅ Ishga oldim» приходят на вебхук бота заявок.
+  ensureLeadsBotWebhook().catch((e) => console.error("[leads-bot] вебхук не настроен:", e?.message ?? e));
 });
 
 // При редеплое Render шлёт SIGTERM старому инстансу. Корректно закрываем

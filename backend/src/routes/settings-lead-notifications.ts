@@ -1,4 +1,5 @@
 import {
+  ensureLeadsBotWebhook,
   findRecentChats,
   getBotUsername,
   getLeadNotifySettings,
@@ -24,13 +25,15 @@ function maskToken(token: string) {
 
 async function publicView() {
   const s = await getLeadNotifySettings();
-  const { token, chatIds, tokenSource } = resolveTarget(s);
+  const { token, chatIds, tokenSource, group, owner } = resolveTarget(s);
   let botUsername: string | null = null;
   if (token) botUsername = await getBotUsername(token).catch(() => null);
   return {
     enabled: s.enabled,
     chat_ids: s.chat_ids,
     effective_chat_ids: chatIds,
+    group_chat_id: group,
+    owner_chat_id: owner,
     bot_token_preview: maskToken(token),
     token_source: tokenSource,
     bot_username: botUsername,
@@ -93,6 +96,8 @@ export async function PUT(req: Request) {
       { status: 500 }
     );
   }
+  // Новый токен — новому боту тоже нужен вебхук для кнопки «✅ Ishga oldim».
+  ensureLeadsBotWebhook().catch((e) => console.error("[leads-bot] вебхук не настроен:", e?.message ?? e));
   return Response.json({ data: await publicView() });
 }
 

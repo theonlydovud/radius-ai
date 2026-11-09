@@ -15,6 +15,7 @@ const API = "/api/managers";
 export function ManagersCard() {
   const [managers, setManagers] = useState<Manager[] | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [tgDrafts, setTgDrafts] = useState<Record<string, string>>({});
   const [newName, setNewName] = useState("");
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState("");
@@ -44,6 +45,10 @@ export function ManagersCard() {
     const json = await res.json().catch(() => ({}));
     setError(res.ok ? "" : json.error ?? "Не удалось сохранить.");
     setDrafts((prev) => {
+      const { [id]: _saved, ...rest } = prev;
+      return rest;
+    });
+    setTgDrafts((prev) => {
       const { [id]: _saved, ...rest } = prev;
       return rest;
     });
@@ -95,6 +100,20 @@ export function ManagersCard() {
                   }}
                   aria-label="Имя менеджера"
                 />
+                <Input
+                  value={tgDrafts[m.id] ?? (m.telegram_id ? String(m.telegram_id) : "")}
+                  onChange={(e) => setTgDrafts((prev) => ({ ...prev, [m.id]: e.target.value }))}
+                  onBlur={() => {
+                    const draft = tgDrafts[m.id];
+                    if (draft !== undefined && draft.trim() !== (m.telegram_id ? String(m.telegram_id) : "")) {
+                      update(m.id, { telegram_id: draft.trim() });
+                    }
+                  }}
+                  placeholder="Telegram ID"
+                  inputMode="numeric"
+                  className="w-36 shrink-0"
+                  aria-label={`Telegram ID: ${m.name}`}
+                />
                 <Switch
                   checked={m.is_active}
                   onCheckedChange={(checked) => update(m.id, { is_active: checked })}
@@ -120,6 +139,7 @@ export function ManagersCard() {
 
         <p className="text-xs text-slate-400">
           Выключенный менеджер не получает новых заявок. Его старые заявки и статистика остаются.
+          Telegram ID нужен, чтобы бот упоминал менеджера в группе и пускал его нажать «✅ Ishga oldim».
         </p>
         {noneActive && <p className="text-xs text-amber-600">Все менеджеры выключены — новые заявки будут без ответственного.</p>}
         {error && <p className="text-xs text-red-600">{error}</p>}

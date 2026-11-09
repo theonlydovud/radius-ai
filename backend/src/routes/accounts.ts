@@ -2,6 +2,7 @@ import { createAdminClient } from "../lib/supabase/server";
 import { isTelegramUserAccount, serializeTelegramUserConfig } from "../lib/telegram";
 import { ensureTelegramUserListener, stopTelegramUserListener } from "../lib/telegram-listener";
 import { connectInstagramAccount } from "../lib/instagram";
+import { getLeadNotifySettings, resolveTarget } from "../lib/lead-notify";
 import { handOverKnowledgeBeforeDelete, validateKnowledgeSource } from "../lib/agents";
 import { invalidateAccountCache } from "../lib/gemini";
 
@@ -65,6 +66,17 @@ export async function POST(req: Request) {
 
   const sourceError = await validateKnowledgeSource(supabase, null, knowledge_source_id);
   if (sourceError) return Response.json({ error: sourceError }, { status: 400 });
+
+  // У бота один вебхук: если подключить бота заявок для клиентов, перестанет работать «✅ Ishga oldim».
+  if (platform === "telegram" && auth_type !== "user") {
+    const { token: leadsBotToken } = resolveTarget(await getLeadNotifySettings());
+    if (leadsBotToken && String(access_token).trim() === leadsBotToken) {
+      return Response.json(
+        { error: "Этот бот уже отправляет заявки менеджерам. Для клиентов создайте отдельного бота в @BotFather." },
+        { status: 400 }
+      );
+    }
+  }
 
   // Instagram: проверяем токен, узнаём ID аккаунта для вебхуков и подписываемся на messages.
   let platform_account_id: string | null = null;

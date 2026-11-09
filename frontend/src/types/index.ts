@@ -77,6 +77,7 @@ export interface Manager {
   name: string;
   is_active: boolean;
   sort_order: number;
+  telegram_id?: number | null;
 }
 
 export interface LeadCollectedData {
@@ -102,6 +103,9 @@ export interface Lead {
   closed_by: string | null;
   lost_reason: LostReason | null;
   lost_comment: string | null;
+  /** Кто нажал «✅ Ishga oldim» в Telegram и когда. */
+  taken_by?: string | null;
+  taken_at?: string | null;
 }
 
 export interface LeadStats {

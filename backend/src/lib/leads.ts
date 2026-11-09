@@ -14,7 +14,7 @@ export const LOST_REASONS = [
 
 const SELECT =
   "id, session_id, client_name, client_phone, collected_data, status, created_at, " +
-  "manager_id, closed_at, closed_by, lost_reason, lost_comment, " +
+  "manager_id, closed_at, closed_by, lost_reason, lost_comment, taken_by, taken_at, " +
   "managers(id, name), chat_sessions(accounts(platform, account_name))";
 
 const PAGE_SIZE = 1000; // Supabase не отдаёт больше 1000 строк за запрос

@@ -14,6 +14,8 @@ type LeadNotifySettings = {
   enabled: boolean;
   chat_ids: string[];
   effective_chat_ids: string[];
+  group_chat_id: string | null;
+  owner_chat_id: string | null;
   bot_token_preview: string;
   token_source: "settings" | "env" | "none";
   bot_username: string | null;
@@ -168,8 +170,16 @@ export default function SettingsPage() {
                 />
               </div>
 
+              <div className="space-y-1 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                <p>
+                  Группа: {settings.group_chat_id ?? <span className="text-amber-600">не задана (TELEGRAM_LEADS_CHAT_ID)</span>}
+                </p>
+                <p>Владелец в личку: {settings.owner_chat_id ?? "не задан (TELEGRAM_OWNER_CHAT_ID)"}</p>
+                <p className="text-slate-400">Задаются переменными на Render. Если в группу не отправилось, заявка уходит владельцу.</p>
+              </div>
+
               <div className="space-y-1.5">
-                <Label>Кому отправлять (Telegram ID)</Label>
+                <Label>Дополнительные получатели (Telegram ID)</Label>
                 <div className="flex flex-wrap gap-1.5">
                   {chatIds.map((id) => (
                     <span
@@ -188,9 +198,7 @@ export default function SettingsPage() {
                   ))}
                   {usingEnvChats &&
                     (settings.effective_chat_ids.length > 0 ? (
-                      <span className="text-xs text-slate-400">
-                        Не задано — используется {settings.effective_chat_ids.join(", ")} (из переменных окружения)
-                      </span>
+                      <span className="text-xs text-slate-400">Нет — заявки получают только группа и владелец.</span>
                     ) : (
                       <span className="text-xs text-amber-600">
                         Получатели не указаны — заявки сейчас никуда не отправляются.
