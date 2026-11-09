@@ -1,9 +1,9 @@
 import { createAdminClient } from "./supabase/server";
-import { getLeadNotifySettings, ownerChatId, rememberChat, renderLeadMessage, resolveTarget, TAKE_PREFIX, tgCall } from "./lead-notify";
+import { getLeadNotifySettings, rememberChat, renderLeadMessage, resolveTarget, TAKE_PREFIX, tgCall } from "./lead-notify";
 
 /**
  * Обновления бота заявок (вебхук /api/telegram/leads-bot): нажатие «✅ Ishga oldim».
- * Нажать могут менеджеры с заданным telegram_id и владелец (TELEGRAM_OWNER_CHAT_ID).
+ * Нажать может любой, кто видит кнопку; менеджеры из списка записываются своим именем.
  * Первый нажавший записывается в заявку; остальным бот отвечает, кто уже взял.
  */
 
@@ -58,16 +58,17 @@ async function answer(token: string, callbackId: string, text: string, alert = f
   );
 }
 
-/** Кто нажал: менеджер по telegram_id или владелец. */
+/**
+ * Кто нажал. Взять заявку может любой, кто видит кнопку (участники группы и получатели копий).
+ * Менеджер из списка записывается своим именем из «Менеджеров», остальные — именем в Telegram.
+ */
 async function resolveTaker(from: any): Promise<string | null> {
   const id = Number(from?.id);
   if (!id) return null;
   const { data: manager } = await createAdminClient().from("managers").select("name").eq("telegram_id", id).maybeSingle();
   if (manager) return manager.name;
-  if (ownerChatId() && String(id) === ownerChatId()) {
-    return [from.first_name, from.last_name].filter(Boolean).join(" ") || "Владелец";
-  }
-  return null;
+  const name = [from.first_name, from.last_name].filter(Boolean).join(" ");
+  return name || (from.username ? `@${from.username}` : String(id));
 }
 
 /** Возвращает, чем закончилось нажатие, — для журнала. */
