@@ -25,6 +25,13 @@ export const STATUS_GROUPS: Record<string, string[]> = {
   not_sold: ["not_sold"],
 };
 
+/** Менеджеру — только его заявки; без привязки к менеджеру — ни одной. Руководителю — без ограничения. */
+export function ownManagerFilter(auth?: { role: string; manager_id: string | null }) {
+  if (!auth || auth.role === "owner") return undefined;
+  return auth.manager_id ?? NO_LEADS;
+}
+const NO_LEADS = "00000000-0000-0000-0000-000000000000";
+
 export type LeadFilters = {
   /** active | sold | not_sold; не указан — все заявки */
   group?: string;
@@ -162,15 +169,23 @@ export function buildLeadStats(
   }
 
   const fmt = dayFormatter(options.timeZone);
-  const perDay = new Map<string, number>();
+  // По дням: сколько пришло и чем закончились (открытые = новые + в работе).
+  const perDay = new Map<string, { count: number; open: number; sold: number; not_sold: number }>();
   for (const l of leads) {
     const day = fmt.format(new Date(l.created_at));
-    perDay.set(day, (perDay.get(day) ?? 0) + 1);
+    const d = perDay.get(day) ?? { count: 0, open: 0, sold: 0, not_sold: 0 };
+    d.count += 1;
+    if (l.status === "sold") d.sold += 1;
+    else if (l.status === "not_sold") d.not_sold += 1;
+    else d.open += 1;
+    perDay.set(day, d);
   }
   const known = [...perDay.keys()].sort();
   const firstDay = options.from ? fmt.format(new Date(options.from)) : known[0];
   const lastDay = options.to ? fmt.format(new Date(options.to)) : fmt.format(new Date());
-  const daily = firstDay ? daysBetween(firstDay, lastDay).map((date) => ({ date, count: perDay.get(date) ?? 0 })) : [];
+  const daily = firstDay
+    ? daysBetween(firstDay, lastDay).map((date) => ({ date, ...(perDay.get(date) ?? { count: 0, open: 0, sold: 0, not_sold: 0 }) }))
+    : [];
 
   return {
     totals: {

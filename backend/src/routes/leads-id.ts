@@ -1,5 +1,6 @@
 import { createAdminClient } from "../lib/supabase/server";
 import { fetchLead, LOST_REASONS } from "../lib/leads";
+import type { RouteContext } from "../index";
 
 const NOT_CLOSED = { closed_at: null, closed_by: null, lost_reason: null, lost_comment: null };
 
@@ -9,14 +10,23 @@ const NOT_CLOSED = { closed_at: null, closed_by: null, lost_reason: null, lost_c
  *   { status: "sold", closed_by }                              — продано
  *   { status: "not_sold", closed_by, lost_reason, lost_comment? } — не продано, причина обязательна
  *   { manager_id: id | null }                                  — сменить ответственного
+ * Менеджер меняет только статус своих заявок; «кто закрыл» — всегда он сам.
  */
-export async function PATCH(
-  req: Request,
-  { params }: { params: { id: string } }
-) {
+export async function PATCH(req: Request, { params, auth }: RouteContext) {
   const supabase = createAdminClient();
   const body = await req.json();
   const updates: Record<string, unknown> = {};
+
+  if (auth && auth.role !== "owner") {
+    const { data: own } = await supabase.from("leads").select("manager_id").eq("id", params.id).maybeSingle();
+    if (!own || !auth.manager_id || own.manager_id !== auth.manager_id) {
+      return Response.json({ error: "Это не ваша заявка." }, { status: 403 });
+    }
+    if (body.manager_id !== undefined) {
+      return Response.json({ error: "Ответственного меняет руководитель." }, { status: 403 });
+    }
+    body.closed_by = auth.name;
+  }
 
   if (body.manager_id !== undefined) {
     if (body.manager_id !== null) {

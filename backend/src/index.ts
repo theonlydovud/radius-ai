@@ -2,18 +2,18 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { frontendUrl } from "./lib/urls";
-import { startAllTelegramListeners, stopTelegramUserListener } from "./lib/telegram-listener";
 import { refreshInstagramTokens } from "./lib/instagram";
 import { startReplyRecovery } from "./lib/reply-recovery";
 import { ensureLeadsBotWebhook } from "./lib/lead-notify";
+import { sessionUser, type AuthUser } from "./lib/auth";
 
 import * as accounts from "./routes/accounts";
 import * as accountsTest from "./routes/accounts-test";
 import * as authInstagram from "./routes/auth-instagram";
 import * as authInstagramCallback from "./routes/auth-instagram-callback";
+import * as authSession from "./routes/auth-session";
 import * as chat from "./routes/chat";
 import * as health from "./routes/health";
-import * as initListeners from "./routes/init-listeners";
 import * as instagramConfig from "./routes/instagram-config";
 import * as instagramDeauthorize from "./routes/instagram-deauthorize";
 import * as knowledge from "./routes/knowledge";
@@ -27,44 +27,78 @@ import * as sessions from "./routes/sessions";
 import * as sessionsId from "./routes/sessions-id";
 import * as telegramLeadsBot from "./routes/telegram-leads-bot";
 import * as settingsLeadNotifications from "./routes/settings-lead-notifications";
-import * as telegramAuthConfirm from "./routes/telegram-auth-confirm";
-import * as telegramAuthStart from "./routes/telegram-auth-start";
 import * as webhooksInstagram from "./routes/webhooks-instagram";
 import * as webhooksInstagramAccount from "./routes/webhooks-instagram-account";
-import * as webhooksTelegram from "./routes/webhooks-telegram";
-import * as webhooksTelegramAccount from "./routes/webhooks-telegram-account";
 
 /**
- * Backend Radius AI (деплой на Render). Тот же API, что раньше жил в
- * Next.js Route Handlers (src/app/api/**), но без Next.js — только HTTP +
- * MTProto-слушатели, поэтому процесс ест заметно меньше RAM.
+ * Backend DexaAI (деплой на Render). Хендлеры в routes/* — в формате Route Handlers:
+ * `(req: Request, { params, auth }) => Response`, их подключает mount().
  *
- * Хендлеры в routes/* остались в формате Route Handlers:
- * `(req: Request, { params }) => Response`, их подключает mount().
+ * Доступ: все /api/* требуют входа (куки dexa_u), кроме вебхуков, health и шагов входа.
+ * Руководитель (owner) может всё; менеджер — только свои заявки, их переписку и показатели.
  */
 
-type Handler = (req: Request, ctx: { params: any }) => Response | Promise<Response>;
+export type RouteContext = { params: any; auth?: AuthUser };
+type Handler = (req: Request, ctx: RouteContext) => Response | Promise<Response>;
 const METHODS = ["GET", "HEAD", "POST", "PATCH", "PUT", "DELETE"] as const;
 
-const app = new Hono();
+const app = new Hono<{ Variables: { auth?: AuthUser } }>();
 
 // Фронтенд ходит через rewrites Vercel (same-origin), CORS нужен только
 // если кто-то вызывает API напрямую из браузера с другого домена.
 app.use(
   "/api/*",
-  cors({ origin: process.env.FRONTEND_URL ? frontendUrl() : "*" })
+  cors({ origin: process.env.FRONTEND_URL ? frontendUrl() : "*", credentials: true })
 );
+
+/** Без входа: вызывают Meta/Telegram/Render или это сами шаги входа. */
+const PUBLIC_PATHS = new Set([
+  "/api/health",
+  "/api/auth/me",
+  "/api/auth/login",
+  "/api/auth/select",
+  "/api/auth/logout",
+  "/api/auth/instagram/callback",
+  "/api/instagram/deauthorize",
+  "/api/instagram/data-deletion",
+  "/api/telegram/leads-bot",
+]);
+const PUBLIC_PREFIXES = ["/api/webhooks/"];
+
+/** Что разрешено менеджеру: страница «Мои заявки» и её данные. */
+function managerAllowed(method: string, path: string) {
+  if (method === "GET" && (path === "/api/leads" || path === "/api/leads/stats" || path === "/api/messages")) return true;
+  return method === "PATCH" && /^\/api\/leads\/[^/]+$/.test(path) && path !== "/api/leads/stats";
+}
+
+app.use("/api/*", async (c, next) => {
+  const path = c.req.path.replace(/\/+$/, "") || "/";
+  if (c.req.method === "OPTIONS" || PUBLIC_PATHS.has(path) || PUBLIC_PREFIXES.some((p) => path.startsWith(p))) {
+    return next();
+  }
+  const user = await sessionUser(c.req.raw);
+  if (!user) return c.json({ error: "Войдите в аккаунт.", code: "unauthorized" }, 401);
+  if (user.role !== "owner" && !managerAllowed(c.req.method, path)) {
+    return c.json({ error: "Это доступно только руководителю.", code: "forbidden" }, 403);
+  }
+  c.set("auth", user);
+  return next();
+});
 
 function mount(path: string, mod: Partial<Record<(typeof METHODS)[number], Handler>>) {
   for (const method of METHODS) {
     const handler = mod[method];
-    if (handler) app.on(method, path, (c) => handler(c.req.raw, { params: c.req.param() }));
+    if (handler) app.on(method, path, (c) => handler(c.req.raw, { params: c.req.param(), auth: c.get("auth") }));
   }
 }
 
 mount("/api/health", health);
 mount("/health", health);
 mount("/ping", health);
+mount("/api/auth/me", authSession.me);
+mount("/api/auth/login", authSession.login);
+mount("/api/auth/select", authSession.select);
+mount("/api/auth/logout", authSession.logout);
 mount("/api/accounts", accounts);
 mount("/api/accounts/:id/test", accountsTest);
 mount("/api/auth/instagram", authInstagram);
@@ -73,7 +107,6 @@ mount("/api/instagram/config", instagramConfig);
 mount("/api/instagram/deauthorize", instagramDeauthorize);
 mount("/api/instagram/data-deletion", instagramDeauthorize);
 mount("/api/chat", chat);
-mount("/api/init-listeners", initListeners);
 mount("/api/knowledge", knowledge);
 mount("/api/leads", leads);
 mount("/api/leads/stats", leadsStats);
@@ -85,14 +118,10 @@ mount("/api/sessions", sessions);
 mount("/api/sessions/:id", sessionsId);
 mount("/api/settings/lead-notifications", settingsLeadNotifications);
 mount("/api/telegram/leads-bot", telegramLeadsBot);
-mount("/api/telegram/auth/start", telegramAuthStart);
-mount("/api/telegram/auth/confirm", telegramAuthConfirm);
 mount("/api/webhooks/instagram", webhooksInstagram);
 mount("/api/webhooks/instagram/:accountId", webhooksInstagramAccount);
-mount("/api/webhooks/telegram", webhooksTelegram);
-mount("/api/webhooks/telegram/:accountId", webhooksTelegramAccount);
 
-app.get("/", (c) => c.json({ ok: true, service: "radius-ai-backend" }));
+app.get("/", (c) => c.json({ ok: true, service: "dexa-ai-backend" }));
 app.notFound((c) => c.json({ error: "Not found" }, 404));
 app.onError((err, c) => {
   console.error(`[http] ${c.req.method} ${c.req.path}:`, err);
@@ -102,12 +131,6 @@ app.onError((err, c) => {
 const port = Number(process.env.PORT || 4000);
 serve({ fetch: app.fetch, port }, () => {
   console.log(`[http] backend listening on :${port}`);
-
-  // Намеренно БЕЗ await: HTTP-сервер (и Render Health Check) не ждёт MTProto.
-  // Подключение аккаунтов идёт параллельно и в фоне.
-  startAllTelegramListeners()
-    .then((r) => console.log(`[tg] listeners started: ${r.listening}/${r.total}`))
-    .catch((e) => console.error("[tg] listeners bootstrap failed:", e?.message ?? e));
 
   // Долгие токены Instagram живут 60 дней — продлеваем раз в сутки.
   const refreshIg = () => refreshInstagramTokens().catch((e) => console.error("[ig] token refresh failed:", e?.message ?? e));
@@ -120,16 +143,5 @@ serve({ fetch: app.fetch, port }, () => {
   ensureLeadsBotWebhook().catch((e) => console.error("[leads-bot] вебхук не настроен:", e?.message ?? e));
 });
 
-// При редеплое Render шлёт SIGTERM старому инстансу. Корректно закрываем
-// MTProto-сессии, чтобы новый инстанс не словил AUTH_KEY_DUPLICATED.
-async function shutdown(signal: string) {
-  console.log(`[http] ${signal}: stopping telegram listeners`);
-  const ids = [...(((globalThis as any).__radiusTg?.clients as Map<string, unknown>)?.keys() ?? [])];
-  await Promise.race([
-    Promise.all(ids.map((id) => stopTelegramUserListener(id))),
-    new Promise((r) => setTimeout(r, 5000)),
-  ]);
-  process.exit(0);
-}
-process.on("SIGTERM", () => void shutdown("SIGTERM"));
-process.on("SIGINT", () => void shutdown("SIGINT"));
+process.on("SIGTERM", () => process.exit(0));
+process.on("SIGINT", () => process.exit(0));

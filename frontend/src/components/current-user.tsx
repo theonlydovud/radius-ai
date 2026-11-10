@@ -1,39 +1,88 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
+import { DexaMark } from "@/components/brand/dexa-logo";
 import type { Manager } from "@/types";
 
 /**
- * Кто сейчас работает в дашборде. Входа по паролю нет: пользователя выбирают
- * внизу бокового меню, выбор хранится в этом браузере. Это удобство, а не защита:
- * выбрать можно любого. От выбора зависят подпись «кто закрыл» и фильтр заявок.
+ * Кто вошёл. Вход проверяет backend (куки dexa_c — компания, dexa_u — человек),
+ * здесь только читаем /api/auth/me и разводим по страницам:
+ *   нет компании → /login, нет человека → /select,
+ *   руководитель → панель с меню, менеджер → /crm (только свои заявки).
  */
 
-export const DIRECTOR = { id: "director", name: "Голиб Рахматов", role: "CEO/Директор" };
+export type Role = "owner" | "manager";
+export type Session = {
+  company: { id: string; name: string } | null;
+  user: { id: string; name: string; role: Role; manager_id: string | null } | null;
+  users: { id: string; name: string; role: Role }[];
+};
 
-const STORAGE_KEY = "radius.currentUser";
-const MANAGER_ROLE = "Менеджер";
+export const ROLE_LABEL: Record<Role, string> = { owner: "Руководитель", manager: "Менеджер" };
 
-export type CurrentUser = { id: string; name: string; role: string; managerId: string | null };
+export function homeFor(role: Role) {
+  return role === "owner" ? "/leads" : "/crm";
+}
+
+export async function fetchSession(): Promise<Session> {
+  const res = await fetch("/api/auth/me", { cache: "no-store" });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.error ?? "Сервер недоступен.");
+  return json.data as Session;
+}
+
+export async function logout(scope: "user" | "all") {
+  await fetch("/api/auth/logout", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ scope }),
+  }).catch(() => {});
+  window.location.href = scope === "all" ? "/login" : "/select";
+}
+
+/** Куда вернуться после входа: только внутренние пути. */
+export function safeNext(next: string | null) {
+  return next && next.startsWith("/") && !next.startsWith("//") ? next : null;
+}
+
+export type CurrentUser = { id: string; name: string; role: Role; roleLabel: string; managerId: string | null };
 
 type CurrentUserContextValue = {
   user: CurrentUser;
-  /** Директор и менеджеры, которых можно выбрать. */
-  options: { id: string; name: string; role: string }[];
-  /** Все менеджеры, включая выключенных. */
+  company: { id: string; name: string };
+  /** Все менеджеры очереди (загружаются только для руководителя). */
   managers: Manager[];
-  /** Менеджеры и сохранённый выбор загружены. */
   ready: boolean;
-  setUserId: (id: string) => void;
   reloadManagers: () => Promise<void>;
 };
 
 const CurrentUserContext = createContext<CurrentUserContextValue | null>(null);
 
-export function CurrentUserProvider({ children }: { children: React.ReactNode }) {
+export function FullScreenLoader({ text }: { text?: string }) {
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-background">
+      <DexaMark size={40} className="animate-pulse" />
+      <p className="flex items-center gap-2 text-sm text-slate-400">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        {text ?? "Загрузка..."}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Пускает на страницу только нужную роль. Ссылка из Telegram (/leads?lead=…)
+ * у менеджера открывается в его CRM с той же заявкой.
+ */
+export function CurrentUserProvider({ role, children }: { role: Role; children: React.ReactNode }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [session, setSession] = useState<Session | null>(null);
+  const [error, setError] = useState("");
   const [managers, setManagers] = useState<Manager[]>([]);
-  const [userId, setUserIdState] = useState(DIRECTOR.id);
-  const [ready, setReady] = useState(false);
+  const [managersReady, setManagersReady] = useState(role !== "owner");
 
   const reloadManagers = useCallback(async () => {
     try {
@@ -41,44 +90,55 @@ export function CurrentUserProvider({ children }: { children: React.ReactNode })
       const json = await res.json();
       if (res.ok) setManagers(json.data ?? []);
     } catch {
-      /* без списка останется директор */
+      /* список менеджеров нужен только для фильтров */
     }
   }, []);
 
   useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(STORAGE_KEY);
-      if (saved) setUserIdState(saved);
-    } catch {
-      /* private mode */
-    }
-    reloadManagers().finally(() => setReady(true));
-  }, [reloadManagers]);
+    let cancelled = false;
+    fetchSession()
+      .then((s) => {
+        if (cancelled) return;
+        const here = `${pathname}${window.location.search}`;
+        if (!s.company) return router.replace(`/login?next=${encodeURIComponent(here)}`);
+        if (!s.user) return router.replace(`/select?next=${encodeURIComponent(here)}`);
+        if (s.user.role !== role) return router.replace(`${homeFor(s.user.role)}${window.location.search}`);
+        setSession(s);
+      })
+      .catch((e) => !cancelled && setError(e?.message ?? "Сервер недоступен."));
+    return () => {
+      cancelled = true;
+    };
+  }, [role, router, pathname]);
 
-  const setUserId = useCallback((id: string) => {
-    setUserIdState(id);
-    try {
-      window.localStorage.setItem(STORAGE_KEY, id);
-    } catch {
-      /* private mode */
-    }
-  }, []);
+  useEffect(() => {
+    if (session?.user?.role === "owner") reloadManagers().finally(() => setManagersReady(true));
+  }, [session, reloadManagers]);
 
-  const value = useMemo<CurrentUserContextValue>(() => {
-    const manager = managers.find((m) => m.id === userId);
-    const user: CurrentUser = manager
-      ? { id: manager.id, name: manager.name, role: MANAGER_ROLE, managerId: manager.id }
-      : { ...DIRECTOR, managerId: null };
-    const options = [
-      DIRECTOR,
-      // Выключенный менеджер виден в списке, только пока выбран он сам.
-      ...managers
-        .filter((m) => m.is_active || m.id === user.id)
-        .map((m) => ({ id: m.id, name: m.name, role: MANAGER_ROLE })),
-    ];
-    return { user, options, managers, ready, setUserId, reloadManagers };
-  }, [managers, userId, ready, setUserId, reloadManagers]);
+  const value = useMemo<CurrentUserContextValue | null>(() => {
+    if (!session?.user || !session.company) return null;
+    const u = session.user;
+    return {
+      user: { id: u.id, name: u.name, role: u.role, roleLabel: ROLE_LABEL[u.role], managerId: u.manager_id },
+      company: session.company,
+      managers,
+      ready: managersReady,
+      reloadManagers,
+    };
+  }, [session, managers, managersReady, reloadManagers]);
 
+  if (error) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-background px-6 text-center">
+        <DexaMark size={40} />
+        <p className="text-sm text-slate-600">{error}</p>
+        <button className="text-sm font-medium text-brand hover:underline" onClick={() => window.location.reload()}>
+          Обновить страницу
+        </button>
+      </div>
+    );
+  }
+  if (!value) return <FullScreenLoader />;
   return <CurrentUserContext.Provider value={value}>{children}</CurrentUserContext.Provider>;
 }
 

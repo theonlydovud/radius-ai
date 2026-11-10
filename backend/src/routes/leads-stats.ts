@@ -1,5 +1,6 @@
 import { createAdminClient } from "../lib/supabase/server";
-import { buildLeadStats, fetchLeads } from "../lib/leads";
+import { buildLeadStats, fetchLeads, ownManagerFilter } from "../lib/leads";
+import type { RouteContext } from "../index";
 
 function validTimeZone(tz: string | null) {
   try {
@@ -14,7 +15,7 @@ function validTimeZone(tz: string | null) {
 }
 
 /** Статистика по заявкам, созданным за период: from, to (ISO), tz — пояс для графика по дням. */
-export async function GET(req: Request) {
+export async function GET(req: Request, ctx?: RouteContext) {
   const { searchParams } = new URL(req.url);
   const from = searchParams.get("from") ?? undefined;
   const to = searchParams.get("to") ?? undefined;
@@ -23,11 +24,12 @@ export async function GET(req: Request) {
   }
 
   const supabase = createAdminClient();
+  // Менеджер видит показатели только по своим заявкам.
+  const own = ownManagerFilter(ctx?.auth);
   try {
-    const [leads, managers] = await Promise.all([
-      fetchLeads(supabase, { from, to }),
-      supabase.from("managers").select("id, name, is_active").order("sort_order", { ascending: true }),
-    ]);
+    let managersQuery = supabase.from("managers").select("id, name, is_active").order("sort_order", { ascending: true });
+    if (own) managersQuery = managersQuery.eq("id", own);
+    const [leads, managers] = await Promise.all([fetchLeads(supabase, { from, to, manager: own }), managersQuery]);
     if (managers.error) throw new Error(managers.error.message);
 
     return Response.json({

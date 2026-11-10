@@ -15,7 +15,7 @@ export default function PrivacyPage() {
       <section className="space-y-3">
         <h2 className="text-base font-semibold text-slate-900">Какие данные мы обрабатываем</h2>
         <p>
-          Когда вы пишете Radius Logistics в Instagram Direct или Telegram, на ваши сообщения отвечает
+          Когда вы пишете Radius Logistics в Instagram Direct, на ваши сообщения отвечает
           ИИ-консультант. Мы сохраняем текст переписки, имя или имя пользователя из профиля, а также данные
           заявки, которые вы сами сообщаете: маршрут, вес и тип груза, номер телефона.
         </p>
@@ -34,7 +34,7 @@ export default function PrivacyPage() {
       <section id="data-deletion" className="mt-8 space-y-3">
         <h2 className="text-base font-semibold text-slate-900">Удаление данных</h2>
         <p>
-          Чтобы удалить свои данные, напишите нам в Instagram Direct или Telegram сообщение «Удалить мои
+          Чтобы удалить свои данные, напишите нам в Instagram Direct сообщение «Удалить мои
           данные». Мы удалим переписку и заявки, связанные с вашим аккаунтом, и подтвердим удаление в ответном
           сообщении.
         </p>
@@ -45,11 +45,11 @@ export default function PrivacyPage() {
       <section className="space-y-3 text-slate-500">
         <h2 className="text-base font-semibold text-slate-700">English summary</h2>
         <p>
-          When you message Radius Logistics on Instagram Direct or Telegram, an AI assistant replies. We store the
+          When you message Radius Logistics on Instagram Direct, an AI assistant replies. We store the
           conversation, your profile name and the shipment details you provide (route, weight, cargo type, phone
           number) only to answer you and prepare a quote. Data is stored in Supabase; message text is processed by
           Google Gemini to generate replies. We do not sell or share your data for advertising. To delete your
-          data, send us &quot;Delete my data&quot; via Instagram Direct or Telegram and we will remove your
+          data, send us &quot;Delete my data&quot; via Instagram Direct and we will remove your
           conversations and requests.
         </p>
       </section>

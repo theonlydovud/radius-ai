@@ -4,7 +4,7 @@ import { getHistory, getOrCreateSession, maybeCreateOrUpdateLead } from "./conve
 import { splitPending } from "./burst";
 
 /**
- * Общий ответ бота для Instagram и Telegram-бота: один ответ на все сообщения
+ * Ответ бота в Instagram: один ответ на все сообщения
  * клиента, пришедшие после последнего ответа. Если Gemini недоступен даже после
  * повторов, клиент не остаётся без ответа, а получает просьбу написать позже.
  */

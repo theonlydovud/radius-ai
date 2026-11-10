@@ -1,12 +1,25 @@
 import { createAdminClient } from "../lib/supabase/server";
+import type { RouteContext } from "../index";
 
-export async function GET(req: Request) {
+/** Переписка диалога. Менеджер видит только диалоги своих заявок. */
+export async function GET(req: Request, ctx?: RouteContext) {
   const supabase = createAdminClient();
   const { searchParams } = new URL(req.url);
   const sessionId = searchParams.get("session_id");
 
   if (!sessionId) {
     return Response.json({ error: "session_id обязателен." }, { status: 400 });
+  }
+
+  const auth = ctx?.auth;
+  if (auth && auth.role !== "owner") {
+    const { data: own } = await supabase
+      .from("leads")
+      .select("id")
+      .eq("session_id", sessionId)
+      .eq("manager_id", auth.manager_id ?? "00000000-0000-0000-0000-000000000000")
+      .limit(1);
+    if (!own?.length) return Response.json({ error: "Это не ваш диалог." }, { status: 403 });
   }
 
   const { data, error } = await supabase

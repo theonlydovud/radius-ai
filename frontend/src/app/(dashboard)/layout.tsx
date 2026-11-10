@@ -7,7 +7,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <CurrentUserProvider>
+    <CurrentUserProvider role="owner">
       <div className="min-h-screen bg-background md:flex">
         <Sidebar />
         <div className="flex min-w-0 flex-1 flex-col">

@@ -6,14 +6,17 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { DIRECTOR, useCurrentUser } from "@/components/current-user";
+import { useCurrentUser } from "@/components/current-user";
 import { LOST_REASONS } from "@/lib/lead-meta";
 import { cn } from "@/lib/utils";
 import type { Lead, LostReason } from "@/types";
 
 export type CloseMode = "sold" | "not_sold";
 
-/** Закрытие заявки. «Кто закрывает» по умолчанию — пользователь, выбранный внизу бокового меню. */
+/**
+ * Закрытие заявки. «Кто закрывает» — вошедший пользователь; руководитель может выбрать
+ * менеджера, менеджер закрывает только от своего имени (backend это и так проверяет).
+ */
 export function CloseLeadDialog({
   lead,
   mode,
@@ -32,8 +35,9 @@ export function CloseLeadDialog({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  // В списке — директор, активные менеджеры и текущий выбор, даже если менеджера уже отключили.
-  const names = [DIRECTOR.name, ...managers.filter((m) => m.is_active).map((m) => m.name)];
+  const canPick = user.role === "owner";
+  // В списке — руководитель, активные менеджеры и текущий выбор, даже если менеджера уже отключили.
+  const names = [...new Set([user.name, ...managers.filter((m) => m.is_active).map((m) => m.name)])];
   if (closedBy && !names.includes(closedBy)) names.push(closedBy);
 
   const canSubmit = Boolean(closedBy) && (mode === "sold" || Boolean(reason)) && !saving;
@@ -76,6 +80,7 @@ export function CloseLeadDialog({
         </DialogHeader>
 
         <div className="space-y-4">
+          {canPick && (
           <div className="space-y-1.5">
             <Label>Кто закрывает</Label>
             <Select value={closedBy || undefined} onValueChange={setClosedBy}>
@@ -91,6 +96,7 @@ export function CloseLeadDialog({
               </SelectContent>
             </Select>
           </div>
+          )}
 
           {mode === "not_sold" && (
             <>

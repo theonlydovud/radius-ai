@@ -4,7 +4,7 @@ import { notifyNewLead } from "./lead-notify";
 import { assignNextManager } from "./managers";
 
 /**
- * Общие хелперы для вебхуков Instagram/Telegram: находят или создают
+ * Общие хелперы для вебхуков Instagram: находят или создают
  * сессию диалога под конкретный аккаунт (уже загруженный из БД по
  * accountId из URL) и пишут сообщения/заявки. Токен платформы здесь не
  * участвует — он читается вызывающим route.ts из accounts.access_token.

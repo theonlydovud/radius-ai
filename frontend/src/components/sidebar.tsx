@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -15,10 +14,12 @@ import {
   Settings,
   Menu,
   X,
+  LogOut,
+  Users,
 } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
-import { useCurrentUser } from "@/components/current-user";
-import { cn } from "@/lib/utils";
+import { DexaMark } from "@/components/brand/dexa-logo";
+import { logout, useCurrentUser } from "@/components/current-user";
+import { cn, initials } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { href: "/playground", label: "Диалог с ИИ", icon: MessageSquareText },
@@ -32,54 +33,52 @@ const NAV_ITEMS = [
 ];
 
 function Brand() {
+  const { company } = useCurrentUser();
   return (
     <div className="flex items-center gap-2">
-      <Image src="/logo-mark.png" alt="" width={32} height={32} className="h-8 w-8" unoptimized priority />
+      <DexaMark size={32} />
       <div className="leading-tight">
-        <p className="text-sm font-semibold text-slate-900">Radius AI</p>
-        <p className="text-[11px] text-slate-400">Radius Logistics</p>
+        <p className="text-sm font-semibold text-slate-900">
+          Dexa<span className="text-brand">AI</span>
+        </p>
+        <p className="text-[11px] text-slate-400">{company.name}</p>
       </div>
     </div>
   );
 }
 
-function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((word) => word[0]?.toUpperCase() ?? "")
-    .join("");
-}
-
-/** Кто работает в дашборде: директор или менеджер. */
-function UserSwitcher() {
-  const { user, options, setUserId } = useCurrentUser();
+/** Кто вошёл, смена пользователя (компания остаётся) и полный выход. */
+function UserMenu() {
+  const { user } = useCurrentUser();
   return (
-    <div className="border-t border-slate-200 p-2">
-      <Select value={user.id} onValueChange={setUserId}>
-        <SelectTrigger
-          aria-label="Сменить пользователя"
-          className="h-auto border-0 bg-transparent px-3 py-2 shadow-none hover:bg-slate-50"
+    <div className="border-t border-slate-200 p-3">
+      <div className="flex items-center gap-3 px-2 py-1.5">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#3D6BFF] to-[#A445F5] text-xs font-medium text-white">
+          {initials(user.name)}
+        </span>
+        <span className="min-w-0 leading-tight">
+          <span className="block truncate text-xs font-medium text-slate-800">{user.name}</span>
+          <span className="block truncate text-[11px] text-slate-400">{user.roleLabel}</span>
+        </span>
+      </div>
+      <div className="mt-1 grid grid-cols-2 gap-1">
+        <button
+          type="button"
+          onClick={() => logout("user")}
+          className="flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-[11px] text-slate-500 hover:bg-slate-50 hover:text-slate-800"
         >
-          <span className="flex min-w-0 items-center gap-3 text-left">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-soft text-xs font-medium text-brand">
-              {initials(user.name)}
-            </span>
-            <span className="min-w-0 leading-tight">
-              <span className="block truncate text-xs font-medium text-slate-800">{user.name}</span>
-              <span className="block truncate text-[11px] text-slate-400">{user.role}</span>
-            </span>
-          </span>
-        </SelectTrigger>
-        <SelectContent side="top" className="w-[var(--radix-select-trigger-width)]">
-          {options.map((o) => (
-            <SelectItem key={o.id} value={o.id}>
-              <span className="block text-sm">{o.name}</span>
-              <span className="block text-[11px] text-slate-400">{o.role}</span>
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+          <Users className="h-3.5 w-3.5" />
+          Сменить
+        </button>
+        <button
+          type="button"
+          onClick={() => logout("all")}
+          className="flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-[11px] text-slate-500 hover:bg-slate-50 hover:text-red-600"
+        >
+          <LogOut className="h-3.5 w-3.5" />
+          Выйти
+        </button>
+      </div>
     </div>
   );
 }
@@ -113,7 +112,7 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
         })}
       </nav>
 
-      <UserSwitcher />
+      <UserMenu />
     </>
   );
 }

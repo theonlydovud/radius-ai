@@ -8,11 +8,11 @@ const config: Config = {
       colors: {
         border: "hsl(var(--border))",
         background: "#FAFAFA",
-        // Фирменный синий из логотипа. Белый текст на нём: контраст 5.5:1.
+        // Фирменный синий DexaAI (начало градиента логотипа). Белый текст на нём: контраст 5.5:1.
         brand: {
-          DEFAULT: "#1f66cc",
-          dark: "#1a56ad",
-          soft: "#eef4fc",
+          DEFAULT: "#2f5be8",
+          dark: "#2448c4",
+          soft: "#eef2ff",
         },
         foreground: "hsl(var(--foreground))",
         primary: {

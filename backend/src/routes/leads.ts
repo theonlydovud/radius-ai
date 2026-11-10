@@ -1,13 +1,15 @@
 import { createAdminClient } from "../lib/supabase/server";
-import { fetchLeads, STATUS_GROUPS } from "../lib/leads";
+import { fetchLeads, ownManagerFilter, STATUS_GROUPS } from "../lib/leads";
+import type { RouteContext } from "../index";
 
 /**
  * Список заявок. Фильтры:
  *   status  = active (по умолчанию) | sold | not_sold | all
  *   manager = id менеджера | none (без ответственного)
  *   from, to — период по дате создания (ISO)
+ * Менеджер всегда получает только свои заявки, фильтр manager для него игнорируется.
  */
-export async function GET(req: Request) {
+export async function GET(req: Request, ctx?: RouteContext) {
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status") ?? "active";
   if (status !== "all" && !STATUS_GROUPS[status]) {
@@ -23,7 +25,7 @@ export async function GET(req: Request) {
   try {
     const data = await fetchLeads(createAdminClient(), {
       group: status === "all" ? undefined : status,
-      manager: searchParams.get("manager") ?? undefined,
+      manager: ownManagerFilter(ctx?.auth) ?? searchParams.get("manager") ?? undefined,
       from,
       to,
     });

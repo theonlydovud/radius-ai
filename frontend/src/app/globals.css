@@ -31,3 +31,86 @@ body {
 .thin-scroll::-webkit-scrollbar { width: 6px; }
 .thin-scroll::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 999px; }
 .thin-scroll::-webkit-scrollbar-track { background: transparent; }
+
+/* Экраны входа: медленно плавающие пятна градиента */
+@keyframes auth-float {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(40px, 30px) scale(1.08); }
+}
+.auth-blob { animation: auth-float 14s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .auth-blob { animation: none; }
+}
+
+/* ---------- Лендинг ---------- */
+
+/* Появление при прокрутке: прячем только когда JS готов (reveal-ready), иначе всё видно сразу */
+.reveal-ready [data-reveal] {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.7s ease, transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+.reveal-ready [data-reveal].is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+@keyframes chat-pop {
+  from { opacity: 0; transform: translateY(8px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+.chat-pop { animation: chat-pop 0.35s ease-out both; }
+
+/* Переливающийся градиент заголовка */
+@keyframes gradient-pan {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+.text-gradient-anim {
+  background-image: linear-gradient(90deg, #7ea2ff, #b388ff, #5ee7f5, #7ea2ff);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: gradient-pan 8s linear infinite;
+}
+
+/* Карточка со светящейся градиентной рамкой */
+.glow-card {
+  position: relative;
+  background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.glow-card::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(61,107,255,0.6), transparent 40%, transparent 60%, rgba(164,69,245,0.6));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+}
+.glow-card:hover::before { opacity: 1; }
+
+@keyframes bar-grow {
+  from { transform: scaleY(0.15); }
+  to { transform: scaleY(1); }
+}
+.bar-grow { transform-origin: bottom; animation: bar-grow 1.2s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+
+@keyframes float-y {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+.float-y { animation: float-y 6s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal-ready [data-reveal] { opacity: 1; transform: none; transition: none; }
+  .chat-pop, .text-gradient-anim, .bar-grow, .float-y { animation: none; }
+}

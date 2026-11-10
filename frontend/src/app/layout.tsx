@@ -6,9 +6,8 @@ import { GeistSans } from "geist/font/sans";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Radius AI — Платформа автоматизации консультирования",
-  description:
-    "B2B SaaS-платформа автоматизации Instagram Direct и Telegram консультирования для Radius Logistics.",
+  title: "DexaAI",
+  description: "ИИ-менеджер для Instagram Direct и простая CRM для заявок.",
 };
 
 export default function RootLayout({

@@ -56,3 +56,12 @@ export function dayStartISO(day: string) {
 export function dayEndISO(day: string) {
   return new Date(`${day}T23:59:59.999`).toISOString();
 }
+
+/** Инициалы для аватара: «Голиб Рахматов» → «ГР». */
+export function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((word) => word[0]?.toUpperCase() ?? "")
+    .join("");
+}

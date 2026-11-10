@@ -1,13 +1,10 @@
 import { createAdminClient } from "./supabase/server";
 import { retryInstagramReply } from "./instagram";
-import { isTelegramUserAccount } from "./telegram";
-import { retryTelegramBotReply } from "./telegram-bot";
 
 /**
  * Страховка от молчания бота. Ответ может потеряться: сервер перезапустился во
  * время паузы склейки или не удалось отправить сообщение. Раз в минуту ищем
  * диалоги, где последнее слово за клиентом, и отвечаем ещё раз.
- * Telegram-аккаунты с личным входом сюда не входят: у них своя память чата.
  */
 
 const MIN_AGE_MS = 2 * 60_000; // дольше любой паузы склейки вместе с ответом Gemini
@@ -41,22 +38,21 @@ export async function recoverMissedReplies() {
 
   const { data: sessions } = await supabase
     .from("chat_sessions")
-    .select("id, client_id, status, accounts(id, platform, access_token, webhook_verify_token)")
+    .select("id, client_id, status, accounts(id, platform, access_token)")
     .in("id", missed.map(([id]) => id))
     .eq("status", "ai_active");
 
   for (const session of (sessions ?? []) as any[]) {
     const account = session.accounts;
-    if (!account?.access_token || isTelegramUserAccount(account)) continue;
+    if (!account?.access_token || account.platform !== "instagram") continue;
 
     const key = `${session.id}:${latest.get(session.id)!.created_at}`;
     const tries = attempts.get(key) ?? 0;
     if (tries >= MAX_ATTEMPTS) continue;
     attempts.set(key, tries + 1);
 
-    console.log(`[recovery] сообщение клиента без ответа (${account.platform}, попытка ${tries + 1}), отвечаю`);
-    if (account.platform === "instagram") retryInstagramReply(account, session.client_id);
-    else if (account.platform === "telegram") retryTelegramBotReply(account, session.client_id);
+    console.log(`[recovery] сообщение клиента без ответа (попытка ${tries + 1}), отвечаю`);
+    retryInstagramReply(account, session.client_id);
   }
 
   if (attempts.size > 5000) attempts.clear();

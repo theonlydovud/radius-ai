@@ -128,7 +128,8 @@ export interface LeadStats {
   reasons: { reason: LostReason; count: number; percent: number }[];
   sources: { platform: Platform; count: number; percent: number }[];
   routes: { route: string; count: number }[];
-  daily: { date: string; count: number }[];
+  /** По дням: пришло всего и чем закончились (open = новые + в работе). */
+  daily: { date: string; count: number; open: number; sold: number; not_sold: number }[];
 }
 
 export interface SandboxChatMessage {
