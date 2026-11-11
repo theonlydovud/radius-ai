@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useCurrentUser } from "@/components/current-user";
 import { CloseLeadDialog, type CloseMode } from "@/components/close-lead-dialog";
+import { CreateLeadButton } from "@/components/create-lead-dialog";
 import { SERIES } from "@/components/crm/charts";
 import { StatsSection } from "@/components/crm/stats-section";
 import { greeting, plural, TopBar } from "@/components/crm/top-bar";
@@ -103,7 +104,10 @@ function LeadRow({
             <Phone className="h-3.5 w-3.5" />
             {lead.client_phone}
           </a>
-          <p className="mt-0.5 text-xs text-slate-400">{ago(lead.created_at)}</p>
+          <p className="mt-0.5 text-xs text-slate-400">
+            {ago(lead.created_at)}
+            {d?.created_by ? ` · вручную, ${d.created_by}` : ""}
+          </p>
         </div>
 
         <div className="grid min-w-0 flex-1 grid-cols-1 gap-1 text-sm text-slate-600 sm:grid-cols-[1.5fr_0.8fr_1fr] sm:gap-3">
@@ -124,10 +128,12 @@ function LeadRow({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 lg:flex-nowrap lg:justify-end">
-          <Button variant="ghost" size="sm" onClick={onChat} className="text-slate-600">
-            <MessageCircle className="h-3.5 w-3.5" />
-            Переписка
-          </Button>
+          {lead.session_id && (
+            <Button variant="ghost" size="sm" onClick={onChat} className="text-slate-600">
+              <MessageCircle className="h-3.5 w-3.5" />
+              Переписка
+            </Button>
+          )}
           {isClosed(lead) ? (
             <Button variant="outline" size="sm" disabled={busy} onClick={() => onPatch({ status: "in_progress" })}>
               <RotateCcw className="h-3.5 w-3.5" />
@@ -153,6 +159,8 @@ function LeadRow({
           )}
         </div>
       </div>
+
+      {d?.note && <p className="mt-3 whitespace-pre-wrap break-words rounded-lg bg-amber-50/60 px-3 py-2 text-xs text-slate-700">💬 {d.note}</p>}
 
       {isClosed(lead) && (
         <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
@@ -294,10 +302,13 @@ export default function CrmPage() {
               в работе: <span className="font-medium text-slate-900">{counts.in_progress}</span>
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={refresh} disabled={refreshing} className="self-start sm:self-auto">
-            <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
-            Обновить
-          </Button>
+          <div className="flex gap-2 self-start sm:self-auto">
+            <CreateLeadButton onCreated={refresh} />
+            <Button variant="outline" size="sm" onClick={refresh} disabled={refreshing}>
+              <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
+              Обновить
+            </Button>
+          </div>
         </div>
 
         {/* Заявки */}

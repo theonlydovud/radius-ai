@@ -6,6 +6,7 @@ import { useCurrentUser } from "@/components/current-user";
 import { StatsSection } from "@/components/crm/stats-section";
 import { greeting, TopBar } from "@/components/crm/top-bar";
 import { LeadsBoard } from "@/components/leads-board";
+import { CreateLeadButton } from "@/components/create-lead-dialog";
 import { Button } from "@/components/ui/button";
 
 /**
@@ -30,10 +31,16 @@ export default function AdminPage() {
             </h1>
             <p className="mt-1 text-sm text-slate-500">Заявки всех менеджеров и общая статистика.</p>
           </div>
+          <div className="flex gap-2 self-start sm:self-auto">
+          <CreateLeadButton
+            onCreated={() => {
+              setKey((k) => k + 1);
+              setStatsKey((k) => k + 1);
+            }}
+          />
           <Button
             variant="outline"
             size="sm"
-            className="self-start sm:self-auto"
             onClick={() => {
               setKey((k) => k + 1);
               setStatsKey((k) => k + 1);
@@ -42,6 +49,7 @@ export default function AdminPage() {
             <RefreshCw className="h-3.5 w-3.5" />
             Обновить
           </Button>
+          </div>
         </div>
 
         <LeadsBoard key={key} layout="list" onChanged={() => setStatsKey((k) => k + 1)} />

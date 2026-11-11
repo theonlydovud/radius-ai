@@ -85,12 +85,17 @@ export interface LeadCollectedData {
   destination_city?: string;
   weight?: string;
   cargo_type?: string;
+  /** Комментарий к заявке, созданной вручную. */
+  note?: string;
+  /** Кто создал заявку вручную; нет — собрал ИИ. */
+  created_by?: string;
   [key: string]: string | undefined;
 }
 
 export interface Lead {
   id: string;
-  session_id: string;
+  /** NULL — заявка создана вручную, переписки нет. */
+  session_id: string | null;
   client_name: string;
   client_phone: string;
   collected_data: LeadCollectedData;

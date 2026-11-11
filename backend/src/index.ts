@@ -69,6 +69,7 @@ const PUBLIC_PREFIXES = ["/api/webhooks/"];
 /** Заявки и статистика: всё, что есть у менеджера и супер-админа. Чьи именно заявки — решают сами хендлеры. */
 function leadsAllowed(method: string, path: string) {
   if (method === "GET" && (path === "/api/leads" || path === "/api/leads/stats" || path === "/api/messages")) return true;
+  if (method === "POST" && path === "/api/leads") return true;
   return method === "PATCH" && /^\/api\/leads\/[^/]+$/.test(path) && path !== "/api/leads/stats";
 }
 

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { DailyOutcomeChart, RankedBars, SERIES, StatusSplit } from "@/components/crm/charts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { lostReasonLabel } from "@/lib/lead-meta";
 import { cn, dayEndISO, dayStartISO, toDateInput } from "@/lib/utils";
@@ -16,13 +17,19 @@ import type { LeadStats } from "@/types";
 
 const REFRESH_MS = 30_000;
 
-type Period = "today" | "week" | "month" | "quarter";
-const PERIODS: { value: Period; label: string; days: number }[] = [
+type Period = "today" | "week" | "month" | "custom";
+const PERIODS: { value: Period; label: string; days?: number }[] = [
   { value: "today", label: "Сегодня", days: 0 },
   { value: "week", label: "7 дней", days: 6 },
   { value: "month", label: "30 дней", days: 29 },
-  { value: "quarter", label: "90 дней", days: 89 },
+  { value: "custom", label: "Свой период" },
 ];
+
+/** «12.10.2026» из «2026-10-12». */
+function ruDate(day: string) {
+  const [y, m, d] = day.split("-");
+  return `${d}.${m}.${y}`;
+}
 
 function daysAgo(days: number) {
   const d = new Date();
@@ -58,14 +65,21 @@ export function StatsSection({
   refreshKey?: number;
 }) {
   const [period, setPeriod] = useState<Period>("month");
+  const [customFrom, setCustomFrom] = useState(daysAgo(29));
+  const [customTo, setCustomTo] = useState(daysAgo(0));
   const [stats, setStats] = useState<LeadStats | null>(null);
   const [error, setError] = useState("");
 
+  const preset = PERIODS.find((p) => p.value === period)!;
+  const from = period === "custom" ? customFrom : daysAgo(preset.days ?? 0);
+  const to = period === "custom" ? customTo : daysAgo(0);
+  const badRange = !from || !to || from > to;
+
   const load = useCallback(async () => {
-    const days = PERIODS.find((p) => p.value === period)!.days;
+    if (badRange) return;
     const params = new URLSearchParams({
-      from: dayStartISO(daysAgo(days)),
-      to: dayEndISO(daysAgo(0)),
+      from: dayStartISO(from),
+      to: dayEndISO(to),
       tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
     });
     try {
@@ -77,7 +91,7 @@ export function StatsSection({
     } catch (e: any) {
       setError(e?.message || "Не удалось загрузить показатели.");
     }
-  }, [period]);
+  }, [from, to, badRange]);
 
   useEffect(() => {
     load();
@@ -88,7 +102,8 @@ export function StatsSection({
     return () => clearInterval(timer);
   }, [load]);
 
-  const periodLabel = PERIODS.find((p) => p.value === period)!.label.toLowerCase();
+  const periodLabel =
+    period === "custom" ? (from === to ? ruDate(from) : `период ${ruDate(from)} — ${ruDate(to)}`) : preset.label.toLowerCase();
   const reasons = (stats?.reasons ?? []).filter((r) => r.count > 0).map((r) => ({ label: lostReasonLabel(r.reason), count: r.count, percent: r.percent }));
   const routes = (stats?.routes ?? []).map((r) => ({ label: r.route, count: r.count }));
 
@@ -109,6 +124,20 @@ export function StatsSection({
           </TabsList>
         </Tabs>
       </div>
+
+      {period === "custom" && (
+        <div className="mt-3 flex flex-wrap items-end justify-end gap-2">
+          <div className="space-y-1">
+            <label htmlFor="stats-from" className="text-xs text-slate-500">С</label>
+            <Input id="stats-from" type="date" value={customFrom} max={customTo || undefined} onChange={(e) => setCustomFrom(e.target.value)} className="h-9 w-40" />
+          </div>
+          <div className="space-y-1">
+            <label htmlFor="stats-to" className="text-xs text-slate-500">По</label>
+            <Input id="stats-to" type="date" value={customTo} min={customFrom || undefined} onChange={(e) => setCustomTo(e.target.value)} className="h-9 w-40" />
+          </div>
+        </div>
+      )}
+      {badRange && <p className="mt-2 text-right text-xs text-red-600">Дата «с» должна быть не позже даты «по».</p>}
 
       {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
 

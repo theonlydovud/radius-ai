@@ -212,7 +212,10 @@ export function LeadsBoard({ onChanged, layout = "cards" }: { onChanged?: () => 
                     <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
                       <Phone className="h-3 w-3" /> {lead.client_phone}
                     </p>
-                    <p className="text-[11px] text-slate-400">{formatDate(lead.created_at)}</p>
+                    <p className="text-[11px] text-slate-400">
+                      {formatDate(lead.created_at)}
+                      {d?.created_by ? ` · вручную, ${d.created_by}` : ""}
+                    </p>
                   </div>
 
                   <div className="min-w-0 flex-1 space-y-0.5 text-sm">
@@ -241,10 +244,12 @@ export function LeadsBoard({ onChanged, layout = "cards" }: { onChanged?: () => 
                   </Select>
 
                   <div className="flex flex-wrap items-center gap-1.5 lg:flex-nowrap lg:justify-end">
-                    <Button variant="ghost" size="sm" className="text-slate-600" onClick={() => setChatLead(lead)}>
-                      <MessageCircle className="h-3.5 w-3.5" />
-                      Переписка
-                    </Button>
+                    {lead.session_id && (
+                      <Button variant="ghost" size="sm" className="text-slate-600" onClick={() => setChatLead(lead)}>
+                        <MessageCircle className="h-3.5 w-3.5" />
+                        Переписка
+                      </Button>
+                    )}
                     {isClosed(lead) ? (
                       <Button variant="outline" size="sm" disabled={busy} onClick={() => patchLead(lead, { status: "in_progress" })}>
                         <RotateCcw className="h-3.5 w-3.5" />
@@ -271,6 +276,7 @@ export function LeadsBoard({ onChanged, layout = "cards" }: { onChanged?: () => 
                   </div>
                 </div>
 
+                {d?.note && <p className="mt-2 whitespace-pre-wrap break-words rounded-lg bg-amber-50/60 px-3 py-1.5 text-xs text-slate-700">💬 {d.note}</p>}
                 {(isClosed(lead) || (lead.taken_by && lead.taken_at)) && (
                   <p className="mt-2 rounded-lg bg-slate-50 px-3 py-1.5 text-xs text-slate-600">
                     {isClosed(lead) &&
@@ -319,6 +325,9 @@ export function LeadsBoard({ onChanged, layout = "cards" }: { onChanged?: () => 
                       <Package className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                       {lead.collected_data?.cargo_type ?? "не указан тип груза"}
                     </p>
+                    {lead.collected_data?.note && (
+                      <p className="whitespace-pre-wrap break-words rounded-lg bg-amber-50/60 px-2.5 py-1.5 text-xs text-slate-700">💬 {lead.collected_data.note}</p>
+                    )}
                   </div>
 
                   <div className="space-y-1">
@@ -406,7 +415,9 @@ export function LeadsBoard({ onChanged, layout = "cards" }: { onChanged?: () => 
                     <p className="text-xs text-slate-400">
                       Заявка от {formatDate(lead.created_at)}
                       {lead.source ? ` · ${lead.source.platform === "telegram" ? "Telegram" : "Instagram"}` : ""}
+                      {lead.collected_data?.created_by ? ` · вручную, ${lead.collected_data.created_by}` : ""}
                     </p>
+                    {lead.session_id && (
                     <button
                       type="button"
                       onClick={() => setChatLead(lead)}
@@ -415,6 +426,7 @@ export function LeadsBoard({ onChanged, layout = "cards" }: { onChanged?: () => 
                       <MessageCircle className="h-3.5 w-3.5" />
                       Переписка
                     </button>
+                    )}
                     </div>
                   </div>
                 </CardContent>
