@@ -9,7 +9,7 @@ import { LeadsBoard } from "@/components/leads-board";
 import { Button } from "@/components/ui/button";
 
 /**
- * Рабочее место супер-админа: заявки всех менеджеров карточками (как у руководителя)
+ * Рабочее место супер-админа: заявки всех менеджеров списком (с фильтрами руководителя)
  * и общая статистика с разбивкой по менеджерам. Больше ничего — знания, правила,
  * аккаунты и настройки ему закрыты и на backend.
  */
@@ -44,7 +44,7 @@ export default function AdminPage() {
           </Button>
         </div>
 
-        <LeadsBoard key={key} onChanged={() => setStatsKey((k) => k + 1)} />
+        <LeadsBoard key={key} layout="list" onChanged={() => setStatsKey((k) => k + 1)} />
         <StatsSection title="Статистика" splitHint="Где сейчас все заявки периода" showManagers refreshKey={statsKey} />
       </main>
     </div>

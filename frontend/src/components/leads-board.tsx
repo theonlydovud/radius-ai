@@ -33,10 +33,10 @@ function isClosed(lead: Lead) {
 }
 
 /**
- * Заявки карточками с фильтрами: вкладки, менеджер, даты. Общая для панели руководителя
- * и страницы супер-админа. onChanged — после любого действия (чтобы обновить статистику рядом).
+ * Заявки с фильтрами: вкладки, менеджер, даты. Общая для панели руководителя (карточки)
+ * и страницы супер-админа (список). onChanged — после любого действия (чтобы обновить статистику рядом).
  */
-export function LeadsBoard({ onChanged }: { onChanged?: () => void }) {
+export function LeadsBoard({ onChanged, layout = "cards" }: { onChanged?: () => void; layout?: "cards" | "list" }) {
   const [leads, setLeads] = useState<Lead[]>([]);
   const { user, managers, ready } = useCurrentUser();
   const [loading, setLoading] = useState(true);
@@ -193,6 +193,95 @@ export function LeadsBoard({ onChanged }: { onChanged?: () => void }) {
           <ClipboardList className="h-6 w-6 text-slate-300" />
           <p className="text-sm text-slate-500">{hasFilters || tab !== "active" ? "Заявок по этому фильтру нет." : "Заявок пока нет."}</p>
         </Card>
+      ) : layout === "list" ? (
+        <div className="space-y-2">
+          {leads.map((lead) => {
+            const busy = busyId === lead.id;
+            const options = managers.filter((m) => m.is_active || m.id === lead.manager_id);
+            const d = lead.collected_data;
+            return (
+              <Card key={lead.id} id={`lead-${lead.id}`} className={cn("p-3 sm:p-4", focusId === lead.id && "ring-2 ring-brand")}>
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
+                  <div className="min-w-0 lg:w-52">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate text-sm font-semibold text-slate-900">{lead.client_name}</p>
+                      <Badge variant={STATUS_VARIANT[lead.status]} className="shrink-0">
+                        {STATUS_LABEL[lead.status]}
+                      </Badge>
+                    </div>
+                    <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
+                      <Phone className="h-3 w-3" /> {lead.client_phone}
+                    </p>
+                    <p className="text-[11px] text-slate-400">{formatDate(lead.created_at)}</p>
+                  </div>
+
+                  <div className="min-w-0 flex-1 space-y-0.5 text-sm">
+                    <p className="flex min-w-0 items-center gap-2 font-medium text-slate-800">
+                      <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                      <span className="truncate">{d?.origin_city ?? "—"} → {d?.destination_city ?? "—"}</span>
+                    </p>
+                    <p className="flex min-w-0 items-center gap-2 text-slate-500">
+                      <Package className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                      <span className="truncate">{[d?.weight, d?.cargo_type].filter(Boolean).join(" · ") || "груз не указан"}</span>
+                    </p>
+                  </div>
+
+                  <Select value={lead.manager_id ?? NO_MANAGER} onValueChange={(v) => patchLead(lead, { manager_id: v === NO_MANAGER ? null : v })} disabled={busy}>
+                    <SelectTrigger className="h-8 text-xs lg:w-36" aria-label="Ответственный">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_MANAGER}>Не назначен</SelectItem>
+                      {options.map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          {m.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <div className="flex flex-wrap items-center gap-1.5 lg:flex-nowrap lg:justify-end">
+                    <Button variant="ghost" size="sm" className="text-slate-600" onClick={() => setChatLead(lead)}>
+                      <MessageCircle className="h-3.5 w-3.5" />
+                      Переписка
+                    </Button>
+                    {isClosed(lead) ? (
+                      <Button variant="outline" size="sm" disabled={busy} onClick={() => patchLead(lead, { status: "in_progress" })}>
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        Вернуть
+                      </Button>
+                    ) : (
+                      <>
+                        {lead.status === "new" && (
+                          <Button variant="outline" size="sm" disabled={busy} onClick={() => patchLead(lead, { status: "in_progress" })}>
+                            <Play className="h-3.5 w-3.5" />
+                            Взять
+                          </Button>
+                        )}
+                        <Button size="sm" disabled={busy} onClick={() => setClosing({ lead, mode: "sold" })}>
+                          <Check className="h-3.5 w-3.5" />
+                          Продано
+                        </Button>
+                        <Button variant="outline" size="sm" disabled={busy} onClick={() => setClosing({ lead, mode: "not_sold" })}>
+                          <X className="h-3.5 w-3.5" />
+                          Не продано
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {(isClosed(lead) || (lead.taken_by && lead.taken_at)) && (
+                  <p className="mt-2 rounded-lg bg-slate-50 px-3 py-1.5 text-xs text-slate-600">
+                    {isClosed(lead) &&
+                      `${lead.status === "sold" ? "Продано" : `Не продано · ${lostReasonLabel(lead.lost_reason)}`} · закрыл ${lead.closed_by ?? "—"}${lead.closed_at ? ` · ${formatDate(lead.closed_at)}` : ""}${lead.lost_comment ? ` · ${lead.lost_comment}` : ""}`}
+                    {!isClosed(lead) && lead.taken_by && lead.taken_at && `✅ Взял в Telegram: ${lead.taken_by} · ${formatDate(lead.taken_at)}`}
+                  </p>
+                )}
+              </Card>
+            );
+          })}
+        </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {leads.map((lead) => {
