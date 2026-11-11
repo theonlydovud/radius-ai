@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Check, Copy, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
 
 type InstagramConfig = {
   ready: boolean;
@@ -16,10 +17,10 @@ type InstagramConfig = {
 
 const ENV_HINTS: Record<string, string> = {
   INSTAGRAM_APP_ID: "Instagram → API setup with Instagram login → Instagram app ID",
-  INSTAGRAM_APP_SECRET: "там же → Instagram app secret",
-  FRONTEND_URL: "адрес этого дашборда, https://…vercel.app",
-  INSTAGRAM_WEBHOOK_VERIFY_TOKEN: "любая строка, её же вписать в настройках вебхука",
-  FACEBOOK_APP_SECRET: "App settings → Basic → App secret (для проверки подписи вебхуков)",
+  get INSTAGRAM_APP_SECRET() { return t("там же → Instagram app secret"); },
+  get FRONTEND_URL() { return t("адрес этого дашборда, https://…vercel.app"); },
+  get INSTAGRAM_WEBHOOK_VERIFY_TOKEN() { return t("любая строка, её же вписать в настройках вебхука"); },
+  get FACEBOOK_APP_SECRET() { return t("App settings → Basic → App secret (для проверки подписи вебхуков)"); },
 };
 const REQUIRED = ["INSTAGRAM_APP_ID", "INSTAGRAM_APP_SECRET", "FRONTEND_URL"];
 
@@ -28,7 +29,7 @@ function CopyRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="space-y-0.5">
       <p className="text-[11px] text-slate-400">{label}</p>
-      <div className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 py-1">
+      <div className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-surface px-2 py-1">
         <p className="flex-1 truncate font-mono text-[11px] text-slate-700">{value}</p>
         <button
           type="button"
@@ -38,7 +39,7 @@ function CopyRow({ label, value }: { label: string; value: string }) {
             setTimeout(() => setCopied(false), 1500);
           }}
           className="shrink-0 text-slate-400 hover:text-slate-700"
-          title="Скопировать"
+          title={t("Скопировать")}
         >
           {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
         </button>
@@ -63,13 +64,13 @@ export function InstagramSetup({ onReady }: { onReady: (ready: boolean) => void 
         onReady(!!json.data?.ready);
       })
       .catch(() => {
-        setError("Backend не отвечает или работает старая версия — сделайте Manual Deploy на Render.");
+        setError(t("Backend не отвечает или работает старая версия — сделайте Manual Deploy на Render."));
         onReady(false);
       });
   }, [onReady]);
 
   if (error) return <p className="text-xs text-red-600">{error}</p>;
-  if (!config) return <p className="text-xs text-slate-400">Проверяю настройки backend…</p>;
+  if (!config) return <p className="text-xs text-slate-400">{t("Проверяю настройки backend…")}</p>;
 
   return (
     <div className="space-y-3 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2.5">
@@ -88,22 +89,20 @@ export function InstagramSetup({ onReady }: { onReady: (ready: boolean) => void 
           </div>
         ))}
         {!config.ready && (
-          <p className="pt-1 text-xs text-red-600">Добавьте переменные в Render → Environment и дождитесь перезапуска.</p>
+          <p className="pt-1 text-xs text-red-600">{t("Добавьте переменные в Render → Environment и дождитесь перезапуска.")}</p>
         )}
       </div>
 
       <div className="space-y-2">
         <CopyRow label="Business login settings → OAuth redirect URIs" value={config.redirect_uri} />
-        <CopyRow label="Configure webhooks → Callback URL (поле messages)" value={config.webhook_url} />
+        <CopyRow label={t("Configure webhooks → Callback URL (поле messages)")} value={config.webhook_url} />
         <CopyRow label="Business login settings → Deauthorize callback URL" value={config.deauthorize_url} />
         <CopyRow label="Business login settings → Data deletion request URL" value={config.data_deletion_url} />
-        <CopyRow label="App settings → Basic → Privacy Policy URL (для режима Live)" value={config.privacy_url} />
+        <CopyRow label={t("App settings → Basic → Privacy Policy URL (для режима Live)")} value={config.privacy_url} />
       </div>
 
       <p className="text-xs text-slate-500">
-        Нужен профессиональный аккаунт (Business или Creator), добавленный в App roles → Instagram Testers и
-        принявший приглашение. Откроется окно входа Instagram — войдите именно в тот аккаунт, который подключаете.
-      </p>
+        {t("Нужен профессиональный аккаунт (Business или Creator), добавленный в App roles → Instagram Testers и принявший приглашение. Откроется окно входа Instagram — войдите именно в тот аккаунт, который подключаете.")}</p>
     </div>
   );
 }

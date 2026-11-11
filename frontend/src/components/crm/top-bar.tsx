@@ -4,8 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronDown, LogOut, Users } from "lucide-react";
 import { DexaLogo } from "@/components/brand/dexa-logo";
 import { FullscreenButton } from "@/components/fullscreen-button";
+import { LangSwitcher, ThemeToggle } from "@/components/prefs";
 import { logout, useCurrentUser } from "@/components/current-user";
 import { cn, initials } from "@/lib/utils";
+import { t } from "@/lib/i18n";
 
 /** Шапка одностраничных рабочих мест (менеджер, супер-админ): логотип, компания, меню пользователя. */
 export function TopBar() {
@@ -21,13 +23,15 @@ export function TopBar() {
   }, [open]);
 
   return (
-    <header className="sticky top-0 z-30 border-b border-slate-200/70 bg-white/85 backdrop-blur">
+    <header className="sticky top-0 z-30 border-b border-slate-200/70 bg-surface/85 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4 md:px-8">
         <div className="flex min-w-0 items-center gap-3">
           <DexaLogo size={28} />
           <span className="hidden truncate rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600 sm:inline">{company.name}</span>
         </div>
         <div className="flex items-center gap-1">
+        <LangSwitcher className="hidden sm:block" />
+        <ThemeToggle />
         <FullscreenButton />
         <div className="relative" ref={ref}>
           <button
@@ -49,7 +53,7 @@ export function TopBar() {
             <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
           </button>
           {open && (
-            <div role="menu" className="absolute right-0 mt-2 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+            <div role="menu" className="absolute right-0 mt-2 w-56 overflow-hidden rounded-xl border border-slate-200 bg-surface p-1 shadow-lg">
               <div className="px-3 py-2">
                 <p className="text-sm font-medium text-slate-900">{user.name}</p>
                 <p className="text-xs text-slate-500">
@@ -57,14 +61,15 @@ export function TopBar() {
                 </p>
               </div>
               <div className="my-1 h-px bg-slate-100" />
+              <div className="px-1 sm:hidden">
+                <LangSwitcher />
+              </div>
               <button role="menuitem" onClick={() => logout("user")} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
                 <Users className="h-4 w-4 text-slate-400" />
-                Сменить пользователя
-              </button>
+                {t("Сменить пользователя")}</button>
               <button role="menuitem" onClick={() => logout("all")} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50">
                 <LogOut className="h-4 w-4" />
-                Выйти
-              </button>
+                {t("Выйти")}</button>
             </div>
           )}
         </div>
@@ -85,8 +90,8 @@ export function plural(n: number, one: string, few: string, many: string) {
 
 export function greeting() {
   const h = new Date().getHours();
-  if (h < 5) return "Доброй ночи";
-  if (h < 12) return "Доброе утро";
-  if (h < 18) return "Добрый день";
-  return "Добрый вечер";
+  if (h < 5) return t("Доброй ночи");
+  if (h < 12) return t("Доброе утро");
+  if (h < 18) return t("Добрый день");
+  return t("Добрый вечер");
 }

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { DexaMark } from "@/components/brand/dexa-logo";
 import type { Manager } from "@/types";
+import { t } from "@/lib/i18n";
 
 /**
  * Кто вошёл. Вход проверяет backend (куки dexa_c — компания, dexa_u — человек),
@@ -21,7 +22,7 @@ export type Session = {
   users: { id: string; name: string; role: Role }[];
 };
 
-export const ROLE_LABEL: Record<Role, string> = { owner: "Руководитель", manager: "Менеджер", admin: "Супер-админ" };
+export const ROLE_LABEL: Record<Role, string> = { get owner() { return t("Руководитель"); }, get manager() { return t("Менеджер"); }, get admin() { return t("Супер-админ"); } };
 
 export function homeFor(role: Role) {
   return role === "owner" ? "/leads" : role === "admin" ? "/admin" : "/crm";
@@ -30,7 +31,7 @@ export function homeFor(role: Role) {
 export async function fetchSession(): Promise<Session> {
   const res = await fetch("/api/auth/me", { cache: "no-store" });
   const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(json.error ?? "Сервер недоступен.");
+  if (!res.ok) throw new Error(json.error ?? t("Сервер недоступен."));
   return json.data as Session;
 }
 
@@ -67,7 +68,7 @@ export function FullScreenLoader({ text }: { text?: string }) {
       <DexaMark size={40} className="animate-pulse" />
       <p className="flex items-center gap-2 text-sm text-slate-400">
         <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        {text ?? "Загрузка..."}
+        {text ?? t("Загрузка...")}
       </p>
     </div>
   );
@@ -106,7 +107,7 @@ export function CurrentUserProvider({ role, children }: { role: Role; children: 
         if (s.user.role !== role) return router.replace(`${homeFor(s.user.role)}${window.location.search}`);
         setSession(s);
       })
-      .catch((e) => !cancelled && setError(e?.message ?? "Сервер недоступен."));
+      .catch((e) => !cancelled && setError(e?.message ?? t("Сервер недоступен.")));
     return () => {
       cancelled = true;
     };
@@ -134,8 +135,7 @@ export function CurrentUserProvider({ role, children }: { role: Role; children: 
         <DexaMark size={40} />
         <p className="text-sm text-slate-600">{error}</p>
         <button className="text-sm font-medium text-brand hover:underline" onClick={() => window.location.reload()}>
-          Обновить страницу
-        </button>
+          {t("Обновить страницу")}</button>
       </div>
     );
   }
@@ -145,6 +145,6 @@ export function CurrentUserProvider({ role, children }: { role: Role; children: 
 
 export function useCurrentUser() {
   const value = useContext(CurrentUserContext);
-  if (!value) throw new Error("useCurrentUser должен быть внутри CurrentUserProvider");
+  if (!value) throw new Error(t("useCurrentUser должен быть внутри CurrentUserProvider"));
   return value;
 }

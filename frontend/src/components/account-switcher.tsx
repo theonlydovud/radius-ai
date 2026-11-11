@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Check, ChevronsUpDown, Instagram, Layers, Plus, Settings2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AccountPublic } from "@/types";
+import { t } from "@/lib/i18n";
 
 /**
  * Выбранный Instagram-аккаунт в панели руководителя — как переключатель аккаунтов в Instagram.
@@ -136,8 +137,8 @@ export function AccountSwitcher({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <div className="relative px-3 pb-2" ref={ref}>
       {open && (
-        <div role="menu" className="absolute bottom-full left-3 right-3 z-50 mb-1 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
-          <p className="px-3 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-slate-400">Аккаунты</p>
+        <div role="menu" className="absolute bottom-full left-3 right-3 z-50 mb-1 overflow-hidden rounded-xl border border-slate-200 bg-surface p-1 shadow-lg">
+          <p className="px-3 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-slate-400">{t("Аккаунты")}</p>
           {accounts.map((a) => (
             <button key={a.id} role="menuitemradio" aria-checked={selected === a.id} onClick={() => pick(a.id)} className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-slate-50">
               <Avatar name={a.account_name} />
@@ -148,7 +149,7 @@ export function AccountSwitcher({ onNavigate }: { onNavigate?: () => void }) {
           {accounts.length > 1 && (
             <button role="menuitemradio" aria-checked={all} onClick={() => pick(ALL_ACCOUNTS)} className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-slate-50">
               <Avatar name="" all />
-              <span className="min-w-0 flex-1 truncate text-sm text-slate-800">Все аккаунты</span>
+              <span className="min-w-0 flex-1 truncate text-sm text-slate-800">{t("Все аккаунты")}</span>
               {all && <Check className="h-4 w-4 text-brand" />}
             </button>
           )}
@@ -157,14 +158,12 @@ export function AccountSwitcher({ onNavigate }: { onNavigate?: () => void }) {
             <span className="flex h-8 w-8 items-center justify-center rounded-full border border-dashed border-brand/40">
               <Plus className="h-4 w-4" />
             </span>
-            Добавить аккаунт
-          </Link>
+            {t("Добавить аккаунт")}</Link>
           <Link href="/accounts" onClick={() => { setOpen(false); onNavigate?.(); }} className="flex items-center gap-2.5 rounded-lg px-2 py-2 text-sm text-slate-600 hover:bg-slate-50">
             <span className="flex h-8 w-8 items-center justify-center">
               <Settings2 className="h-4 w-4 text-slate-400" />
             </span>
-            Управление аккаунтами
-          </Link>
+            {t("Управление аккаунтами")}</Link>
         </div>
       )}
 
@@ -173,21 +172,21 @@ export function AccountSwitcher({ onNavigate }: { onNavigate?: () => void }) {
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label="Сменить Instagram-аккаунт"
-        className="flex w-full items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-left shadow-sm transition hover:border-brand/40"
+        aria-label={t("Сменить Instagram-аккаунт")}
+        className="flex w-full items-center gap-2.5 rounded-xl border border-slate-200 bg-surface px-2.5 py-2 text-left shadow-sm transition hover:border-brand/40"
       >
         {accounts.length === 0 ? (
           <>
             <span className="flex h-8 w-8 items-center justify-center rounded-full border border-dashed border-slate-300">
               <Instagram className="h-4 w-4 text-slate-400" />
             </span>
-            <span className="flex-1 text-sm text-slate-500">Нет аккаунтов</span>
+            <span className="flex-1 text-sm text-slate-500">{t("Нет аккаунтов")}</span>
           </>
         ) : (
           <>
             <Avatar name={account?.account_name ?? ""} all={all} />
             <span className="min-w-0 flex-1 leading-tight">
-              <span className="block truncate text-sm font-medium text-slate-900">{all ? "Все аккаунты" : account?.account_name}</span>
+              <span className="block truncate text-sm font-medium text-slate-900">{all ? t("Все аккаунты") : account?.account_name}</span>
               <span className="block truncate text-[11px] text-slate-400">{all ? `${accounts.length} Instagram` : "Instagram"}</span>
             </span>
           </>

@@ -7,12 +7,17 @@ const config: Config = {
     extend: {
       colors: {
         border: "hsl(var(--border))",
-        background: "#FAFAFA",
+        // Светлая/тёмная тема: цвета берутся из CSS-переменных (globals.css), .dark их подменяет.
+        background: "rgb(var(--background) / <alpha-value>)",
+        surface: "rgb(var(--surface) / <alpha-value>)",
+        slate: Object.fromEntries(
+          ["50", "100", "200", "300", "400", "500", "600", "700", "800", "900", "950"].map((k) => [k, `rgb(var(--slate-${k}) / <alpha-value>)`])
+        ),
         // Фирменный синий DexaAI (начало градиента логотипа). Белый текст на нём: контраст 5.5:1.
         brand: {
-          DEFAULT: "#2f5be8",
-          dark: "#2448c4",
-          soft: "#eef2ff",
+          DEFAULT: "rgb(var(--brand) / <alpha-value>)",
+          dark: "rgb(var(--brand-dark) / <alpha-value>)",
+          soft: "rgb(var(--brand-soft) / <alpha-value>)",
         },
         foreground: "hsl(var(--foreground))",
         primary: {

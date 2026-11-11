@@ -18,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { formatDate } from "@/lib/utils";
 import { BotSelector, useSelectedBot } from "@/components/bot-selector";
 import type { KnowledgeItem } from "@/types";
+import { t } from "@/lib/i18n";
 
 export default function KnowledgePage() {
   const { bots, botId, setBotId, ready } = useSelectedBot();
@@ -109,10 +110,9 @@ export default function KnowledgePage() {
     <div>
       <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-slate-900">Знания ИИ</h1>
+          <h1 className="text-lg font-semibold text-slate-900">{t("Знания ИИ")}</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Статьи, направления и регламенты доставки, которые ИИ использует как источник фактов (RAG).
-          </p>
+            {t("Статьи, направления и регламенты доставки, которые ИИ использует как источник фактов (RAG).")}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap sm:gap-3">
         <BotSelector bots={bots} botId={botId} onChange={setBotId} />
@@ -120,38 +120,36 @@ export default function KnowledgePage() {
           <DialogTrigger asChild>
             <Button size="sm" onClick={openCreateDialog} disabled={!botId}>
               <Plus className="h-3.5 w-3.5" />
-              Добавить статью
-            </Button>
+              {t("Добавить статью")}</Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{editingId ? "Редактировать статью" : "Новая статья базы знаний"}</DialogTitle>
+              <DialogTitle>{editingId ? t("Редактировать статью") : t("Новая статья базы знаний")}</DialogTitle>
             </DialogHeader>
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <Label>Заголовок</Label>
+                <Label>{t("Заголовок")}</Label>
                 <Input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Например: Доставка из Ташкента в Москву"
+                  placeholder={t("Например: Доставка из Ташкента в Москву")}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Содержание</Label>
+                <Label>{t("Содержание")}</Label>
                 <Textarea
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
-                  placeholder="Опишите регламент, сроки, тарифные пояснения..."
+                  placeholder={t("Опишите регламент, сроки, тарифные пояснения...")}
                   rows={6}
                 />
               </div>
             </div>
             <DialogFooter>
               <Button variant="outline" size="sm" onClick={() => setOpen(false)}>
-                Отмена
-              </Button>
+                {t("Отмена")}</Button>
               <Button size="sm" onClick={handleSave} disabled={saving || !title.trim() || !content.trim()}>
-                {saving ? "Сохранение..." : editingId ? "Сохранить изменения" : "Сохранить"}
+                {saving ? t("Сохранение...") : editingId ? t("Сохранить изменения") : t("Сохранить")}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -161,16 +159,14 @@ export default function KnowledgePage() {
 
       {ready && bots.length === 0 ? (
         <Card className="p-8 text-center text-sm text-slate-500">
-          Нет подключённых аккаунтов. Сначала подключите бота на вкладке «Аккаунты».
-        </Card>
+          {t("Нет подключённых аккаунтов. Добавьте Instagram через переключатель аккаунтов внизу меню.")}</Card>
       ) : loading ? (
-        <p className="text-sm text-slate-400">Загрузка...</p>
+        <p className="text-sm text-slate-400">{t("Загрузка...")}</p>
       ) : items.length === 0 ? (
         <Card className="flex flex-col items-center gap-2 p-12 text-center">
           <BookOpen className="h-6 w-6 text-slate-300" />
           <p className="text-sm text-slate-500">
-            База знаний пока пуста. Добавьте первую статью, чтобы ИИ мог отвечать точнее.
-          </p>
+            {t("База знаний пока пуста. Добавьте первую статью, чтобы ИИ мог отвечать точнее.")}</p>
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -182,14 +178,14 @@ export default function KnowledgePage() {
                   <button
                     onClick={() => openEditDialog(item)}
                     className="text-slate-300 hover:text-slate-600"
-                    title="Редактировать"
+                    title={t("Редактировать")}
                   >
                     <Pencil className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => setDeleteTarget(item)}
                     className="text-slate-300 hover:text-red-500"
-                    title="Удалить"
+                    title={t("Удалить")}
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -198,7 +194,7 @@ export default function KnowledgePage() {
               <CardContent>
                 <p className="line-clamp-4 text-sm text-slate-600">{item.content}</p>
                 <p className="mt-3 text-xs text-slate-400">
-                  Добавлено {formatDate(item.created_at)}
+                  {t("Добавлено")}{" "}{formatDate(item.created_at)}
                 </p>
               </CardContent>
             </Card>
@@ -209,17 +205,15 @@ export default function KnowledgePage() {
       <Dialog open={Boolean(deleteTarget)} onOpenChange={(v) => !v && setDeleteTarget(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Удалить статью?</DialogTitle>
+            <DialogTitle>{t("Удалить статью?")}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-slate-500">
-            Статья «{deleteTarget?.title}» будет удалена безвозвратно и перестанет учитываться в RAG-поиске.
-          </p>
+            {t("Статья «")}{deleteTarget?.title}{t("» будет удалена безвозвратно и перестанет учитываться в RAG-поиске.")}</p>
           <DialogFooter>
             <Button variant="outline" size="sm" onClick={() => setDeleteTarget(null)}>
-              Отмена
-            </Button>
+              {t("Отмена")}</Button>
             <Button variant="destructive" size="sm" onClick={handleDelete} disabled={deleting}>
-              {deleting ? "Удаление..." : "Удалить"}
+              {deleting ? t("Удаление...") : t("Удалить")}
             </Button>
           </DialogFooter>
         </DialogContent>

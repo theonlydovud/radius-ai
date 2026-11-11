@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { ManagersCard } from "@/components/managers-card";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
 
 type LeadNotifySettings = {
   enabled: boolean;
@@ -47,7 +48,7 @@ export default function SettingsPage() {
     fetch(API, { cache: "no-store" })
       .then((r) => r.json())
       .then((json) => json.data && apply(json.data))
-      .catch(() => setNotice({ ok: false, text: "Не удалось загрузить настройки." }));
+      .catch(() => setNotice({ ok: false, text: t("Не удалось загрузить настройки.") }));
   }, []);
 
   const dirty =
@@ -76,12 +77,12 @@ export default function SettingsPage() {
       });
       const json = await res.json();
       if (!res.ok) {
-        setNotice({ ok: false, text: json.error ?? "Не удалось сохранить." });
+        setNotice({ ok: false, text: json.error ?? t("Не удалось сохранить.") });
         return false;
       }
       apply(json.data);
       setBotToken("");
-      setNotice({ ok: true, text: "Настройки сохранены." });
+      setNotice({ ok: true, text: t("Настройки сохранены.") });
       return true;
     } finally {
       setBusy(null);
@@ -100,7 +101,7 @@ export default function SettingsPage() {
         body: JSON.stringify({ action: "test" }),
       });
       const json = await res.json();
-      if (!res.ok) setNotice({ ok: false, text: json.error ?? "Не удалось отправить." });
+      if (!res.ok) setNotice({ ok: false, text: json.error ?? t("Не удалось отправить.") });
       else setTestResults(json.data ?? []);
     } finally {
       setBusy(null);
@@ -118,7 +119,7 @@ export default function SettingsPage() {
         body: JSON.stringify({ action: "find_chats" }),
       });
       const json = await res.json();
-      if (!res.ok) setNotice({ ok: false, text: json.error ?? "Не удалось получить список." });
+      if (!res.ok) setNotice({ ok: false, text: json.error ?? t("Не удалось получить список.") });
       else setFoundChats(json.data ?? []);
     } finally {
       setBusy(null);
@@ -130,8 +131,8 @@ export default function SettingsPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-lg font-semibold text-slate-900">Настройки</h1>
-        <p className="mt-1 text-sm text-slate-500">Куда отправлять уведомления о новых заявках и кто их получает.</p>
+        <h1 className="text-lg font-semibold text-slate-900">{t("Настройки")}</h1>
+        <p className="mt-1 text-sm text-slate-500">{t("Куда отправлять уведомления о новых заявках и кто их получает.")}</p>
       </div>
 
       <Card className="max-w-2xl">
@@ -141,8 +142,8 @@ export default function SettingsPage() {
               <Bell className="h-4 w-4 text-brand" />
             </div>
             <div>
-              <CardTitle>Заявки в Telegram</CardTitle>
-              <p className="text-xs text-slate-400">Новая заявка сразу приходит в бота на указанные ID.</p>
+              <CardTitle>{t("Заявки в Telegram")}</CardTitle>
+              <p className="text-xs text-slate-400">{t("Новая заявка сразу приходит в бота на указанные ID.")}</p>
             </div>
           </div>
           <Switch checked={enabled} onCheckedChange={setEnabled} disabled={!settings} />
@@ -150,36 +151,36 @@ export default function SettingsPage() {
 
         <CardContent className="space-y-5">
           {!settings ? (
-            <p className="text-sm text-slate-400">Загрузка...</p>
+            <p className="text-sm text-slate-400">{t("Загрузка...")}</p>
           ) : (
             <>
               <div className="space-y-1.5">
-                <Label>Бот</Label>
+                <Label>{t("Бот")}</Label>
                 <p className="text-xs text-slate-500">
                   {settings.token_source === "none"
-                    ? "Токен не задан — укажите токен бота от @BotFather."
-                    : `${settings.bot_username ? `@${settings.bot_username}` : "Бот"} · ${settings.bot_token_preview}${
-                        settings.token_source === "env" ? " (из переменных окружения)" : ""
+                    ? t("Токен не задан — укажите токен бота от @BotFather.")
+                    : `${settings.bot_username ? `@${settings.bot_username}` : t("Бот")} · ${settings.bot_token_preview}${
+                        settings.token_source === "env" ? t(" (из переменных окружения)") : ""
                       }`}
                 </p>
                 <Input
                   value={botToken}
                   onChange={(e) => setBotToken(e.target.value)}
                   type="password"
-                  placeholder={settings.token_source === "none" ? "123456:ABC…" : "Новый токен — оставьте пустым, чтобы не менять"}
+                  placeholder={settings.token_source === "none" ? "123456:ABC…" : t("Новый токен — оставьте пустым, чтобы не менять")}
                 />
               </div>
 
               <div className="space-y-1 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
                 <p>
-                  Группа: {settings.group_chat_id ?? <span className="text-amber-600">не задана (TELEGRAM_LEADS_CHAT_ID)</span>}
+                  {t("Группа:")}{" "}{settings.group_chat_id ?? <span className="text-amber-600">{t("не задана (TELEGRAM_LEADS_CHAT_ID)")}</span>}
                 </p>
-                <p>Владелец в личку: {settings.owner_chat_id ?? "не задан (TELEGRAM_OWNER_CHAT_ID)"}</p>
-                <p className="text-slate-400">Задаются переменными на Render. Если в группу не отправилось, заявка уходит владельцу.</p>
+                <p>{t("Владелец в личку:")}{" "}{settings.owner_chat_id ?? t("не задан (TELEGRAM_OWNER_CHAT_ID)")}</p>
+                <p className="text-slate-400">{t("Задаются переменными на Render. Если в группу не отправилось, заявка уходит владельцу.")}</p>
               </div>
 
               <div className="space-y-1.5">
-                <Label>Дополнительные получатели (Telegram ID)</Label>
+                <Label>{t("Дополнительные получатели (Telegram ID)")}</Label>
                 <div className="flex flex-wrap gap-1.5">
                   {chatIds.map((id) => (
                     <span
@@ -190,7 +191,7 @@ export default function SettingsPage() {
                       <button
                         onClick={() => setChatIds((prev) => prev.filter((x) => x !== id))}
                         className="text-slate-400 hover:text-red-500"
-                        title="Убрать"
+                        title={t("Убрать")}
                       >
                         <X className="h-3 w-3" />
                       </button>
@@ -198,11 +199,10 @@ export default function SettingsPage() {
                   ))}
                   {usingEnvChats &&
                     (settings.effective_chat_ids.length > 0 ? (
-                      <span className="text-xs text-slate-400">Нет — заявки получают только группа и владелец.</span>
+                      <span className="text-xs text-slate-400">{t("Нет — заявки получают только группа и владелец.")}</span>
                     ) : (
                       <span className="text-xs text-amber-600">
-                        Получатели не указаны — заявки сейчас никуда не отправляются.
-                      </span>
+                        {t("Получатели не указаны — заявки сейчас никуда не отправляются.")}</span>
                     ))}
                 </div>
                 <div className="flex gap-2">
@@ -210,32 +210,26 @@ export default function SettingsPage() {
                     value={newChatId}
                     onChange={(e) => setNewChatId(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && addChatId(newChatId)}
-                    placeholder="123456789, -1001234567890 или @channel"
+                    placeholder={t("123456789, -1001234567890 или @channel")}
                   />
                   <Button variant="outline" size="sm" onClick={() => addChatId(newChatId)} disabled={!newChatId.trim()}>
                     <Plus className="h-3.5 w-3.5" />
-                    Добавить
-                  </Button>
+                    {t("Добавить")}</Button>
                 </div>
                 <p className="text-xs text-slate-400">
-                  Получатель должен открыть {settings.bot_username ? `@${settings.bot_username}` : "бота"} и нажать
-                  /start — иначе Telegram не даст боту написать первым. Для группы добавьте бота в группу.
-                </p>
+                  {t("Получатель должен открыть")}{" "}{settings.bot_username ? `@${settings.bot_username}` : t("бота")} {" "}{t("и нажать /start — иначе Telegram не даст боту написать первым. Для группы добавьте бота в группу.")}</p>
               </div>
 
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" onClick={save} disabled={!dirty || busy !== null}>
                   {busy === "save" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                  Сохранить
-                </Button>
+                  {t("Сохранить")}</Button>
                 <Button variant="outline" size="sm" onClick={sendTest} disabled={busy !== null || settings.token_source === "none" && !botToken.trim()}>
                   {busy === "test" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                  Отправить тест
-                </Button>
+                  {t("Отправить тест")}</Button>
                 <Button variant="outline" size="sm" onClick={findChats} disabled={busy !== null || settings.token_source === "none" && !botToken.trim()}>
                   {busy === "find" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
-                  Найти мой ID
-                </Button>
+                  {t("Найти мой ID")}</Button>
               </div>
 
               {notice && (
@@ -246,7 +240,7 @@ export default function SettingsPage() {
                 <ul className="space-y-1">
                   {testResults.map((r) => (
                     <li key={r.chat_id} className={cn("text-xs", r.ok ? "text-emerald-600" : "text-red-600")}>
-                      {r.chat_id || "—"}: {r.ok ? "доставлено" : r.error}
+                      {r.chat_id || "—"}: {r.ok ? t("доставлено") : r.error}
                     </li>
                   ))}
                 </ul>
@@ -256,12 +250,10 @@ export default function SettingsPage() {
                 <div className="space-y-1.5 rounded-lg border border-slate-100 bg-slate-50 p-3">
                   {foundChats.length === 0 ? (
                     <p className="text-xs text-slate-500">
-                      Боту пока никто не писал. Откройте {settings.bot_username ? `@${settings.bot_username}` : "бота"},
-                      нажмите /start и повторите поиск.
-                    </p>
+                      {t("Боту пока никто не писал. Откройте")}{" "}{settings.bot_username ? `@${settings.bot_username}` : t("бота")}{t(", нажмите /start и повторите поиск.")}</p>
                   ) : (
                     <>
-                      <p className="text-xs text-slate-500">Недавно писали боту:</p>
+                      <p className="text-xs text-slate-500">{t("Недавно писали боту:")}</p>
                       {foundChats.map((c) => (
                         <div key={c.id} className="flex items-center justify-between gap-2">
                           <p className="truncate text-xs text-slate-700">
@@ -274,11 +266,11 @@ export default function SettingsPage() {
                             disabled={chatIds.includes(c.id)}
                             onClick={() => addChatId(c.id)}
                           >
-                            {chatIds.includes(c.id) ? "Добавлен" : "Добавить"}
+                            {chatIds.includes(c.id) ? t("Добавлен") : t("Добавить")}
                           </Button>
                         </div>
                       ))}
-                      <p className="text-xs text-slate-400">После добавления нажмите «Сохранить».</p>
+                      <p className="text-xs text-slate-400">{t("После добавления нажмите «Сохранить».")}</p>
                     </>
                   )}
                 </div>

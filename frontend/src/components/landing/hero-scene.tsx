@@ -9,7 +9,9 @@ import { useEffect, useRef } from "react";
  *  - одна draw-call на слой, точки считает шейдер (CPU свободен);
  *  - на телефоне в 2–3 раза меньше точек, pixel ratio ≤ 1.5;
  *  - рендер стоит, когда сцена вне экрана или вкладка скрыта;
- *  - prefers-reduced-motion — один статичный кадр; нет WebGL — остаётся CSS-градиент.
+ *  - prefers-reduced-motion — без автовращения и волн; нет WebGL — остаётся CSS-градиент.
+ * Сферу можно крутить мышью, пальцем или стилусом (электронная доска) — с инерцией.
+ * На сенсорном экране горизонтальный свайп крутит сферу, вертикальный листает страницу.
  */
 
 const VERTEX = /* glsl */ `
@@ -42,14 +44,18 @@ const VERTEX = /* glsl */ `
 `;
 
 const FRAGMENT = /* glsl */ `
+  uniform float uLight;
   varying vec3 vColor;
   varying float vAlpha;
   void main() {
     float d = length(gl_PointCoord - 0.5);
     float a = smoothstep(0.5, 0.0, d);
-    // Яркое ядро + мягкий ореол: точка светится, а не просто рисуется.
+    // Тёмная тема: яркое ядро + ореол (светится). Светлая: насыщенные точки без свечения.
     float core = smoothstep(0.18, 0.0, d);
-    gl_FragColor = vec4(vColor + core * 0.35, (a * a * 0.85 + core * 0.6) * vAlpha);
+    vec3 glow = vColor + core * 0.35;
+    vec3 ink = vColor * 0.78;
+    float alpha = mix((a * a * 0.85 + core * 0.6) * vAlpha, smoothstep(0.5, 0.3, d) * (0.25 + vAlpha * 0.5), uLight);
+    gl_FragColor = vec4(mix(glow, ink, uLight), alpha);
   }
 `;
 
@@ -91,8 +97,13 @@ function supportsWebGL() {
   }
 }
 
-export function HeroScene({ className }: { className?: string }) {
+export function HeroScene({ className, dark = true }: { className?: string; dark?: boolean }) {
   const host = useRef<HTMLDivElement>(null);
+  // Смена темы без пересоздания сцены.
+  const setTheme = useRef<(dark: boolean) => void>(() => {});
+  const darkRef = useRef(dark);
+  darkRef.current = dark;
+  useEffect(() => setTheme.current(dark), [dark]);
 
   useEffect(() => {
     const el = host.current;
@@ -125,8 +136,9 @@ export function HeroScene({ className }: { className?: string }) {
 
       const uniforms = {
         uTime: { value: 0 },
-        uSize: { value: lowPower ? 46 : 44 },
+        uSize: { value: (lowPower ? 46 : 44) * (darkRef.current ? 1 : 0.6) },
         uPixelRatio: { value: pixelRatio },
+        uLight: { value: darkRef.current ? 0 : 1 },
       };
       const material = new THREE.ShaderMaterial({
         vertexShader: VERTEX,
@@ -134,8 +146,16 @@ export function HeroScene({ className }: { className?: string }) {
         uniforms,
         transparent: true,
         depthWrite: false,
-        blending: THREE.AdditiveBlending,
+        blending: darkRef.current ? THREE.AdditiveBlending : THREE.NormalBlending,
       });
+      setTheme.current = (isDark) => {
+        uniforms.uLight.value = isDark ? 0 : 1;
+        // На светлом фоне без свечения крупные точки выглядят тяжело — делаем их мельче.
+        uniforms.uSize.value = (lowPower ? 46 : 44) * (isDark ? 1 : 0.6);
+        material.blending = isDark ? THREE.AdditiveBlending : THREE.NormalBlending;
+        material.needsUpdate = true;
+        if (reduced) render();
+      };
 
       const layer = (positions: Float32Array) => {
         const geo = new THREE.BufferGeometry();
@@ -164,21 +184,59 @@ export function HeroScene({ className }: { className?: string }) {
         camera.updateProjectionMatrix();
         // Десктоп: сфера справа от текста; телефон: по центру, за текстом.
         const wide = w >= 1024;
-        group.position.set(wide ? 1.75 : 0, wide ? 0 : 0.35, 0);
+        group.position.set(wide ? 2.05 : 0, wide ? 0 : 0.35, 0);
         group.scale.setScalar(wide ? 1 : w < 480 ? 0.78 : 0.9);
       };
       layout();
       const resize = new ResizeObserver(layout);
       resize.observe(el);
 
-      // Наклон за мышью — плавно, без рывков.
-      const target = { x: 0, y: 0 };
+      // Вращение: перетаскивание с инерцией + лёгкий наклон за мышью.
+      const zone = (el.parentElement ?? el) as HTMLElement; // ловим жесты по всему первому экрану
+      zone.style.touchAction = "pan-y";
+      const spin = { x: 0, y: 0 }; // накопленный поворот от пользователя
+      const vel = { x: 0, y: 0 }; // скорость после отпускания (инерция)
+      const hover = { x: 0, y: 0 };
       const tilt = { x: 0, y: 0 };
-      const onPointer = (e: PointerEvent) => {
-        target.x = (e.clientY / window.innerHeight - 0.5) * 0.35;
-        target.y = (e.clientX / window.innerWidth - 0.5) * 0.5;
+      let drag: { id: number; x: number; y: number; t: number } | null = null;
+      const SENS = 0.012; // рад на пиксель — чувствительно и для пальца на большой доске
+
+      const isControl = (t: EventTarget | null) => !!(t as HTMLElement | null)?.closest?.("a,button,input,textarea,select,[role=button]");
+      const onDown = (e: PointerEvent) => {
+        if (isControl(e.target) || (e.pointerType === "mouse" && e.button !== 0)) return;
+        drag = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() };
+        vel.x = vel.y = 0;
+        zone.style.cursor = "grabbing";
       };
-      window.addEventListener("pointermove", onPointer, { passive: true });
+      const onMove = (e: PointerEvent) => {
+        if (!drag || e.pointerId !== drag.id) {
+          if (e.pointerType === "mouse") {
+            hover.x = (e.clientY / window.innerHeight - 0.5) * 0.3;
+            hover.y = (e.clientX / window.innerWidth - 0.5) * 0.4;
+          }
+          return;
+        }
+        const now = performance.now();
+        const dt = Math.max(8, now - drag.t);
+        const dx = e.clientX - drag.x;
+        const dy = e.clientY - drag.y;
+        spin.y += dx * SENS;
+        // Пальцем вертикаль листает страницу; мышью и стилусом — наклоняет сферу.
+        if (e.pointerType !== "touch") spin.x = Math.max(-1.2, Math.min(1.2, spin.x + dy * SENS));
+        vel.y = (dx * SENS) / (dt / 16.7);
+        vel.x = e.pointerType !== "touch" ? (dy * SENS) / (dt / 16.7) : 0;
+        drag = { ...drag, x: e.clientX, y: e.clientY, t: now };
+        if (reduced) render();
+      };
+      const onUp = (e: PointerEvent) => {
+        if (!drag || e.pointerId !== drag.id) return;
+        drag = null;
+        zone.style.cursor = "";
+      };
+      zone.addEventListener("pointerdown", onDown);
+      window.addEventListener("pointermove", onMove, { passive: true });
+      window.addEventListener("pointerup", onUp);
+      window.addEventListener("pointercancel", onUp);
 
       let visible = true;
       const io = new IntersectionObserver(([entry]) => {
@@ -188,32 +246,49 @@ export function HeroScene({ className }: { className?: string }) {
 
       const clock = new THREE.Clock();
       let frame = 0;
-      const render = () => {
+      let auto = 0;
+      let last = 0;
+      function render() {
         const t = clock.getElapsedTime();
-        uniforms.uTime.value = t;
-        tilt.x += (target.x - tilt.x) * 0.04;
-        tilt.y += (target.y - tilt.y) * 0.04;
-        group.rotation.set(tilt.x, t * 0.08 + tilt.y, 0);
+        const dt = Math.min(0.05, t - last);
+        last = t;
+        if (!reduced) {
+          uniforms.uTime.value = t;
+          auto += dt * 0.08;
+        }
+        // Инерция после броска плавно затухает.
+        if (!drag) {
+          spin.y += vel.y;
+          spin.x = Math.max(-1.2, Math.min(1.2, spin.x + vel.x));
+          vel.x *= 0.94;
+          vel.y *= 0.94;
+          spin.x *= 0.985; // наклон медленно возвращается к горизонту
+        }
+        tilt.x += (hover.x - tilt.x) * 0.05;
+        tilt.y += (hover.y - tilt.y) * 0.05;
+        group.rotation.set(spin.x + tilt.x, auto + spin.y + tilt.y, 0);
         orbit.rotation.z = 0.35 + t * 0.12;
         orbit2.rotation.z = -0.2 - t * 0.07;
         stars.rotation.y = t * 0.01;
         renderer.render(scene, camera);
-      };
+      }
 
       const loop = () => {
         frame = requestAnimationFrame(loop);
         if (visible && document.visibilityState === "visible") render();
       };
-
-      if (reduced) render();
-      else loop();
+      loop();
       el.dataset.ready = "true";
 
       cleanup = () => {
         cancelAnimationFrame(frame);
         resize.disconnect();
         io.disconnect();
-        window.removeEventListener("pointermove", onPointer);
+        zone.removeEventListener("pointerdown", onDown);
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointercancel", onUp);
+        zone.style.cursor = "";
         [sphere, orbit, orbit2, stars].forEach((p) => p.geometry.dispose());
         material.dispose();
         renderer.dispose();

@@ -10,6 +10,7 @@ import { useCurrentUser } from "@/components/current-user";
 import { LOST_REASONS } from "@/lib/lead-meta";
 import { cn } from "@/lib/utils";
 import type { Lead, LostReason } from "@/types";
+import { t } from "@/lib/i18n";
 
 export type CloseMode = "sold" | "not_sold";
 
@@ -58,12 +59,12 @@ export function CloseLeadDialog({
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(json.error ?? "Не удалось закрыть заявку.");
+        setError(json.error ?? t("Не удалось закрыть заявку."));
         return;
       }
       onClosed();
     } catch {
-      setError("Не удалось закрыть заявку. Проверьте соединение.");
+      setError(t("Не удалось закрыть заявку. Проверьте соединение."));
     } finally {
       setSaving(false);
     }
@@ -73,7 +74,7 @@ export function CloseLeadDialog({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{mode === "sold" ? "Продано" : "Не продано"}</DialogTitle>
+          <DialogTitle>{mode === "sold" ? t("Продано") : t("Не продано")}</DialogTitle>
           <DialogDescription>
             {lead.client_name} · {lead.collected_data?.origin_city ?? "—"} → {lead.collected_data?.destination_city ?? "—"}
           </DialogDescription>
@@ -82,10 +83,10 @@ export function CloseLeadDialog({
         <div className="space-y-4">
           {canPick && (
           <div className="space-y-1.5">
-            <Label>Кто закрывает</Label>
+            <Label>{t("Кто закрывает")}</Label>
             <Select value={closedBy || undefined} onValueChange={setClosedBy}>
               <SelectTrigger>
-                <SelectValue placeholder="Выберите менеджера" />
+                <SelectValue placeholder={t("Выберите менеджера")} />
               </SelectTrigger>
               <SelectContent>
                 {names.map((name) => (
@@ -101,7 +102,7 @@ export function CloseLeadDialog({
           {mode === "not_sold" && (
             <>
               <fieldset className="space-y-1.5">
-                <legend className="mb-1.5 text-xs font-medium text-slate-600">Причина</legend>
+                <legend className="mb-1.5 text-xs font-medium text-slate-600">{t("Причина")}</legend>
                 <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
                   {LOST_REASONS.map((r) => (
                     <label
@@ -126,7 +127,7 @@ export function CloseLeadDialog({
               </fieldset>
 
               <div className="space-y-1.5">
-                <Label>Комментарий (необязательно)</Label>
+                <Label>{t("Комментарий (необязательно)")}</Label>
                 <Textarea value={comment} onChange={(e) => setComment(e.target.value)} className="min-h-[64px]" />
               </div>
             </>
@@ -137,10 +138,9 @@ export function CloseLeadDialog({
 
         <DialogFooter>
           <Button variant="outline" size="sm" onClick={onClose}>
-            Отмена
-          </Button>
+            {t("Отмена")}</Button>
           <Button size="sm" onClick={submit} disabled={!canSubmit}>
-            {saving ? "Сохранение..." : "Закрыть заявку"}
+            {saving ? t("Сохранение...") : t("Закрыть заявку")}
           </Button>
         </DialogFooter>
       </DialogContent>

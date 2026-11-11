@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { locale, t } from "@/lib/i18n";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -7,7 +8,7 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatDate(iso: string) {
   const d = new Date(iso);
-  return d.toLocaleString("ru-RU", {
+  return d.toLocaleString(locale(), {
     day: "2-digit",
     month: "2-digit",
     year: "2-digit",
@@ -18,7 +19,7 @@ export function formatDate(iso: string) {
 
 /** Время сообщения с секундами: видно, через сколько ответил бот. */
 export function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  return new Date(iso).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
 /** Ключ дня в локальном времени — для разделителей в переписке. */
@@ -33,9 +34,9 @@ export function formatDay(iso: string) {
   const today = new Date();
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
-  if (dayKey(iso) === dayKey(today.toISOString())) return "Сегодня";
-  if (dayKey(iso) === dayKey(yesterday.toISOString())) return "Вчера";
-  return d.toLocaleDateString("ru-RU", {
+  if (dayKey(iso) === dayKey(today.toISOString())) return t("Сегодня");
+  if (dayKey(iso) === dayKey(yesterday.toISOString())) return t("Вчера");
+  return d.toLocaleDateString(locale(), {
     day: "numeric",
     month: "long",
     year: d.getFullYear() !== today.getFullYear() ? "numeric" : undefined,

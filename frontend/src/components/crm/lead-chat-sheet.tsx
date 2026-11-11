@@ -5,6 +5,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Bot, Loader2, MapPin, Package, Phone, Weight, X } from "lucide-react";
 import { cn, dayKey, formatDay, formatTime } from "@/lib/utils";
 import type { Lead, Message } from "@/types";
+import { t } from "@/lib/i18n";
 
 /** Переписка ИИ с клиентом по заявке — выезжает справа (на телефоне — на весь экран). */
 export function LeadChatSheet({ lead, onClose }: { lead: Lead | null; onClose: () => void }) {
@@ -23,7 +24,7 @@ export function LeadChatSheet({ lead, onClose }: { lead: Lead | null; onClose: (
         if (!res.ok) throw new Error(json.error);
         if (!cancelled) setMessages(json.data ?? []);
       })
-      .catch((e) => !cancelled && setError(e?.message || "Не удалось загрузить переписку."));
+      .catch((e) => !cancelled && setError(e?.message || t("Не удалось загрузить переписку.")));
     return () => {
       cancelled = true;
     };
@@ -38,17 +39,17 @@ export function LeadChatSheet({ lead, onClose }: { lead: Lead | null; onClose: (
   return (
     <DialogPrimitive.Root open={!!lead} onOpenChange={(open) => !open && onClose()}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-slate-950/30 backdrop-blur-[1px] data-[state=open]:animate-in data-[state=open]:fade-in-0" />
-        <DialogPrimitive.Content className="fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-white shadow-2xl data-[state=open]:animate-in data-[state=open]:slide-in-from-right-full sm:max-w-md">
+        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/50 backdrop-blur-[1px] data-[state=open]:animate-in data-[state=open]:fade-in-0" />
+        <DialogPrimitive.Content className="fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-surface shadow-2xl data-[state=open]:animate-in data-[state=open]:slide-in-from-right-full sm:max-w-md">
           {lead && (
             <>
               <div className="border-b border-slate-100 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <DialogPrimitive.Title className="truncate text-base font-semibold text-slate-900">{lead.client_name}</DialogPrimitive.Title>
-                    <DialogPrimitive.Description className="text-xs text-slate-500">Переписка в Instagram Direct</DialogPrimitive.Description>
+                    <DialogPrimitive.Description className="text-xs text-slate-500">{t("Переписка в Instagram Direct")}</DialogPrimitive.Description>
                   </div>
-                  <DialogPrimitive.Close className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Закрыть">
+                  <DialogPrimitive.Close className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label={t("Закрыть")}>
                     <X className="h-4 w-4" />
                   </DialogPrimitive.Close>
                 </div>
@@ -62,11 +63,11 @@ export function LeadChatSheet({ lead, onClose }: { lead: Lead | null; onClose: (
                   </p>
                   <p className="flex items-center gap-2">
                     <Weight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                    <span className="truncate">{d?.weight ?? "вес не указан"}</span>
+                    <span className="truncate">{d?.weight ?? t("вес не указан")}</span>
                   </p>
                   <p className="flex items-center gap-2">
                     <Package className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                    <span className="truncate">{d?.cargo_type ?? "груз не указан"}</span>
+                    <span className="truncate">{d?.cargo_type ?? t("груз не указан")}</span>
                   </p>
                 </div>
               </div>
@@ -79,7 +80,7 @@ export function LeadChatSheet({ lead, onClose }: { lead: Lead | null; onClose: (
                     <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
                   </div>
                 ) : messages.length === 0 ? (
-                  <p className="text-center text-sm text-slate-400">Сообщений нет.</p>
+                  <p className="text-center text-sm text-slate-400">{t("Сообщений нет.")}</p>
                 ) : (
                   <div className="space-y-2">
                     {messages.map((m, i) => {
@@ -92,7 +93,7 @@ export function LeadChatSheet({ lead, onClose }: { lead: Lead | null; onClose: (
                             <div
                               className={cn(
                                 "max-w-[85%] rounded-2xl px-3 py-2 text-sm",
-                                mine ? "rounded-br-md bg-brand text-white" : "rounded-bl-md border border-slate-200 bg-white text-slate-800"
+                                mine ? "rounded-br-md bg-brand text-white" : "rounded-bl-md border border-slate-200 bg-surface text-slate-800"
                               )}
                             >
                               {m.sender === "ai" && (

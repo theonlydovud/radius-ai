@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { SandboxChatMessage } from "@/types";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
 
 interface DisplayMessage extends SandboxChatMessage {
   id: string;
@@ -17,7 +18,7 @@ export default function PlaygroundPage() {
     {
       id: "welcome",
       role: "model",
-      text: "Здравствуйте! Это тестовая песочница ИИ-консультанта Radius Logistics. Напишите сообщение так, как это сделал бы клиент в Instagram Direct или Telegram.",
+      text: t("Здравствуйте! Это тестовая песочница ИИ-консультанта. Напишите сообщение так, как это сделал бы клиент в Instagram Direct."),
     },
   ]);
   const [input, setInput] = useState("");
@@ -65,7 +66,7 @@ export default function PlaygroundPage() {
         {
           id: crypto.randomUUID(),
           role: "model",
-          text: data.reply ?? data.error ?? "Не удалось получить ответ.",
+          text: data.reply ?? data.error ?? t("Не удалось получить ответ."),
           isError: Boolean(data.rateLimited || data.error),
         },
       ]);
@@ -75,7 +76,7 @@ export default function PlaygroundPage() {
         {
           id: crypto.randomUUID(),
           role: "model",
-          text: "Слишком большая нагрузка на сервера, повторите попытку через 1-2 минуты.",
+          text: t("Слишком большая нагрузка на сервера, повторите попытку через 1-2 минуты."),
           isError: true,
         },
       ]);
@@ -89,7 +90,7 @@ export default function PlaygroundPage() {
       {
         id: "welcome",
         role: "model",
-        text: "Диалог очищен. Начните новую тестовую переписку.",
+        text: t("Диалог очищен. Начните новую тестовую переписку."),
       },
     ]);
   }
@@ -98,15 +99,13 @@ export default function PlaygroundPage() {
     <div className="flex h-[calc(100dvh-6.5rem)] flex-col md:h-[calc(100vh-4rem)]">
       <div className="mb-4 flex items-start justify-between gap-3 md:mb-6">
         <div>
-          <h1 className="text-lg font-semibold text-slate-900">Диалог с ИИ</h1>
+          <h1 className="text-lg font-semibold text-slate-900">{t("Диалог с ИИ")}</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Песочница для проверки поведения консультанта Gemini 2.5 Flash-Lite перед публикацией правил.
-          </p>
+            {t("Песочница для проверки поведения консультанта Gemini 2.5 Flash-Lite перед публикацией правил.")}</p>
         </div>
         <Button variant="outline" size="sm" onClick={handleReset}>
           <RotateCcw className="h-3.5 w-3.5" />
-          Очистить диалог
-        </Button>
+          {t("Очистить диалог")}</Button>
       </div>
 
       <Card className="flex flex-1 flex-col overflow-hidden">
@@ -139,7 +138,7 @@ export default function PlaygroundPage() {
                   <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-400" />
                   <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-400" />
                   <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-400" />
-                  <span className="ml-1 text-xs text-slate-400">ИИ печатает...</span>
+                  <span className="ml-1 text-xs text-slate-400">{t("ИИ печатает...")}</span>
                 </div>
               </div>
             )}
@@ -153,8 +152,8 @@ export default function PlaygroundPage() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSend()}
-              placeholder="Напишите как клиент, например: «Здравствуйте, нужна доставка груза из Ташкента»"
-              className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand"
+              placeholder={t("Напишите как клиент, например: «Здравствуйте, расскажите подробнее»")}
+              className="flex-1 rounded-lg border border-slate-200 bg-surface px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand"
             />
             <Button size="icon" onClick={handleSend} disabled={isTyping || !input.trim()}>
               <Send className="h-4 w-4" />

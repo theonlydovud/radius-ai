@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { t as tr } from "@/lib/i18n";
 
 /**
  * Графики CRM. Цвета — первые слоты проверенной категориальной палитры (валидатор:
@@ -9,14 +10,14 @@ import { cn } from "@/lib/utils";
  * графика есть подписи/легенда с числами и таблица — цвет никогда не единственный носитель.
  */
 export const SERIES = {
-  new: { color: "#eda100", label: "Новые" },
-  in_progress: { color: "#2a78d6", label: "В работе" },
-  open: { color: "#2a78d6", label: "Открытые" },
-  sold: { color: "#1baf7a", label: "Продано" },
-  not_sold: { color: "#eb6834", label: "Не продано" },
+  new: { color: "var(--series-new)", get label() { return tr("Новые"); } },
+  in_progress: { color: "var(--series-blue)", get label() { return tr("В работе"); } },
+  open: { color: "var(--series-blue)", get label() { return tr("Открытые"); } },
+  sold: { color: "var(--series-sold)", get label() { return tr("Продано"); } },
+  not_sold: { color: "var(--series-lost)", get label() { return tr("Не продано"); } },
 } as const;
 
-const GRID = "#e2e8f0";
+const GRID = "rgb(var(--slate-200))";
 
 function formatDay(date: string) {
   const [, month, day] = date.split("-");
@@ -79,7 +80,7 @@ export function DailyOutcomeChart({ daily }: { daily: Day[] }) {
                     key={d.date}
                     type="button"
                     className="relative flex h-full min-w-0 flex-1 flex-col justify-end focus:outline-none"
-                    aria-label={`${formatDay(d.date)}: всего ${d.count}, открытых ${d.open}, продано ${d.sold}, не продано ${d.not_sold}`}
+                    aria-label={tr("{0}: всего {1}, открытых {2}, продано {3}, не продано {4}", formatDay(d.date), d.count, d.open, d.sold, d.not_sold)}
                     onPointerEnter={() => setActive(i)}
                     onPointerLeave={() => setActive(null)}
                     onFocus={() => setActive(i)}
@@ -103,7 +104,7 @@ export function DailyOutcomeChart({ daily }: { daily: Day[] }) {
             </div>
             {hovered && active !== null && (
               <div
-                className="pointer-events-none absolute top-0 z-10 w-36 -translate-x-1/2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-md"
+                className="pointer-events-none absolute top-0 z-10 w-36 -translate-x-1/2 rounded-lg border border-slate-200 bg-surface px-3 py-2 text-xs shadow-md"
                 style={{ left: `${Math.min(85, Math.max(15, ((active + 0.5) / daily.length) * 100))}%` }}
               >
                 <p className="font-medium text-slate-900">
@@ -131,16 +132,16 @@ export function DailyOutcomeChart({ daily }: { daily: Day[] }) {
         </div>
       </div>
       <details className="mt-3 text-xs text-slate-500">
-        <summary className="cursor-pointer select-none hover:text-slate-700">Таблица по дням</summary>
+        <summary className="cursor-pointer select-none hover:text-slate-700">{tr("Таблица по дням")}</summary>
         <div className="thin-scroll mt-2 max-h-48 overflow-y-auto">
           <table className="w-full max-w-sm">
             <thead>
               <tr className="text-left text-slate-400">
-                <th className="py-1 font-normal">День</th>
-                <th className="py-1 text-right font-normal">Всего</th>
-                <th className="py-1 text-right font-normal">Открытые</th>
-                <th className="py-1 text-right font-normal">Продано</th>
-                <th className="py-1 text-right font-normal">Не продано</th>
+                <th className="py-1 font-normal">{tr("День")}</th>
+                <th className="py-1 text-right font-normal">{tr("Всего")}</th>
+                <th className="py-1 text-right font-normal">{tr("Открытые")}</th>
+                <th className="py-1 text-right font-normal">{tr("Продано")}</th>
+                <th className="py-1 text-right font-normal">{tr("Не продано")}</th>
               </tr>
             </thead>
             <tbody>
@@ -179,7 +180,7 @@ export function StatusSplit({ totals }: { totals: { new: number; in_progress: nu
                 style={{ flexGrow: p.value, flexBasis: 0, background: SERIES[p.key].color }}
                 title={`${SERIES[p.key].label}: ${p.value} (${share}%)`}
               >
-                {share >= 12 && <span className="rounded bg-white/85 px-1 tabular-nums">{share}%</span>}
+                {share >= 12 && <span className="rounded bg-surface/85 px-1 tabular-nums">{share}%</span>}
               </div>
             );
           })}
@@ -215,7 +216,7 @@ export function RankedBars({ rows, empty }: { rows: { label: string; count: numb
             </span>
           </div>
           <div className="h-1.5 rounded-full bg-slate-100">
-            <div className="h-1.5 rounded-full bg-[#2a78d6]" style={{ width: `${(r.count / max) * 100}%` }} />
+            <div className="h-1.5 rounded-full bg-[var(--series-blue)]" style={{ width: `${(r.count / max) * 100}%` }} />
           </div>
         </li>
       ))}

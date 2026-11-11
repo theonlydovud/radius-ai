@@ -16,12 +16,13 @@ import { useCurrentUser } from "@/components/current-user";
 import { lostReasonLabel, STATUS_LABEL, STATUS_VARIANT } from "@/lib/lead-meta";
 import { cn, dayEndISO, dayStartISO, formatDate } from "@/lib/utils";
 import type { Lead } from "@/types";
+import { t as tr } from "@/lib/i18n";
 
 const TABS = [
-  { value: "active", label: "Активные" },
-  { value: "sold", label: "Продано" },
-  { value: "not_sold", label: "Не продано" },
-  { value: "all", label: "Все" },
+  { value: "active", get label() { return tr("Активные"); } },
+  { value: "sold", get label() { return tr("Продано"); } },
+  { value: "not_sold", get label() { return tr("Не продано"); } },
+  { value: "all", get label() { return tr("Все"); } },
 ];
 
 const ALL_MANAGERS = "__all__";
@@ -74,7 +75,7 @@ export function LeadsBoard({ onChanged, layout = "cards" }: { onChanged?: () => 
       setLeads(json.data ?? []);
       setError("");
     } catch (e: any) {
-      if (request === latestRequest.current) setError(e?.message || "Не удалось загрузить заявки.");
+      if (request === latestRequest.current) setError(e?.message || tr("Не удалось загрузить заявки."));
     } finally {
       if (request === latestRequest.current) setLoading(false);
     }
@@ -120,12 +121,12 @@ export function LeadsBoard({ onChanged, layout = "cards" }: { onChanged?: () => 
         body: JSON.stringify(body),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) setError(json.error ?? "Не удалось сохранить изменения.");
+      if (!res.ok) setError(json.error ?? tr("Не удалось сохранить изменения."));
       else setError("");
       await load();
       onChanged?.();
     } catch {
-      setError("Не удалось сохранить изменения. Проверьте соединение.");
+      setError(tr("Не удалось сохранить изменения. Проверьте соединение."));
     } finally {
       setBusyId(null);
     }
@@ -148,28 +149,28 @@ export function LeadsBoard({ onChanged, layout = "cards" }: { onChanged?: () => 
 
         <div className="grid grid-cols-2 items-end gap-2 sm:flex sm:flex-wrap">
           <div className="col-span-2 space-y-1 sm:w-48">
-            <Label className="text-xs text-slate-500">Менеджер</Label>
+            <Label className="text-xs text-slate-500">{tr("Менеджер")}</Label>
             <Select value={managerFilter} onValueChange={setManagerFilter}>
               <SelectTrigger className="h-9">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={ALL_MANAGERS}>Все менеджеры</SelectItem>
+                <SelectItem value={ALL_MANAGERS}>{tr("Все менеджеры")}</SelectItem>
                 {managers.map((m) => (
                   <SelectItem key={m.id} value={m.id}>
                     {m.name}
                   </SelectItem>
                 ))}
-                <SelectItem value={NO_MANAGER}>Без ответственного</SelectItem>
+                <SelectItem value={NO_MANAGER}>{tr("Без ответственного")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs text-slate-500">Создана с</Label>
+            <Label className="text-xs text-slate-500">{tr("Создана с")}</Label>
             <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-9" />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs text-slate-500">по</Label>
+            <Label className="text-xs text-slate-500">{tr("по")}</Label>
             <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="h-9" />
           </div>
           {hasFilters && (
@@ -183,8 +184,7 @@ export function LeadsBoard({ onChanged, layout = "cards" }: { onChanged?: () => 
                 setDateTo("");
               }}
             >
-              Сбросить
-            </Button>
+              {tr("Сбросить")}</Button>
           )}
         </div>
       </div>
@@ -192,11 +192,11 @@ export function LeadsBoard({ onChanged, layout = "cards" }: { onChanged?: () => 
       {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
 
       {loading ? (
-        <p className="text-sm text-slate-400">Загрузка...</p>
+        <p className="text-sm text-slate-400">{tr("Загрузка...")}</p>
       ) : leads.length === 0 ? (
         <Card className="flex flex-col items-center gap-2 p-12 text-center">
           <ClipboardList className="h-6 w-6 text-slate-300" />
-          <p className="text-sm text-slate-500">{hasFilters || tab !== "active" ? "Заявок по этому фильтру нет." : "Заявок пока нет."}</p>
+          <p className="text-sm text-slate-500">{hasFilters || tab !== "active" ? tr("Заявок по этому фильтру нет.") : tr("Заявок пока нет.")}</p>
         </Card>
       ) : layout === "list" ? (
         <div className="space-y-2">
@@ -219,7 +219,7 @@ export function LeadsBoard({ onChanged, layout = "cards" }: { onChanged?: () => 
                     </p>
                     <p className="text-[11px] text-slate-400">
                       {formatDate(lead.created_at)}
-                      {d?.created_by ? ` · вручную, ${d.created_by}` : ""}
+                      {d?.created_by ? tr(" · вручную, {0}", d.created_by) : ""}
                     </p>
                   </div>
 
@@ -230,16 +230,16 @@ export function LeadsBoard({ onChanged, layout = "cards" }: { onChanged?: () => 
                     </p>
                     <p className="flex min-w-0 items-center gap-2 text-slate-500">
                       <Package className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                      <span className="truncate">{[d?.weight, d?.cargo_type].filter(Boolean).join(" · ") || "груз не указан"}</span>
+                      <span className="truncate">{[d?.weight, d?.cargo_type].filter(Boolean).join(" · ") || tr("груз не указан")}</span>
                     </p>
                   </div>
 
                   <Select value={lead.manager_id ?? NO_MANAGER} onValueChange={(v) => patchLead(lead, { manager_id: v === NO_MANAGER ? null : v })} disabled={busy}>
-                    <SelectTrigger className="h-8 text-xs lg:w-36" aria-label="Ответственный">
+                    <SelectTrigger className="h-8 text-xs lg:w-36" aria-label={tr("Ответственный")}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={NO_MANAGER}>Не назначен</SelectItem>
+                      <SelectItem value={NO_MANAGER}>{tr("Не назначен")}</SelectItem>
                       {options.map((m) => (
                         <SelectItem key={m.id} value={m.id}>
                           {m.name}
@@ -252,30 +252,25 @@ export function LeadsBoard({ onChanged, layout = "cards" }: { onChanged?: () => 
                     {lead.session_id && (
                       <Button variant="ghost" size="sm" className="text-slate-600" onClick={() => setChatLead(lead)}>
                         <MessageCircle className="h-3.5 w-3.5" />
-                        Переписка
-                      </Button>
+                        {tr("Переписка")}</Button>
                     )}
                     {isClosed(lead) ? (
                       <Button variant="outline" size="sm" disabled={busy} onClick={() => patchLead(lead, { status: "in_progress" })}>
                         <RotateCcw className="h-3.5 w-3.5" />
-                        Вернуть
-                      </Button>
+                        {tr("Вернуть")}</Button>
                     ) : (
                       <>
                         {lead.status === "new" && (
                           <Button variant="outline" size="sm" disabled={busy} onClick={() => patchLead(lead, { status: "in_progress" })}>
                             <Play className="h-3.5 w-3.5" />
-                            Взять
-                          </Button>
+                            {tr("Взять")}</Button>
                         )}
                         <Button size="sm" disabled={busy} onClick={() => setClosing({ lead, mode: "sold" })}>
                           <Check className="h-3.5 w-3.5" />
-                          Продано
-                        </Button>
+                          {tr("Продано")}</Button>
                         <Button variant="outline" size="sm" disabled={busy} onClick={() => setClosing({ lead, mode: "not_sold" })}>
                           <X className="h-3.5 w-3.5" />
-                          Не продано
-                        </Button>
+                          {tr("Не продано")}</Button>
                       </>
                     )}
                   </div>
@@ -285,8 +280,8 @@ export function LeadsBoard({ onChanged, layout = "cards" }: { onChanged?: () => 
                 {(isClosed(lead) || (lead.taken_by && lead.taken_at)) && (
                   <p className="mt-2 rounded-lg bg-slate-50 px-3 py-1.5 text-xs text-slate-600">
                     {isClosed(lead) &&
-                      `${lead.status === "sold" ? "Продано" : `Не продано · ${lostReasonLabel(lead.lost_reason)}`} · закрыл ${lead.closed_by ?? "—"}${lead.closed_at ? ` · ${formatDate(lead.closed_at)}` : ""}${lead.lost_comment ? ` · ${lead.lost_comment}` : ""}`}
-                    {!isClosed(lead) && lead.taken_by && lead.taken_at && `✅ Взял в Telegram: ${lead.taken_by} · ${formatDate(lead.taken_at)}`}
+                      tr("{0} · закрыл {1}{2}{3}", lead.status === "sold" ? tr("Продано") : `${tr("Не продано")} · ${lostReasonLabel(lead.lost_reason)}`, lead.closed_by ?? "—", lead.closed_at ? ` · ${formatDate(lead.closed_at)}` : "", lead.lost_comment ? ` · ${lead.lost_comment}` : "")}
+                    {!isClosed(lead) && lead.taken_by && lead.taken_at && tr("✅ Взял в Telegram: {0} · {1}", lead.taken_by, formatDate(lead.taken_at))}
                   </p>
                 )}
               </Card>
@@ -324,11 +319,11 @@ export function LeadsBoard({ onChanged, layout = "cards" }: { onChanged?: () => 
                     </p>
                     <p className="flex items-center gap-2">
                       <Weight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                      {lead.collected_data?.weight ?? "не указан вес"}
+                      {lead.collected_data?.weight ?? tr("не указан вес")}
                     </p>
                     <p className="flex items-center gap-2">
                       <Package className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                      {lead.collected_data?.cargo_type ?? "не указан тип груза"}
+                      {lead.collected_data?.cargo_type ?? tr("не указан тип груза")}
                     </p>
                     {lead.collected_data?.note && (
                       <p className="whitespace-pre-wrap break-words rounded-lg bg-amber-50/60 px-2.5 py-1.5 text-xs text-slate-700">💬 {lead.collected_data.note}</p>
@@ -336,7 +331,7 @@ export function LeadsBoard({ onChanged, layout = "cards" }: { onChanged?: () => 
                   </div>
 
                   <div className="space-y-1">
-                    <Label className="text-xs text-slate-500">Ответственный</Label>
+                    <Label className="text-xs text-slate-500">{tr("Ответственный")}</Label>
                     <Select
                       value={lead.manager_id ?? NO_MANAGER}
                       onValueChange={(v) => patchLead(lead, { manager_id: v === NO_MANAGER ? null : v })}
@@ -346,7 +341,7 @@ export function LeadsBoard({ onChanged, layout = "cards" }: { onChanged?: () => 
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value={NO_MANAGER}>Не назначен</SelectItem>
+                        <SelectItem value={NO_MANAGER}>{tr("Не назначен")}</SelectItem>
                         {options.map((m) => (
                           <SelectItem key={m.id} value={m.id}>
                             {m.name}
@@ -358,17 +353,17 @@ export function LeadsBoard({ onChanged, layout = "cards" }: { onChanged?: () => 
 
                   {lead.taken_by && lead.taken_at && (
                     <p className="text-xs text-slate-500">
-                      ✅ Взял в Telegram: {lead.taken_by} · {formatDate(lead.taken_at)}
+                      {tr("✅ Взял в Telegram:")}{" "}{lead.taken_by} · {formatDate(lead.taken_at)}
                     </p>
                   )}
 
                   {isClosed(lead) && (
                     <div className="space-y-1 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
                       <p>
-                        Закрыл {lead.closed_by ?? "—"}
+                        {tr("Закрыл")}{" "}{lead.closed_by ?? "—"}
                         {lead.closed_at ? ` · ${formatDate(lead.closed_at)}` : ""}
                       </p>
-                      {lead.status === "not_sold" && <p>Причина: {lostReasonLabel(lead.lost_reason)}</p>}
+                      {lead.status === "not_sold" && <p>{tr("Причина:")}{" "}{lostReasonLabel(lead.lost_reason)}</p>}
                       {lead.lost_comment && <p className="whitespace-pre-wrap break-words">{lead.lost_comment}</p>}
                     </div>
                   )}
@@ -383,8 +378,7 @@ export function LeadsBoard({ onChanged, layout = "cards" }: { onChanged?: () => 
                         onClick={() => patchLead(lead, { status: "in_progress" })}
                       >
                         <RotateCcw className="h-3.5 w-3.5" />
-                        Вернуть в работу
-                      </Button>
+                        {tr("Вернуть в работу")}</Button>
                     ) : (
                       <div className="flex flex-wrap gap-2">
                         {lead.status === "new" && (
@@ -396,13 +390,11 @@ export function LeadsBoard({ onChanged, layout = "cards" }: { onChanged?: () => 
                             onClick={() => patchLead(lead, { status: "in_progress" })}
                           >
                             <Play className="h-3.5 w-3.5" />
-                            Взять в работу
-                          </Button>
+                            {tr("Взять в работу")}</Button>
                         )}
                         <Button size="sm" className="flex-1" disabled={busy} onClick={() => setClosing({ lead, mode: "sold" })}>
                           <Check className="h-3.5 w-3.5" />
-                          Продано
-                        </Button>
+                          {tr("Продано")}</Button>
                         <Button
                           variant="outline"
                           size="sm"
@@ -411,16 +403,15 @@ export function LeadsBoard({ onChanged, layout = "cards" }: { onChanged?: () => 
                           onClick={() => setClosing({ lead, mode: "not_sold" })}
                         >
                           <X className="h-3.5 w-3.5" />
-                          Не продано
-                        </Button>
+                          {tr("Не продано")}</Button>
                       </div>
                     )}
 
                     <div className="flex items-center justify-between gap-2">
                     <p className="text-xs text-slate-400">
-                      Заявка от {formatDate(lead.created_at)}
+                      {tr("Заявка от")}{" "}{formatDate(lead.created_at)}
                       {lead.source ? ` · ${lead.source.platform === "telegram" ? "Telegram" : "Instagram"}` : ""}
-                      {lead.collected_data?.created_by ? ` · вручную, ${lead.collected_data.created_by}` : ""}
+                      {lead.collected_data?.created_by ? tr(" · вручную, {0}", lead.collected_data.created_by) : ""}
                     </p>
                     {lead.session_id && (
                     <button
@@ -429,8 +420,7 @@ export function LeadsBoard({ onChanged, layout = "cards" }: { onChanged?: () => 
                       className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-brand hover:bg-brand-soft"
                     >
                       <MessageCircle className="h-3.5 w-3.5" />
-                      Переписка
-                    </button>
+                      {tr("Переписка")}</button>
                     )}
                     </div>
                   </div>

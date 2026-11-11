@@ -8,11 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn, dayKey, formatDate, formatDay, formatTime } from "@/lib/utils";
 import type { ChatSession, Message, SessionStatus } from "@/types";
+import { t } from "@/lib/i18n";
 
 const STATUS_LABEL: Record<SessionStatus, string> = {
-  ai_active: "Ведёт ИИ",
-  manager_takeover: "Перехвачено",
-  closed: "Закрыт",
+  get ai_active() { return t("Ведёт ИИ"); },
+  get manager_takeover() { return t("Перехвачено"); },
+  get closed() { return t("Закрыт"); },
 };
 
 const STATUS_VARIANT: Record<SessionStatus, "accent" | "warning" | "secondary"> = {
@@ -75,10 +76,9 @@ export default function InboxPage() {
   return (
     <div>
       <div className={cn("mb-6", mobileChat && "hidden md:block")}>
-        <h1 className="text-lg font-semibold text-slate-900">История чатов</h1>
+        <h1 className="text-lg font-semibold text-slate-900">{t("История чатов")}</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Все диалоги клиентов с ИИ. Перехватите диалог, чтобы ответить лично.
-        </p>
+          {t("Все диалоги клиентов с ИИ. Перехватите диалог, чтобы ответить лично.")}</p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-[320px_1fr]">
@@ -90,11 +90,11 @@ export default function InboxPage() {
         >
           <div className="thin-scroll flex-1 overflow-y-auto">
             {loadingSessions ? (
-              <p className="p-5 text-sm text-slate-400">Загрузка...</p>
+              <p className="p-5 text-sm text-slate-400">{t("Загрузка...")}</p>
             ) : sessions.length === 0 ? (
               <div className="flex flex-col items-center gap-2 p-10 text-center">
                 <InboxIcon className="h-5 w-5 text-slate-300" />
-                <p className="text-sm text-slate-400">Диалогов пока нет.</p>
+                <p className="text-sm text-slate-400">{t("Диалогов пока нет.")}</p>
               </div>
             ) : (
               sessions.map((s) => (
@@ -139,8 +139,7 @@ export default function InboxPage() {
         >
           {!active ? (
             <div className="flex flex-1 items-center justify-center text-sm text-slate-400">
-              Выберите диалог слева
-            </div>
+              {t("Выберите диалог слева")}</div>
           ) : (
             <>
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 p-3 sm:p-4">
@@ -149,7 +148,7 @@ export default function InboxPage() {
                     type="button"
                     onClick={() => setMobileChat(false)}
                     className="-ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 md:hidden"
-                    aria-label="Назад к списку"
+                    aria-label={t("Назад к списку")}
                   >
                     <ArrowLeft className="h-4 w-4" />
                   </button>
@@ -167,13 +166,13 @@ export default function InboxPage() {
                   onClick={() => handleTakeover(active)}
                 >
                   <UserCog className="h-3.5 w-3.5" />
-                  {active.status === "manager_takeover" ? "Вернуть ИИ" : "Перехватить диалог"}
+                  {active.status === "manager_takeover" ? t("Вернуть ИИ") : t("Перехватить диалог")}
                 </Button>
               </div>
 
               <div className="thin-scroll flex-1 overflow-y-auto p-3 sm:p-5">
                 {loadingMessages ? (
-                  <p className="text-sm text-slate-400">Загрузка сообщений...</p>
+                  <p className="text-sm text-slate-400">{t("Загрузка сообщений...")}</p>
                 ) : (
                   <div className="flex flex-col gap-3">
                     {messages.map((m, i) => {
@@ -202,7 +201,7 @@ export default function InboxPage() {
                               {m.text}
                             </div>
                             <span className="mt-1 px-1 text-[11px] tabular-nums text-slate-400">
-                              {m.sender === "manager" ? "Менеджер · " : m.sender === "ai" ? "ИИ · " : ""}
+                              {m.sender === "manager" ? t("Менеджер · ") : m.sender === "ai" ? t("ИИ · ") : ""}
                               {formatTime(m.created_at)}
                             </span>
                           </div>

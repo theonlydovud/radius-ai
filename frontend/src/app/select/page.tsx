@@ -8,6 +8,7 @@ import { PasswordInput } from "@/components/password-input";
 import { Button } from "@/components/ui/button";
 import { fetchSession, homeFor, logout, ROLE_LABEL, safeNext, type Session } from "@/components/current-user";
 import { cn, initials } from "@/lib/utils";
+import { t } from "@/lib/i18n";
 
 type Person = Session["users"][number];
 
@@ -46,7 +47,7 @@ function SelectPerson() {
         if (s.user) return router.replace(next ?? homeFor(s.user.role));
         setSession(s);
       })
-      .catch((e) => setError(e?.message ?? "Сервер недоступен."));
+      .catch((e) => setError(e?.message ?? t("Сервер недоступен.")));
   }, [router, next]);
 
   useEffect(() => {
@@ -66,12 +67,12 @@ function SelectPerson() {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(json.error ?? "Не удалось войти.");
+        setError(json.error ?? t("Не удалось войти."));
         return;
       }
       router.push(next ?? homeFor(picked.role));
     } catch {
-      setError("Сервер недоступен. Проверьте интернет и попробуйте ещё раз.");
+      setError(t("Сервер недоступен. Проверьте интернет и попробуйте ещё раз."));
     } finally {
       setBusy(false);
     }
@@ -88,12 +89,12 @@ function SelectPerson() {
   }
 
   return (
-    <div className="rounded-2xl border border-white/60 bg-white/80 p-6 shadow-[0_20px_60px_-20px_rgba(47,91,232,0.25)] backdrop-blur-xl sm:p-8">
+    <div className="rounded-2xl border border-white/60 bg-surface/80 p-6 shadow-[0_20px_60px_-20px_rgba(47,91,232,0.25)] backdrop-blur-xl sm:p-8">
       {!picked ? (
         <>
           <p className="text-xs font-medium uppercase tracking-wider text-brand">{session.company?.name}</p>
-          <h1 className="mt-1 text-xl font-semibold tracking-tight text-slate-900">Выберите менеджера</h1>
-          <p className="mt-1 text-sm text-slate-500">Кто сейчас работает на этом устройстве?</p>
+          <h1 className="mt-1 text-xl font-semibold tracking-tight text-slate-900">{t("Выберите менеджера")}</h1>
+          <p className="mt-1 text-sm text-slate-500">{t("Кто сейчас работает на этом устройстве?")}</p>
 
           <ul className="mt-6 space-y-2">
             {session.users.map((person) => (
@@ -105,7 +106,7 @@ function SelectPerson() {
                     setPassword("");
                     setError("");
                   }}
-                  className="group flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3 text-left transition hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                  className="group flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-surface px-3 py-3 text-left transition hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
                 >
                   <Avatar person={person} />
                   <span className="min-w-0 flex-1">
@@ -130,8 +131,7 @@ function SelectPerson() {
             className="-ml-1 mb-4 flex items-center gap-1 rounded-md px-1 py-1 text-xs text-slate-500 hover:text-slate-900"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
-            Другой пользователь
-          </button>
+            {t("Другой пользователь")}</button>
           <div className="flex flex-col items-center text-center">
             <Avatar person={picked} size="lg" />
             <p className="mt-3 text-lg font-semibold text-slate-900">{picked.name}</p>
@@ -139,8 +139,7 @@ function SelectPerson() {
           </div>
           <div className="mt-6 space-y-1.5">
             <label htmlFor="person-password" className="text-sm font-medium text-slate-700">
-              Пароль
-            </label>
+              {t("Пароль")}</label>
             <PasswordInput
               id="person-password"
               ref={passwordRef}
@@ -157,8 +156,7 @@ function SelectPerson() {
           )}
           <Button type="submit" className="mt-4 h-11 w-full" disabled={busy || !password}>
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-            Войти
-          </Button>
+            {t("Войти")}</Button>
         </form>
       )}
     </div>
@@ -171,8 +169,7 @@ export default function SelectPage() {
       footer={
         <button onClick={() => logout("all")} className="inline-flex items-center gap-1.5 hover:text-slate-700">
           <LogOut className="h-3.5 w-3.5" />
-          Выйти из аккаунта компании
-        </button>
+          {t("Выйти из аккаунта компании")}</button>
       }
     >
       <Suspense>

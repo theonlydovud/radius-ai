@@ -18,18 +18,20 @@ import {
 } from "lucide-react";
 import { DexaMark } from "@/components/brand/dexa-logo";
 import { FullscreenButton } from "@/components/fullscreen-button";
+import { LangSwitcher, ThemeToggle } from "@/components/prefs";
 import { AccountSwitcher } from "@/components/account-switcher";
 import { logout, useCurrentUser } from "@/components/current-user";
 import { cn, initials } from "@/lib/utils";
+import { t } from "@/lib/i18n";
 
 const NAV_ITEMS = [
-  { href: "/playground", label: "Диалог с ИИ", icon: MessageSquareText },
-  { href: "/knowledge", label: "Знания ИИ", icon: BookOpen },
-  { href: "/rules", label: "Правила общения", icon: ShieldCheck },
-  { href: "/leads", label: "Заявки", icon: ClipboardList },
-  { href: "/stats", label: "Статистика", icon: BarChart3 },
-  { href: "/inbox", label: "История чатов", icon: Inbox },
-  { href: "/settings", label: "Настройки", icon: Settings },
+  { href: "/playground", get label() { return t("Диалог с ИИ"); }, icon: MessageSquareText },
+  { href: "/knowledge", get label() { return t("Знания ИИ"); }, icon: BookOpen },
+  { href: "/rules", get label() { return t("Правила общения"); }, icon: ShieldCheck },
+  { href: "/leads", get label() { return t("Заявки"); }, icon: ClipboardList },
+  { href: "/stats", get label() { return t("Статистика"); }, icon: BarChart3 },
+  { href: "/inbox", get label() { return t("История чатов"); }, icon: Inbox },
+  { href: "/settings", get label() { return t("Настройки"); }, icon: Settings },
 ];
 
 function Brand() {
@@ -68,16 +70,14 @@ function UserMenu() {
           className="flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-[11px] text-slate-500 hover:bg-slate-50 hover:text-slate-800"
         >
           <Users className="h-3.5 w-3.5" />
-          Сменить
-        </button>
+          {t("Сменить")}</button>
         <button
           type="button"
           onClick={() => logout("all")}
           className="flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-[11px] text-slate-500 hover:bg-slate-50 hover:text-red-600"
         >
           <LogOut className="h-3.5 w-3.5" />
-          Выйти
-        </button>
+          {t("Выйти")}</button>
       </div>
     </div>
   );
@@ -113,7 +113,11 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
       </nav>
 
       <div className="px-3 pb-1">
-        <FullscreenButton withLabel className="w-full justify-start" />
+        <div className="flex items-center gap-1">
+          <FullscreenButton />
+          <ThemeToggle />
+          <LangSwitcher up />
+        </div>
       </div>
       <AccountSwitcher onNavigate={onNavigate} />
       <UserMenu />
@@ -124,7 +128,7 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
 /** Сайдбар для экранов от планшета и шире. */
 export function Sidebar() {
   return (
-    <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-slate-200 bg-white md:flex">
+    <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-slate-200 bg-surface md:flex">
       <div className="px-5 py-5">
         <Brand />
       </div>
@@ -149,7 +153,7 @@ export function MobileNav() {
 
   return (
     <>
-      <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur md:hidden">
+      <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-slate-200 bg-surface/95 px-4 backdrop-blur md:hidden">
         <Brand />
         <div className="flex items-center gap-2">
           {current && <span className="max-w-[9rem] truncate text-xs text-slate-500">{current.label}</span>}
@@ -158,7 +162,7 @@ export function MobileNav() {
             type="button"
             onClick={() => setOpen(true)}
             className="flex h-10 w-10 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100"
-            aria-label="Открыть меню"
+            aria-label={t("Открыть меню")}
           >
             <Menu className="h-5 w-5" />
           </button>
@@ -167,15 +171,15 @@ export function MobileNav() {
 
       {open && (
         <div className="fixed inset-0 z-50 md:hidden">
-          <div className="absolute inset-0 bg-slate-950/30" onClick={() => setOpen(false)} />
-          <aside className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-white shadow-xl">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setOpen(false)} />
+          <aside className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-surface shadow-xl">
             <div className="flex items-center justify-between px-5 py-4">
               <Brand />
               <button
                 type="button"
                 onClick={() => setOpen(false)}
                 className="flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
-                aria-label="Закрыть меню"
+                aria-label={t("Закрыть меню")}
               >
                 <X className="h-5 w-5" />
               </button>

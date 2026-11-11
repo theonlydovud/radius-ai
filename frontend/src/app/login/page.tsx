@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { fetchSession, homeFor, safeNext } from "@/components/current-user";
+import { t } from "@/lib/i18n";
 
 function LoginForm() {
   const router = useRouter();
@@ -41,27 +42,27 @@ function LoginForm() {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(json.error ?? "Не удалось войти.");
+        setError(json.error ?? t("Не удалось войти."));
         return;
       }
       const step = json.data?.next;
       if (step === "select") router.push(`/select${next ? `?next=${encodeURIComponent(next)}` : ""}`);
       else router.push(next ?? homeFor(step));
     } catch {
-      setError("Сервер недоступен. Проверьте интернет и попробуйте ещё раз.");
+      setError(t("Сервер недоступен. Проверьте интернет и попробуйте ещё раз."));
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div className="rounded-2xl border border-white/60 bg-white/80 p-6 shadow-[0_20px_60px_-20px_rgba(47,91,232,0.25)] backdrop-blur-xl sm:p-8">
-      <h1 className="text-xl font-semibold tracking-tight text-slate-900">Вход в платформу</h1>
-      <p className="mt-1 text-sm text-slate-500">Логин и пароль вашей компании.</p>
+    <div className="rounded-2xl border border-white/60 bg-surface/80 p-6 shadow-[0_20px_60px_-20px_rgba(47,91,232,0.25)] backdrop-blur-xl sm:p-8">
+      <h1 className="text-xl font-semibold tracking-tight text-slate-900">{t("Вход в платформу")}</h1>
+      <p className="mt-1 text-sm text-slate-500">{t("Логин и пароль вашей компании.")}</p>
 
       <form onSubmit={submit} className="mt-6 space-y-4">
         <div className="space-y-1.5">
-          <Label htmlFor="login">Логин</Label>
+          <Label htmlFor="login">{t("Логин")}</Label>
           <Input
             id="login"
             value={login}
@@ -75,7 +76,7 @@ function LoginForm() {
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="password">Пароль</Label>
+          <Label htmlFor="password">{t("Пароль")}</Label>
           <PasswordInput
             id="password"
             value={password}
@@ -93,14 +94,12 @@ function LoginForm() {
 
         <Button type="submit" className="h-11 w-full text-sm" disabled={busy || !login || !password}>
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-          Войти
-        </Button>
+          {t("Войти")}</Button>
       </form>
 
       <p className="mt-5 flex items-start gap-2 text-xs text-slate-500">
         <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" />
-        Устройство запомнится: в следующий раз вводить логин и пароль не придётся.
-      </p>
+        {t("Устройство запомнится: в следующий раз вводить логин и пароль не придётся.")}</p>
     </div>
   );
 }

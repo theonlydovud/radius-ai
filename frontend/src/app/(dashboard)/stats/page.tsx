@@ -11,14 +11,15 @@ import { useAccountId } from "@/components/account-switcher";
 import { lostReasonLabel } from "@/lib/lead-meta";
 import { dayEndISO, dayStartISO, toDateInput } from "@/lib/utils";
 import type { LeadStats } from "@/types";
+import { t } from "@/lib/i18n";
 
 type Period = "today" | "week" | "month" | "custom";
 
 const PERIODS: { value: Period; label: string }[] = [
-  { value: "today", label: "Сегодня" },
-  { value: "week", label: "Неделя" },
-  { value: "month", label: "Месяц" },
-  { value: "custom", label: "Свой период" },
+  { value: "today", get label() { return t("Сегодня"); } },
+  { value: "week", get label() { return t("Неделя"); } },
+  { value: "month", get label() { return t("Месяц"); } },
+  { value: "custom", get label() { return t("Свой период"); } },
 ];
 
 function daysAgo(days: number) {
@@ -101,7 +102,7 @@ export default function StatsPage() {
         setError("");
       })
       .catch((e) => {
-        if (!cancelled) setError(e?.message || "Не удалось загрузить статистику.");
+        if (!cancelled) setError(e?.message || t("Не удалось загрузить статистику."));
       });
     return () => {
       cancelled = true;
@@ -115,8 +116,8 @@ export default function StatsPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-lg font-semibold text-slate-900">Статистика</h1>
-        <p className="mt-1 text-sm text-slate-500">Считаются заявки, созданные за выбранный период.</p>
+        <h1 className="text-lg font-semibold text-slate-900">{t("Статистика")}</h1>
+        <p className="mt-1 text-sm text-slate-500">{t("Считаются заявки, созданные за выбранный период.")}</p>
       </div>
 
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
@@ -132,11 +133,11 @@ export default function StatsPage() {
         {period === "custom" && (
           <div className="grid grid-cols-2 gap-2 sm:flex">
             <div className="space-y-1">
-              <Label className="text-xs text-slate-500">С</Label>
+              <Label className="text-xs text-slate-500">{t("С")}</Label>
               <Input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="h-9" />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-slate-500">По</Label>
+              <Label className="text-xs text-slate-500">{t("По")}</Label>
               <Input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="h-9" />
             </div>
           </div>
@@ -146,26 +147,26 @@ export default function StatsPage() {
       {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
 
       {!stats ? (
-        !error && <p className="text-sm text-slate-400">Загрузка...</p>
+        !error && <p className="text-sm text-slate-400">{t("Загрузка...")}</p>
       ) : stats.totals.total === 0 ? (
         <Card className="flex flex-col items-center gap-2 p-12 text-center">
           <BarChart3 className="h-6 w-6 text-slate-300" />
-          <p className="text-sm text-slate-500">За этот период заявок нет.</p>
+          <p className="text-sm text-slate-500">{t("За этот период заявок нет.")}</p>
         </Card>
       ) : (
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-            <Tile label="Всего заявок" value={stats.totals.total} />
-            <Tile label="Новые" value={stats.totals.new} dot="bg-orange-500" />
-            <Tile label="В работе" value={stats.totals.in_progress} dot="bg-brand" />
-            <Tile label="Продано" value={stats.totals.sold} dot="bg-emerald-500" />
-            <Tile label="Не продано" value={stats.totals.not_sold} dot="bg-red-500" />
-            <Tile label="Конверсия" value={formatConversion(stats.totals.conversion)} hint="продано / закрытые" />
+            <Tile label={t("Всего заявок")} value={stats.totals.total} />
+            <Tile label={t("Новые")} value={stats.totals.new} dot="bg-orange-500" />
+            <Tile label={t("В работе")} value={stats.totals.in_progress} dot="bg-brand" />
+            <Tile label={t("Продано")} value={stats.totals.sold} dot="bg-emerald-500" />
+            <Tile label={t("Не продано")} value={stats.totals.not_sold} dot="bg-red-500" />
+            <Tile label={t("Конверсия")} value={formatConversion(stats.totals.conversion)} hint={t("продано / закрытые")} />
           </div>
 
           <Card>
             <CardHeader>
-              <CardTitle>Заявки по дням</CardTitle>
+              <CardTitle>{t("Заявки по дням")}</CardTitle>
             </CardHeader>
             <CardContent>
               <DailyLeadsChart daily={stats.daily} />
@@ -174,18 +175,18 @@ export default function StatsPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Менеджеры</CardTitle>
+              <CardTitle>{t("Менеджеры")}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[320px] text-sm">
                   <thead>
                     <tr className="text-left text-xs text-slate-500">
-                      <th className="pb-2 font-medium">Менеджер</th>
-                      <th className="pb-2 text-right font-medium">Получил</th>
-                      <th className="pb-2 text-right font-medium">Продал</th>
-                      <th className="pb-2 text-right font-medium">Не продал</th>
-                      <th className="pb-2 text-right font-medium">Конверсия</th>
+                      <th className="pb-2 font-medium">{t("Менеджер")}</th>
+                      <th className="pb-2 text-right font-medium">{t("Получил")}</th>
+                      <th className="pb-2 text-right font-medium">{t("Продал")}</th>
+                      <th className="pb-2 text-right font-medium">{t("Не продал")}</th>
+                      <th className="pb-2 text-right font-medium">{t("Конверсия")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -207,11 +208,11 @@ export default function StatsPage() {
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <Card>
               <CardHeader>
-                <CardTitle>Причины отказа</CardTitle>
+                <CardTitle>{t("Причины отказа")}</CardTitle>
               </CardHeader>
               <CardContent>
                 {reasonsWithData.length === 0 ? (
-                  <Empty text="Отказов за этот период нет." />
+                  <Empty text={t("Отказов за этот период нет.")} />
                 ) : (
                   <ul className="space-y-3">
                     {reasonsWithData.map((r) => (
@@ -230,7 +231,7 @@ export default function StatsPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Источник</CardTitle>
+                <CardTitle>{t("Источник")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <ul className="space-y-3">
@@ -249,11 +250,11 @@ export default function StatsPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Топ направлений</CardTitle>
+                <CardTitle>{t("Топ направлений")}</CardTitle>
               </CardHeader>
               <CardContent>
                 {stats.routes.length === 0 ? (
-                  <Empty text="Направлений пока нет." />
+                  <Empty text={t("Направлений пока нет.")} />
                 ) : (
                   <ul className="space-y-3">
                     {stats.routes.map((r) => (

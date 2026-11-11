@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { t as tr } from "@/lib/i18n";
 
 /** Один ряд — один цвет. Значения дублируются в таблице под графиком. */
-const BAR_COLOR = "#1f66cc"; // фирменный синий, прошёл валидатор цвета
-const GRID_COLOR = "#e2e8f0";
+const BAR_COLOR = "rgb(var(--brand))"; // фирменный синий, прошёл валидатор цвета
+const GRID_COLOR = "rgb(var(--slate-200))";
 
 function formatDay(date: string) {
   const [, month, day] = date.split("-");
@@ -94,7 +95,7 @@ export function DailyLeadsChart({ daily }: { daily: { date: string; count: numbe
 
             {hovered && active !== null && (
               <div
-                className="pointer-events-none absolute top-0 z-10 -translate-x-1/2 whitespace-nowrap rounded-md border border-slate-200 bg-white px-2 py-1 text-xs shadow-sm"
+                className="pointer-events-none absolute top-0 z-10 -translate-x-1/2 whitespace-nowrap rounded-md border border-slate-200 bg-surface px-2 py-1 text-xs shadow-sm"
                 style={{ left: `${Math.min(88, Math.max(12, ((active + 0.5) / daily.length) * 100))}%` }}
               >
                 <span className="font-semibold text-slate-900">{hovered.count}</span>{" "}
@@ -117,7 +118,7 @@ export function DailyLeadsChart({ daily }: { daily: { date: string; count: numbe
       </div>
 
       <details className="mt-3 text-xs text-slate-500">
-        <summary className="cursor-pointer select-none hover:text-slate-700">Таблица по дням</summary>
+        <summary className="cursor-pointer select-none hover:text-slate-700">{tr("Таблица по дням")}</summary>
         <div className="thin-scroll mt-2 max-h-48 overflow-y-auto">
           <table className="w-full max-w-xs">
             <tbody>

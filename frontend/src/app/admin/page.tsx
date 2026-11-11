@@ -8,6 +8,7 @@ import { greeting, TopBar } from "@/components/crm/top-bar";
 import { LeadsBoard } from "@/components/leads-board";
 import { CreateLeadButton } from "@/components/create-lead-dialog";
 import { Button } from "@/components/ui/button";
+import { t } from "@/lib/i18n";
 
 /**
  * Рабочее место супер-админа: заявки всех менеджеров списком (с фильтрами руководителя)
@@ -21,7 +22,7 @@ export default function AdminPage() {
   const [statsKey, setStatsKey] = useState(0);
 
   return (
-    <div className="min-h-screen bg-[#f7f8fb]">
+    <div className="min-h-screen bg-background">
       <TopBar />
       <main className="mx-auto max-w-6xl px-4 py-6 md:px-8 md:py-8">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -29,7 +30,7 @@ export default function AdminPage() {
             <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
               {greeting()}, {user.name.split(/\s+/)[0]}
             </h1>
-            <p className="mt-1 text-sm text-slate-500">Заявки всех менеджеров и общая статистика.</p>
+            <p className="mt-1 text-sm text-slate-500">{t("Заявки всех менеджеров и общая статистика.")}</p>
           </div>
           <div className="flex gap-2 self-start sm:self-auto">
           <CreateLeadButton
@@ -47,13 +48,12 @@ export default function AdminPage() {
             }}
           >
             <RefreshCw className="h-3.5 w-3.5" />
-            Обновить
-          </Button>
+            {t("Обновить")}</Button>
           </div>
         </div>
 
         <LeadsBoard key={key} layout="list" onChanged={() => setStatsKey((k) => k + 1)} />
-        <StatsSection title="Статистика" splitHint="Где сейчас все заявки периода" showManagers refreshKey={statsKey} />
+        <StatsSection title={t("Статистика")} splitHint={t("Где сейчас все заявки периода")} showManagers refreshKey={statsKey} />
       </main>
     </div>
   );

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useCurrentUser } from "@/components/current-user";
 import type { Manager } from "@/types";
+import { t } from "@/lib/i18n";
 
 const API = "/api/managers";
 
@@ -28,7 +29,7 @@ export function ManagersCard() {
       if (!res.ok) throw new Error(json.error);
       setManagers(json.data ?? []);
     } catch (e: any) {
-      setError(e?.message || "Не удалось загрузить менеджеров.");
+      setError(e?.message || t("Не удалось загрузить менеджеров."));
     }
   }
 
@@ -43,7 +44,7 @@ export function ManagersCard() {
       body: JSON.stringify({ id, ...body }),
     });
     const json = await res.json().catch(() => ({}));
-    setError(res.ok ? "" : json.error ?? "Не удалось сохранить.");
+    setError(res.ok ? "" : json.error ?? t("Не удалось сохранить."));
     setDrafts((prev) => {
       const { [id]: _saved, ...rest } = prev;
       return rest;
@@ -65,7 +66,7 @@ export function ManagersCard() {
       body: JSON.stringify({ name }),
     });
     const json = await res.json().catch(() => ({}));
-    setError(res.ok ? "" : json.error ?? "Не удалось добавить.");
+    setError(res.ok ? "" : json.error ?? t("Не удалось добавить."));
     if (res.ok) setNewName("");
     setAdding(false);
     await Promise.all([load(), reloadManagers()]);
@@ -80,13 +81,13 @@ export function ManagersCard() {
           <Users className="h-4 w-4 text-brand" />
         </div>
         <div>
-          <CardTitle>Менеджеры</CardTitle>
-          <p className="text-xs text-slate-400">Новые заявки назначаются включённым менеджерам по очереди.</p>
+          <CardTitle>{t("Менеджеры")}</CardTitle>
+          <p className="text-xs text-slate-400">{t("Новые заявки назначаются включённым менеджерам по очереди.")}</p>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
         {managers === null ? (
-          !error && <p className="text-sm text-slate-400">Загрузка...</p>
+          !error && <p className="text-sm text-slate-400">{t("Загрузка...")}</p>
         ) : (
           <ul className="space-y-2">
             {managers.map((m) => (
@@ -98,7 +99,7 @@ export function ManagersCard() {
                     const draft = drafts[m.id];
                     if (draft !== undefined && draft.trim() !== m.name) update(m.id, { name: draft });
                   }}
-                  aria-label="Имя менеджера"
+                  aria-label={t("Имя менеджера")}
                 />
                 <Input
                   value={tgDrafts[m.id] ?? (m.telegram_id ? String(m.telegram_id) : "")}
@@ -117,7 +118,7 @@ export function ManagersCard() {
                 <Switch
                   checked={m.is_active}
                   onCheckedChange={(checked) => update(m.id, { is_active: checked })}
-                  aria-label={`Заявки для ${m.name}`}
+                  aria-label={t("Заявки для {0}", m.name)}
                 />
               </li>
             ))}
@@ -129,19 +130,16 @@ export function ManagersCard() {
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && add()}
-            placeholder="Имя нового менеджера"
+            placeholder={t("Имя нового менеджера")}
           />
           <Button variant="outline" size="sm" onClick={add} disabled={adding || !newName.trim()}>
             <Plus className="h-3.5 w-3.5" />
-            Добавить
-          </Button>
+            {t("Добавить")}</Button>
         </div>
 
         <p className="text-xs text-slate-400">
-          Выключенный менеджер не получает новых заявок. Его старые заявки и статистика остаются.
-          Telegram ID нужен, чтобы бот упоминал менеджера в группе и пускал его нажать «✅ Ishga oldim».
-        </p>
-        {noneActive && <p className="text-xs text-amber-600">Все менеджеры выключены — новые заявки будут без ответственного.</p>}
+          {t("Выключенный менеджер не получает новых заявок. Его старые заявки и статистика остаются. Telegram ID нужен, чтобы бот упоминал менеджера в группе и пускал его нажать «✅ Ishga oldim».")}</p>
+        {noneActive && <p className="text-xs text-amber-600">{t("Все менеджеры выключены — новые заявки будут без ответственного.")}</p>}
         {error && <p className="text-xs text-red-600">{error}</p>}
       </CardContent>
     </Card>

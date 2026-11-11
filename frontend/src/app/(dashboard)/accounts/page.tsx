@@ -21,6 +21,7 @@ import { cn, formatDate } from "@/lib/utils";
 import type { AccountPublic } from "@/types";
 import { InstagramSetup } from "@/components/instagram-setup";
 import { useAccountFilter } from "@/components/account-switcher";
+import { t } from "@/lib/i18n";
 
 /** Вебхуки принимает backend (Render) напрямую; один общий URL на приложение Meta. */
 function webhookUrl() {
@@ -79,8 +80,8 @@ export default function AccountsPage() {
     if (ig || igError) {
       setBanner(
         igError
-          ? { ok: false, text: `Instagram не подключён: ${igError}` }
-          : { ok: true, text: `Instagram @${params.get("name") ?? ""} ${ig === "reconnected" ? "переподключён" : "подключён"}.` }
+          ? { ok: false, text: t("Instagram не подключён: {0}", igError) }
+          : { ok: true, text: `Instagram @${params.get("name") ?? ""} ${ig === "reconnected" ? t("переподключён") : t("подключён")}.` }
       );
       window.history.replaceState(null, "", window.location.pathname);
     }
@@ -116,7 +117,7 @@ export default function AccountsPage() {
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      setFormError(data.error ?? "Не удалось подключить аккаунт.");
+      setFormError(data.error ?? t("Не удалось подключить аккаунт."));
       setSaving(false);
       return;
     }
@@ -135,7 +136,7 @@ export default function AccountsPage() {
     const data = await res.json().catch(() => ({}));
     setTestResult((prev) => ({
       ...prev,
-      [acc.id]: res.ok ? { ok: true, message: "Источник знаний обновлён." } : { ok: false, message: data.error ?? "Не удалось сохранить." },
+      [acc.id]: res.ok ? { ok: true, message: t("Источник знаний обновлён.") } : { ok: false, message: data.error ?? t("Не удалось сохранить.") },
     }));
     load();
   }
@@ -143,7 +144,7 @@ export default function AccountsPage() {
   async function handleDisconnect(acc: AccountPublic) {
     // В БД у чатов и заявок ON DELETE CASCADE: удаление аккаунта стирает их безвозвратно.
     const confirmed = window.confirm(
-      `Удалить аккаунт «${acc.account_name}»?\n\nВместе с ним навсегда удалятся все его чаты и заявки, в том числе из статистики.`
+      t("Удалить аккаунт «{0}»?\n\nВместе с ним навсегда удалятся все его чаты и заявки, в том числе из статистики.", acc.account_name)
     );
     if (!confirmed) return;
     setAccounts((prev) => prev.filter((a) => a.id !== acc.id));
@@ -160,7 +161,7 @@ export default function AccountsPage() {
       setTestResult((prev) => ({ ...prev, [acc.id]: { ok: data.ok, message: data.message } }));
       load();
     } catch {
-      setTestResult((prev) => ({ ...prev, [acc.id]: { ok: false, message: "Не удалось выполнить проверку." } }));
+      setTestResult((prev) => ({ ...prev, [acc.id]: { ok: false, message: t("Не удалось выполнить проверку.") } }));
     } finally {
       setTestingId(null);
     }
@@ -176,10 +177,9 @@ export default function AccountsPage() {
     <div>
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-slate-900">Аккаунты</h1>
+          <h1 className="text-lg font-semibold text-slate-900">{t("Аккаунты")}</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Подключённые аккаунты Instagram Direct. Токены хранятся только на сервере, в браузер не передаются.
-          </p>
+            {t("Подключённые аккаунты Instagram Direct. Токены хранятся только на сервере, в браузер не передаются.")}</p>
         </div>
         <Dialog
           open={open}
@@ -191,47 +191,45 @@ export default function AccountsPage() {
           <DialogTrigger asChild>
             <Button size="sm">
               <Plus className="h-3.5 w-3.5" />
-              Подключить Instagram
-            </Button>
+              {t("Подключить Instagram")}</Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Подключить Instagram</DialogTitle>
-              <DialogDescription>ИИ начнёт отвечать в Direct сразу после подключения.</DialogDescription>
+              <DialogTitle>{t("Подключить Instagram")}</DialogTitle>
+              <DialogDescription>{t("ИИ начнёт отвечать в Direct сразу после подключения.")}</DialogDescription>
             </DialogHeader>
 
             <div className="space-y-3">
               {agents.length > 0 && (
                 <div className="space-y-1.5">
-                  <Label>Знания и правила</Label>
+                  <Label>{t("Знания и правила")}</Label>
                   <Select value={knowledgeSourceId} onValueChange={setKnowledgeSourceId}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={OWN_KNOWLEDGE}>Новый агент — свои знания и правила</SelectItem>
+                      <SelectItem value={OWN_KNOWLEDGE}>{t("Новый агент — свои знания и правила")}</SelectItem>
                       {agents.map((a) => (
                         <SelectItem key={a.id} value={a.id}>
-                          Как у {a.account_name}
+                          {t("Как у")}{" "}{a.account_name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-slate-400">
-                    Подключите к существующему агенту, чтобы бот отвечал по тем же знаниям без их дублирования.
-                  </p>
+                    {t("Подключите к существующему агенту, чтобы бот отвечал по тем же знаниям без их дублирования.")}</p>
                 </div>
               )}
 
               <div className="space-y-1.5">
-                <Label>Способ подключения</Label>
+                <Label>{t("Способ подключения")}</Label>
                 <Select value={igMode} onValueChange={(v) => setIgMode(v as "login" | "token")}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="login">Войти через Instagram (рекомендуется)</SelectItem>
-                    <SelectItem value="token">Вставить Access Token вручную</SelectItem>
+                    <SelectItem value="login">{t("Войти через Instagram (рекомендуется)")}</SelectItem>
+                    <SelectItem value="token">{t("Вставить Access Token вручную")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -241,8 +239,8 @@ export default function AccountsPage() {
               ) : (
                 <>
                   <div className="space-y-1.5">
-                    <Label>Название аккаунта (необязательно)</Label>
-                    <Input value={accountName} onChange={(e) => setAccountName(e.target.value)} placeholder="По умолчанию — @username из Instagram" />
+                    <Label>{t("Название аккаунта (необязательно)")}</Label>
+                    <Input value={accountName} onChange={(e) => setAccountName(e.target.value)} placeholder={t("По умолчанию — @username из Instagram")} />
                   </div>
                   <div className="space-y-1.5">
                     <Label>Access Token</Label>
@@ -251,22 +249,20 @@ export default function AccountsPage() {
                         value={token}
                         onChange={(e) => setToken(e.target.value)}
                         type={showToken ? "text" : "password"}
-                        placeholder="IGAA… (Instagram Login) или EAA… (Page Access Token)"
+                        placeholder={t("IGAA… (Instagram Login) или EAA… (Page Access Token)")}
                         className="pr-9"
                       />
                       <button
                         type="button"
                         onClick={() => setShowToken((v) => !v)}
                         className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                        aria-label={showToken ? "Скрыть токен" : "Показать токен"}
+                        aria-label={showToken ? t("Скрыть токен") : t("Показать токен")}
                       >
                         {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
                     <p className="text-xs text-slate-400">
-                      Meta for Developers → приложение → Instagram → API setup with Instagram login → Generate token. Подписка на
-                      вебхук оформится автоматически.
-                    </p>
+                      {t("Meta for Developers → приложение → Instagram → API setup with Instagram login → Generate token. Подписка на вебхук оформится автоматически.")}</p>
                   </div>
                 </>
               )}
@@ -276,15 +272,14 @@ export default function AccountsPage() {
 
             <DialogFooter>
               <Button variant="outline" size="sm" onClick={() => setOpen(false)}>
-                Отмена
-              </Button>
+                {t("Отмена")}</Button>
               <Button
                 size="sm"
                 onClick={handleConnect}
                 disabled={saving || (igMode === "token" && !token.trim()) || (igMode === "login" && !igReady)}
               >
                 {igMode === "login" ? <LogIn className="h-3.5 w-3.5" /> : null}
-                {saving ? "Подключение..." : igMode === "login" ? "Войти через Instagram" : "Подключить"}
+                {saving ? t("Подключение...") : igMode === "login" ? t("Войти через Instagram") : t("Подключить")}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -303,11 +298,11 @@ export default function AccountsPage() {
       )}
 
       {loading ? (
-        <p className="text-sm text-slate-400">Загрузка...</p>
+        <p className="text-sm text-slate-400">{t("Загрузка...")}</p>
       ) : accounts.length === 0 ? (
         <Card className="flex flex-col items-center gap-2 p-12 text-center">
           <Plug className="h-6 w-6 text-slate-300" />
-          <p className="text-sm text-slate-500">Пока нет подключённых аккаунтов.</p>
+          <p className="text-sm text-slate-500">{t("Пока нет подключённых аккаунтов.")}</p>
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -327,7 +322,7 @@ export default function AccountsPage() {
                       <p className="text-xs text-slate-400">Instagram Direct · {acc.access_token_preview}</p>
                     </div>
                   </div>
-                  <button onClick={() => handleDisconnect(acc)} className="text-slate-300 hover:text-red-500" title="Отключить / удалить" aria-label="Удалить аккаунт">
+                  <button onClick={() => handleDisconnect(acc)} className="text-slate-300 hover:text-red-500" title={t("Отключить / удалить")} aria-label={t("Удалить аккаунт")}>
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </CardHeader>
@@ -341,27 +336,27 @@ export default function AccountsPage() {
                           acc.status === "connected" ? "bg-emerald-500" : acc.status === "error" ? "bg-red-500" : "bg-slate-400"
                         )}
                       />
-                      {acc.status === "connected" ? "Подключён" : acc.status === "error" ? "Ошибка соединения" : "Отключён"}
+                      {acc.status === "connected" ? t("Подключён") : acc.status === "error" ? t("Ошибка соединения") : t("Отключён")}
                     </Badge>
-                    <p className="text-xs text-slate-400">с {formatDate(acc.created_at)}</p>
+                    <p className="text-xs text-slate-400">{t("с")}{" "}{formatDate(acc.created_at)}</p>
                   </div>
 
                   <div className="flex items-center gap-2">
                     <Bot className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                     {dependents.length > 0 ? (
-                      <p className="text-xs text-slate-500">Агент. Те же знания использует: {dependents.map((d) => d.account_name).join(", ")}</p>
+                      <p className="text-xs text-slate-500">{t("Агент. Те же знания использует:")}{" "}{dependents.map((d) => d.account_name).join(", ")}</p>
                     ) : (
                       <Select value={acc.knowledge_source_id ?? OWN_KNOWLEDGE} onValueChange={(v) => handleChangeSource(acc, v)}>
                         <SelectTrigger className="h-8 text-xs">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value={OWN_KNOWLEDGE}>Свои знания и правила</SelectItem>
+                          <SelectItem value={OWN_KNOWLEDGE}>{t("Свои знания и правила")}</SelectItem>
                           {agents
                             .filter((a) => a.id !== acc.id)
                             .map((a) => (
                               <SelectItem key={a.id} value={a.id}>
-                                Знания и правила как у {a.account_name}
+                                {t("Знания и правила как у")}{" "}{a.account_name}
                               </SelectItem>
                             ))}
                         </SelectContent>
@@ -374,9 +369,9 @@ export default function AccountsPage() {
                     <p className="flex-1 truncate text-xs text-slate-500">{webhookUrl()}</p>
                     <button
                       onClick={() => handleCopyWebhook(acc)}
-                      className="shrink-0 rounded-md p-1 text-slate-400 hover:bg-white hover:text-slate-700"
-                      title="Скопировать Webhook URL"
-                      aria-label="Скопировать Webhook URL"
+                      className="shrink-0 rounded-md p-1 text-slate-400 hover:bg-surface hover:text-slate-700"
+                      title={t("Скопировать Webhook URL")}
+                      aria-label={t("Скопировать Webhook URL")}
                     >
                       {copiedId === acc.id ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
                     </button>
@@ -386,8 +381,7 @@ export default function AccountsPage() {
 
                   <Button variant="outline" size="sm" className="w-full" onClick={() => handleTestConnection(acc)} disabled={testingId === acc.id}>
                     {testingId === acc.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                    Проверить соединение
-                  </Button>
+                    {t("Проверить соединение")}</Button>
                 </CardContent>
               </Card>
             );

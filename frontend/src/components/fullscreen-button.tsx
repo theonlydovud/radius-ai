@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Maximize, Minimize } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
 
 /**
  * «Во весь экран»: прячет адресную строку и вкладки браузера (удобно на электронной доске).
@@ -26,7 +27,7 @@ export function FullscreenButton({ className, withLabel = false }: { className?:
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     else document.documentElement.requestFullscreen({ navigationUI: "hide" }).catch(() => {});
   };
-  const label = active ? "Выйти из полноэкранного режима" : "Во весь экран";
+  const label = active ? t("Выйти из полноэкранного режима") : t("Во весь экран");
 
   return (
     <button
@@ -41,7 +42,7 @@ export function FullscreenButton({ className, withLabel = false }: { className?:
       )}
     >
       {active ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
-      {withLabel && <span>{active ? "Обычный режим" : "Во весь экран"}</span>}
+      {withLabel && <span>{active ? t("Обычный режим") : t("Во весь экран")}</span>}
     </button>
   );
 }

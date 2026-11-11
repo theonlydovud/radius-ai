@@ -5,6 +5,7 @@ import { Bot } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ALL_ACCOUNTS, useAccountFilter } from "@/components/account-switcher";
 import type { AccountPublic } from "@/types";
+import { t } from "@/lib/i18n";
 
 const STORAGE_KEY = "radius.botId";
 
@@ -117,7 +118,7 @@ export function BotSelector({
       <Bot className="h-4 w-4 text-slate-400" />
       <Select value={botId ?? undefined} onValueChange={onChange}>
         <SelectTrigger className="h-9 w-full sm:w-80">
-          <SelectValue placeholder="Выберите агента" />
+          <SelectValue placeholder={t("Выберите агента")} />
         </SelectTrigger>
         <SelectContent>
           {bots.map((b) => (

@@ -20,11 +20,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { BotSelector, useSelectedBot } from "@/components/bot-selector";
 import type { RuleType, SystemRule } from "@/types";
+import { t as tr } from "@/lib/i18n";
 
 const RULE_TYPE_LABELS: Record<RuleType, string> = {
-  tone: "Тон общения",
-  qualification_requirements: "Квалификация лида",
-  general: "Общее правило",
+  get tone() { return tr("Тон общения"); },
+  get qualification_requirements() { return tr("Квалификация лида"); },
+  get general() { return tr("Общее правило"); },
 };
 
 export default function RulesPage() {
@@ -134,11 +135,9 @@ export default function RulesPage() {
     <div>
       <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-slate-900">Правила общения</h1>
+          <h1 className="text-lg font-semibold text-slate-900">{tr("Правила общения")}</h1>
           <p className="mt-1 text-sm text-slate-500">
-            ИИ работает как консультант: не называет цены сам, а собирает данные для логиста —
-            откуда, куда, вес/объём и телефон клиента.
-          </p>
+            {tr("ИИ отвечает по знаниям и правилам аккаунта, выбранного внизу меню.")}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap sm:gap-3">
         <BotSelector bots={bots} botId={botId} onChange={setBotId} />
@@ -146,16 +145,15 @@ export default function RulesPage() {
           <DialogTrigger asChild>
             <Button size="sm" onClick={openCreateDialog} disabled={!botId}>
               <Plus className="h-3.5 w-3.5" />
-              Новое правило
-            </Button>
+              {tr("Новое правило")}</Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{editingId ? "Редактировать правило" : "Новое правило"}</DialogTitle>
+              <DialogTitle>{editingId ? tr("Редактировать правило") : tr("Новое правило")}</DialogTitle>
             </DialogHeader>
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <Label>Тип правила</Label>
+                <Label>{tr("Тип правила")}</Label>
                 <Select
                   value={ruleType}
                   onValueChange={(v) => setRuleType(v as RuleType)}
@@ -174,34 +172,32 @@ export default function RulesPage() {
                 </Select>
                 {editingId && (
                   <p className="text-xs text-slate-400">
-                    Тип правила нельзя изменить — создайте новое правило, если нужен другой тип.
-                  </p>
+                    {tr("Тип правила нельзя изменить — создайте новое правило, если нужен другой тип.")}</p>
                 )}
               </div>
               <div className="space-y-1.5">
-                <Label>Название</Label>
+                <Label>{tr("Название")}</Label>
                 <Input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Например: Всегда уточнять телефон"
+                  placeholder={tr("Например: Всегда уточнять телефон")}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Формулировка для ИИ</Label>
+                <Label>{tr("Формулировка для ИИ")}</Label>
                 <Textarea
                   value={ruleText}
                   onChange={(e) => setRuleText(e.target.value)}
-                  placeholder="Опишите инструкцию простым языком..."
+                  placeholder={tr("Опишите инструкцию простым языком...")}
                   rows={5}
                 />
               </div>
             </div>
             <DialogFooter>
               <Button variant="outline" size="sm" onClick={() => setOpen(false)}>
-                Отмена
-              </Button>
+                {tr("Отмена")}</Button>
               <Button size="sm" onClick={handleSave} disabled={saving || !title.trim() || !ruleText.trim()}>
-                {saving ? "Сохранение..." : editingId ? "Сохранить изменения" : "Сохранить"}
+                {saving ? tr("Сохранение...") : editingId ? tr("Сохранить изменения") : tr("Сохранить")}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -211,10 +207,9 @@ export default function RulesPage() {
 
       {ready && bots.length === 0 ? (
         <Card className="p-8 text-center text-sm text-slate-500">
-          Нет подключённых аккаунтов. Сначала подключите бота на вкладке «Аккаунты».
-        </Card>
+          {tr("Нет подключённых аккаунтов. Добавьте Instagram через переключатель аккаунтов внизу меню.")}</Card>
       ) : loading ? (
-        <p className="text-sm text-slate-400">Загрузка...</p>
+        <p className="text-sm text-slate-400">{tr("Загрузка...")}</p>
       ) : (
         <div className="space-y-8">
           {grouped.map((group) => (
@@ -223,8 +218,7 @@ export default function RulesPage() {
               {group.items.length === 0 ? (
                 <Card className="flex items-center gap-2 p-5 text-sm text-slate-400">
                   <ShieldCheck className="h-4 w-4 text-slate-300" />
-                  Правил этого типа пока нет.
-                </Card>
+                  {tr("Правил этого типа пока нет.")}</Card>
               ) : (
                 <div className="space-y-3">
                   {group.items.map((rule) => (
@@ -236,7 +230,7 @@ export default function RulesPage() {
                         </div>
                         <div className="flex shrink-0 items-center gap-3 pl-2">
                           <Badge variant={rule.is_active ? "success" : "secondary"}>
-                            {rule.is_active ? "Активно" : "Отключено"}
+                            {rule.is_active ? tr("Активно") : tr("Отключено")}
                           </Badge>
                           <Switch
                             checked={rule.is_active}
@@ -245,14 +239,14 @@ export default function RulesPage() {
                           <button
                             onClick={() => openEditDialog(rule)}
                             className="text-slate-300 hover:text-slate-600"
-                            title="Редактировать"
+                            title={tr("Редактировать")}
                           >
                             <Pencil className="h-4 w-4" />
                           </button>
                           <button
                             onClick={() => setDeleteTarget(rule)}
                             className="text-slate-300 hover:text-red-500"
-                            title="Удалить"
+                            title={tr("Удалить")}
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -270,17 +264,15 @@ export default function RulesPage() {
       <Dialog open={Boolean(deleteTarget)} onOpenChange={(v) => !v && setDeleteTarget(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Удалить правило?</DialogTitle>
+            <DialogTitle>{tr("Удалить правило?")}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-slate-500">
-            Правило «{deleteTarget?.title}» будет удалено безвозвратно и перестанет учитываться ИИ.
-          </p>
+            {tr("Правило «")}{deleteTarget?.title}{tr("» будет удалено безвозвратно и перестанет учитываться ИИ.")}</p>
           <DialogFooter>
             <Button variant="outline" size="sm" onClick={() => setDeleteTarget(null)}>
-              Отмена
-            </Button>
+              {tr("Отмена")}</Button>
             <Button variant="destructive" size="sm" onClick={handleDelete} disabled={deleting}>
-              {deleting ? "Удаление..." : "Удалить"}
+              {deleting ? tr("Удаление...") : tr("Удалить")}
             </Button>
           </DialogFooter>
         </DialogContent>

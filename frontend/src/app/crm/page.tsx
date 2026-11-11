@@ -30,15 +30,16 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { lostReasonLabel, STATUS_LABEL, STATUS_VARIANT } from "@/lib/lead-meta";
 import { cn, formatDate } from "@/lib/utils";
 import type { Lead } from "@/types";
+import { t as tr } from "@/lib/i18n";
 
 const REFRESH_MS = 30_000;
 
 type LeadTab = "active" | "sold" | "not_sold" | "all";
 const LEAD_TABS: { value: LeadTab; label: string }[] = [
-  { value: "active", label: "Активные" },
-  { value: "sold", label: "Продано" },
-  { value: "not_sold", label: "Не продано" },
-  { value: "all", label: "Все" },
+  { value: "active", get label() { return tr("Активные"); } },
+  { value: "sold", get label() { return tr("Продано"); } },
+  { value: "not_sold", get label() { return tr("Не продано"); } },
+  { value: "all", get label() { return tr("Все"); } },
 ];
 
 function inTab(lead: Lead, tab: LeadTab) {
@@ -53,10 +54,10 @@ function isClosed(lead: Lead) {
 
 function ago(iso: string) {
   const min = Math.floor((Date.now() - Date.parse(iso)) / 60_000);
-  if (min < 1) return "только что";
-  if (min < 60) return `${min} мин назад`;
+  if (min < 1) return tr("только что");
+  if (min < 60) return tr("{0} мин назад", min);
   const h = Math.floor(min / 60);
-  if (h < 24) return `${h} ч назад`;
+  if (h < 24) return tr("{0} ч назад", h);
   return formatDate(iso);
 }
 
@@ -106,7 +107,7 @@ function LeadRow({
           </a>
           <p className="mt-0.5 text-xs text-slate-400">
             {ago(lead.created_at)}
-            {d?.created_by ? ` · вручную, ${d.created_by}` : ""}
+            {d?.created_by ? tr(" · вручную, {0}", d.created_by) : ""}
           </p>
         </div>
 
@@ -119,11 +120,11 @@ function LeadRow({
           </p>
           <p className="flex min-w-0 items-center gap-2">
             <Weight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-            <span className="truncate">{d?.weight ?? "вес не указан"}</span>
+            <span className="truncate">{d?.weight ?? tr("вес не указан")}</span>
           </p>
           <p className="flex min-w-0 items-center gap-2">
             <Package className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-            <span className="truncate">{d?.cargo_type ?? "груз не указан"}</span>
+            <span className="truncate">{d?.cargo_type ?? tr("груз не указан")}</span>
           </p>
         </div>
 
@@ -131,30 +132,25 @@ function LeadRow({
           {lead.session_id && (
             <Button variant="ghost" size="sm" onClick={onChat} className="text-slate-600">
               <MessageCircle className="h-3.5 w-3.5" />
-              Переписка
-            </Button>
+              {tr("Переписка")}</Button>
           )}
           {isClosed(lead) ? (
             <Button variant="outline" size="sm" disabled={busy} onClick={() => onPatch({ status: "in_progress" })}>
               <RotateCcw className="h-3.5 w-3.5" />
-              Вернуть в работу
-            </Button>
+              {tr("Вернуть в работу")}</Button>
           ) : (
             <>
               {lead.status === "new" && (
                 <Button variant="outline" size="sm" disabled={busy} onClick={() => onPatch({ status: "in_progress" })}>
                   <Play className="h-3.5 w-3.5" />
-                  Взять
-                </Button>
+                  {tr("Взять")}</Button>
               )}
               <Button size="sm" disabled={busy} onClick={() => onClose("sold")}>
                 <Check className="h-3.5 w-3.5" />
-                Продано
-              </Button>
+                {tr("Продано")}</Button>
               <Button variant="outline" size="sm" disabled={busy} onClick={() => onClose("not_sold")}>
                 <X className="h-3.5 w-3.5" />
-                Не продано
-              </Button>
+                {tr("Не продано")}</Button>
             </>
           )}
         </div>
@@ -164,7 +160,7 @@ function LeadRow({
 
       {isClosed(lead) && (
         <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
-          {lead.status === "sold" ? "Продано" : `Не продано · ${lostReasonLabel(lead.lost_reason)}`}
+          {lead.status === "sold" ? tr("Продано") : tr("Не продано · {0}", lostReasonLabel(lead.lost_reason))}
           {lead.closed_at ? ` · ${formatDate(lead.closed_at)}` : ""}
           {lead.lost_comment ? ` · ${lead.lost_comment}` : ""}
         </p>
@@ -197,7 +193,7 @@ export default function CrmPage() {
       setLeads(json.data ?? []);
       setLeadsError("");
     } catch (e: any) {
-      setLeadsError(e?.message || "Не удалось загрузить заявки.");
+      setLeadsError(e?.message || tr("Не удалось загрузить заявки."));
     }
   }, []);
 
@@ -269,10 +265,10 @@ export default function CrmPage() {
         body: JSON.stringify(body),
       });
       const json = await res.json().catch(() => ({}));
-      setLeadsError(res.ok ? "" : json.error ?? "Не удалось сохранить изменения.");
+      setLeadsError(res.ok ? "" : json.error ?? tr("Не удалось сохранить изменения."));
       await refresh();
     } catch {
-      setLeadsError("Не удалось сохранить изменения. Проверьте соединение.");
+      setLeadsError(tr("Не удалось сохранить изменения. Проверьте соединение."));
     } finally {
       setBusyId(null);
     }
@@ -281,7 +277,7 @@ export default function CrmPage() {
   const firstName = user.name.split(/\s+/)[0];
 
   return (
-    <div className="min-h-screen bg-[#f7f8fb]">
+    <div className="min-h-screen bg-background">
       <TopBar />
 
       <main className="mx-auto max-w-6xl px-4 py-6 md:px-8 md:py-8">
@@ -294,20 +290,19 @@ export default function CrmPage() {
             <p className="mt-1 text-sm text-slate-500">
               {counts.new > 0 ? (
                 <>
-                  <span className="font-medium text-slate-900">{counts.new}</span> {plural(counts.new, "новая заявка ждёт", "новые заявки ждут", "новых заявок ждут")} вас ·{" "}
+                  <span className="font-medium text-slate-900">{counts.new}</span> {plural(counts.new, tr("новая заявка ждёт"), tr("новые заявки ждут"), tr("новых заявок ждут"))} {" "}{tr("вас ·")}{" "}
                 </>
               ) : (
-                "Новых заявок нет · "
+                tr("Новых заявок нет · ")
               )}
-              в работе: <span className="font-medium text-slate-900">{counts.in_progress}</span>
+              {tr("в работе:")}{" "}<span className="font-medium text-slate-900">{counts.in_progress}</span>
             </p>
           </div>
           <div className="flex gap-2 self-start sm:self-auto">
             <CreateLeadButton onCreated={refresh} />
             <Button variant="outline" size="sm" onClick={refresh} disabled={refreshing}>
               <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
-              Обновить
-            </Button>
+              {tr("Обновить")}</Button>
           </div>
         </div>
 
@@ -326,7 +321,7 @@ export default function CrmPage() {
             </Tabs>
             <div className="relative md:w-72">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Имя, телефон, город, груз" className="h-9 pl-9" />
+              <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={tr("Имя, телефон, город, груз")} className="h-9 pl-9" />
             </div>
           </div>
 
@@ -334,12 +329,12 @@ export default function CrmPage() {
 
           <div className="mt-4 space-y-3">
             {!leads ? (
-              [0, 1, 2].map((i) => <div key={i} className="h-24 animate-pulse rounded-xl bg-white/70" />)
+              [0, 1, 2].map((i) => <div key={i} className="h-24 animate-pulse rounded-xl bg-surface/70" />)
             ) : visible.length === 0 ? (
               <Card className="flex flex-col items-center gap-2 p-10 text-center">
                 <ClipboardList className="h-6 w-6 text-slate-300" />
                 <p className="text-sm text-slate-500">
-                  {query ? "Ничего не найдено." : tab === "active" ? "Активных заявок нет. Новые появятся здесь сами." : "Заявок здесь пока нет."}
+                  {query ? tr("Ничего не найдено.") : tab === "active" ? tr("Активных заявок нет. Новые появятся здесь сами.") : tr("Заявок здесь пока нет.")}
                 </p>
               </Card>
             ) : (
@@ -358,7 +353,7 @@ export default function CrmPage() {
           </div>
         </section>
 
-        <StatsSection title="Мои показатели" splitHint="Где сейчас ваши заявки" refreshKey={statsKey} />
+        <StatsSection title={tr("Мои показатели")} splitHint={tr("Где сейчас ваши заявки")} refreshKey={statsKey} />
       </main>
 
       {closing && (
