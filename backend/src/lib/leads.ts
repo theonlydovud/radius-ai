@@ -15,7 +15,7 @@ export const LOST_REASONS = [
 const SELECT =
   "id, session_id, client_name, client_phone, collected_data, status, created_at, " +
   "manager_id, closed_at, closed_by, lost_reason, lost_comment, taken_by, taken_at, " +
-  "managers(id, name), chat_sessions(accounts(platform, account_name))";
+  "managers(id, name), chat_sessions(account_id, accounts(platform, account_name))";
 
 const PAGE_SIZE = 1000; // Supabase не отдаёт больше 1000 строк за запрос
 
@@ -37,6 +37,8 @@ export type LeadFilters = {
   group?: string;
   /** id менеджера или "none" — без ответственного */
   manager?: string;
+  /** id Instagram-аккаунта: только заявки этого аккаунта */
+  account?: string;
   from?: string;
   to?: string;
 };
@@ -47,6 +49,8 @@ function flatten(row: any) {
   return {
     ...lead,
     manager: managers ?? null,
+    // Аккаунт заявки: из переписки, у ручной заявки — тот, что был выбран при создании.
+    account_id: (chat_sessions?.account_id ?? lead.collected_data?.account_id ?? null) as string | null,
     source: account ? { platform: account.platform, account_name: account.account_name } : null,
   };
 }
@@ -78,7 +82,9 @@ export async function fetchLeads(supabase: any, filters: LeadFilters) {
     rows.push(...(data ?? []));
     if (!data || data.length < PAGE_SIZE) break;
   }
-  return rows.map(flatten);
+  const leads = rows.map(flatten);
+  // Фильтр по аккаунту — здесь, а не в запросе: у ручных заявок аккаунт лежит в collected_data.
+  return filters.account ? leads.filter((l) => l.account_id === filters.account) : leads;
 }
 
 // ---------------------------------------------------------------------

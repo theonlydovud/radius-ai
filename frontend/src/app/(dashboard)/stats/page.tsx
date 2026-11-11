@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DailyLeadsChart } from "@/components/daily-leads-chart";
+import { useAccountId } from "@/components/account-switcher";
 import { lostReasonLabel } from "@/lib/lead-meta";
 import { dayEndISO, dayStartISO, toDateInput } from "@/lib/utils";
 import type { LeadStats } from "@/types";
@@ -77,14 +78,17 @@ export default function StatsPage() {
   const from = period === "custom" ? customFrom : daysAgo(PRESET_DAYS[period]);
   const to = period === "custom" ? customTo : daysAgo(0);
 
+  const accountId = useAccountId();
+
   useEffect(() => {
-    if (!from || !to) return;
+    if (!from || !to || accountId === undefined) return;
     let cancelled = false;
     const params = new URLSearchParams({
       from: dayStartISO(from),
       to: dayEndISO(to),
       tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
     });
+    if (accountId) params.set("account", accountId);
     fetch(`/api/leads/stats?${params}`, { cache: "no-store" })
       .then(async (res) => {
         const json = await res.json();
@@ -102,7 +106,7 @@ export default function StatsPage() {
     return () => {
       cancelled = true;
     };
-  }, [from, to]);
+  }, [from, to, accountId]);
 
   const maxReason = Math.max(1, ...(stats?.reasons.map((r) => r.count) ?? []));
   const maxRoute = Math.max(1, ...(stats?.routes.map((r) => r.count) ?? []));

@@ -1,3 +1,4 @@
+import { AccountProvider } from "@/components/account-switcher";
 import { CurrentUserProvider } from "@/components/current-user";
 import { MobileNav, Sidebar } from "@/components/sidebar";
 
@@ -8,6 +9,7 @@ export default function DashboardLayout({
 }) {
   return (
     <CurrentUserProvider role="owner">
+      <AccountProvider>
       <div className="min-h-screen bg-background md:flex">
         <Sidebar />
         <div className="flex min-w-0 flex-1 flex-col">
@@ -17,6 +19,7 @@ export default function DashboardLayout({
           </main>
         </div>
       </div>
+      </AccountProvider>
     </CurrentUserProvider>
   );
 }

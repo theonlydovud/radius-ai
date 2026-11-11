@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Bot } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ALL_ACCOUNTS, useAccountFilter } from "@/components/account-switcher";
 import type { AccountPublic } from "@/types";
 
 const STORAGE_KEY = "radius.botId";
@@ -21,6 +22,9 @@ function platformLabel(p: string) {
  * Выбор синхронизируется обратно и в URL, и в localStorage.
  */
 export function useSelectedBot() {
+  // Переключатель аккаунтов внизу меню — главный: выбранный там аккаунт открывает своего агента.
+  const accountCtx = useAccountFilter();
+  const [all, setAll] = useState<AccountPublic[]>([]);
   const [bots, setBots] = useState<AgentOption[]>([]);
   const [botId, setBotIdState] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
@@ -51,6 +55,7 @@ export function useSelectedBot() {
           .filter((b) => !b.knowledge_source_id)
           .map((b) => ({ ...b, linked: all.filter((x) => x.knowledge_source_id === b.id) }));
         setBots(list);
+        setAll(all);
 
         const fromUrl = new URLSearchParams(window.location.search).get("bot_id");
         let fromStorage: string | null = null;
@@ -75,12 +80,23 @@ export function useSelectedBot() {
     };
   }, [persist]);
 
+  const selectedAccount = accountCtx?.selected;
+  useEffect(() => {
+    if (!ready || !selectedAccount || selectedAccount === ALL_ACCOUNTS) return;
+    const agent = all.find((a) => a.id === selectedAccount)?.knowledge_source_id ?? selectedAccount;
+    if (bots.some((b) => b.id === agent)) {
+      setBotIdState(agent);
+      persist(agent);
+    }
+  }, [ready, selectedAccount, all, bots, persist]);
+
   const setBotId = useCallback(
     (id: string) => {
       setBotIdState(id);
       persist(id);
+      accountCtx?.setSelected(id);
     },
-    [persist]
+    [persist, accountCtx]
   );
 
   return { bots, botId, setBotId, ready };

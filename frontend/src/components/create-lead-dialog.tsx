@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Loader2, Plus } from "lucide-react";
 import { useCurrentUser } from "@/components/current-user";
+import { useAccountId } from "@/components/account-switcher";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -22,6 +23,7 @@ const EMPTY = { client_name: "", client_phone: "", origin_city: "", destination_
 export function CreateLeadButton({ onCreated, className }: { onCreated: () => void; className?: string }) {
   const { user, managers } = useCurrentUser();
   const canAssign = user.role !== "manager";
+  const accountId = useAccountId();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(EMPTY);
   const [assignee, setAssignee] = useState(AUTO);
@@ -40,7 +42,7 @@ export function CreateLeadButton({ onCreated, className }: { onCreated: () => vo
       const res = await fetch("/api/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, manager_id: canAssign ? (assignee === NONE ? null : assignee) : undefined }),
+        body: JSON.stringify({ ...form, manager_id: canAssign ? (assignee === NONE ? null : assignee) : undefined, account_id: accountId ?? undefined }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {

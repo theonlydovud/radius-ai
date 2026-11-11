@@ -8,6 +8,7 @@ import type { RouteContext } from "../index";
  *   status  = active (по умолчанию) | sold | not_sold | all
  *   manager = id менеджера | none (без ответственного)
  *   from, to — период по дате создания (ISO)
+ *   account — id Instagram-аккаунта
  * Менеджер всегда получает только свои заявки, фильтр manager для него игнорируется.
  */
 export async function GET(req: Request, ctx?: RouteContext) {
@@ -27,6 +28,7 @@ export async function GET(req: Request, ctx?: RouteContext) {
     const data = await fetchLeads(createAdminClient(), {
       group: status === "all" ? undefined : status,
       manager: ownManagerFilter(ctx?.auth) ?? searchParams.get("manager") ?? undefined,
+      account: searchParams.get("account") || undefined,
       from,
       to,
     });
@@ -80,6 +82,8 @@ export async function POST(req: Request, ctx?: RouteContext) {
       cargo_type: field(body.cargo_type, 100),
       note: field(body.note, 1000),
       created_by: auth.name,
+      // Аккаунт, выбранный в панели при создании: заявка видна в его разделе.
+      account_id: typeof body.account_id === "string" && /^[0-9a-f-]{36}$/i.test(body.account_id) ? body.account_id : undefined,
     }).filter(([, v]) => v !== undefined)
   );
 

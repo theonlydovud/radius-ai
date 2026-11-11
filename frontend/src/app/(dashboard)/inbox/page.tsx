@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft, Instagram, Send as TelegramIcon, UserCog, Inbox as InboxIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { useAccountId } from "@/components/account-switcher";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn, dayKey, formatDate, formatDay, formatTime } from "@/lib/utils";
@@ -29,17 +30,21 @@ export default function InboxPage() {
   // Телефон: показываем либо список диалогов, либо открытую переписку.
   const [mobileChat, setMobileChat] = useState(false);
 
+  // Диалоги выбранного Instagram-аккаунта (переключатель внизу меню).
+  const accountId = useAccountId();
+
   useEffect(() => {
+    if (accountId === undefined) return;
     (async () => {
       setLoadingSessions(true);
-      const res = await fetch("/api/sessions", { cache: "no-store" });
+      const res = await fetch(`/api/sessions${accountId ? `?account=${accountId}` : ""}`, { cache: "no-store" });
       const data = await res.json();
       const list: ChatSession[] = data.data ?? [];
       setSessions(list);
-      if (list.length) setActiveId(list[0].id);
+      setActiveId(list[0]?.id ?? null);
       setLoadingSessions(false);
     })();
-  }, []);
+  }, [accountId]);
 
   useEffect(() => {
     if (!activeId) return;

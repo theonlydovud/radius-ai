@@ -29,7 +29,7 @@ export async function GET(req: Request, ctx?: RouteContext) {
   try {
     let managersQuery = supabase.from("managers").select("id, name, is_active").order("sort_order", { ascending: true });
     if (own) managersQuery = managersQuery.eq("id", own);
-    const [leads, managers] = await Promise.all([fetchLeads(supabase, { from, to, manager: own }), managersQuery]);
+    const [leads, managers] = await Promise.all([fetchLeads(supabase, { from, to, manager: own, account: searchParams.get("account") || undefined }), managersQuery]);
     if (managers.error) throw new Error(managers.error.message);
 
     return Response.json({

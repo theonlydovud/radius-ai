@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn, formatDate } from "@/lib/utils";
 import type { AccountPublic } from "@/types";
 import { InstagramSetup } from "@/components/instagram-setup";
+import { useAccountFilter } from "@/components/account-switcher";
 
 /** Вебхуки принимает backend (Render) напрямую; один общий URL на приложение Meta. */
 function webhookUrl() {
@@ -32,6 +33,7 @@ function webhookUrl() {
 const OWN_KNOWLEDGE = "__own__";
 
 export default function AccountsPage() {
+  const accountCtx = useAccountFilter();
   const [accounts, setAccounts] = useState<AccountPublic[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -60,11 +62,18 @@ export default function AccountsPage() {
     const data = await res.json();
     setAccounts(data.data ?? []);
     setLoading(false);
+    // Переключатель внизу меню тоже должен увидеть добавленный или удалённый аккаунт.
+    accountCtx?.reload();
   }
 
   useEffect(() => {
     load();
     const params = new URLSearchParams(window.location.search);
+    // «Добавить аккаунт» из переключателя внизу меню — сразу окно подключения.
+    if (params.get("add") === "1") {
+      setOpen(true);
+      window.history.replaceState(null, "", window.location.pathname);
+    }
     const ig = params.get("ig");
     const igError = params.get("ig_error");
     if (ig || igError) {
@@ -139,6 +148,7 @@ export default function AccountsPage() {
     if (!confirmed) return;
     setAccounts((prev) => prev.filter((a) => a.id !== acc.id));
     await fetch(`/api/accounts?id=${acc.id}`, { method: "DELETE" });
+    accountCtx?.reload();
   }
 
   async function handleTestConnection(acc: AccountPublic) {

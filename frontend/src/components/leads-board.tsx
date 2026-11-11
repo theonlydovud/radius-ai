@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CloseLeadDialog, type CloseMode } from "@/components/close-lead-dialog";
 import { LeadChatSheet } from "@/components/crm/lead-chat-sheet";
+import { useAccountId } from "@/components/account-switcher";
 import { useCurrentUser } from "@/components/current-user";
 import { lostReasonLabel, STATUS_LABEL, STATUS_VARIANT } from "@/lib/lead-meta";
 import { cn, dayEndISO, dayStartISO, formatDate } from "@/lib/utils";
@@ -54,10 +55,14 @@ export function LeadsBoard({ onChanged, layout = "cards" }: { onChanged?: () => 
 
   // При быстром переключении фильтров ответ старого запроса не должен затереть новый.
   const latestRequest = useRef(0);
+  // Панель руководителя: заявки выбранного Instagram-аккаунта (undefined — список аккаунтов ещё грузится).
+  const accountId = useAccountId();
 
   const load = useCallback(async () => {
+    if (accountId === undefined) return;
     const request = ++latestRequest.current;
     const params = new URLSearchParams({ status: tab });
+    if (accountId) params.set("account", accountId);
     if (managerFilter !== ALL_MANAGERS) params.set("manager", managerFilter);
     if (dateFrom) params.set("from", dayStartISO(dateFrom));
     if (dateTo) params.set("to", dayEndISO(dateTo));
@@ -73,7 +78,7 @@ export function LeadsBoard({ onChanged, layout = "cards" }: { onChanged?: () => 
     } finally {
       if (request === latestRequest.current) setLoading(false);
     }
-  }, [tab, managerFilter, dateFrom, dateTo]);
+  }, [tab, managerFilter, dateFrom, dateTo, accountId]);
 
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("lead");

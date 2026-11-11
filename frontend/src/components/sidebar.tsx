@@ -10,7 +10,6 @@ import {
   ClipboardList,
   BarChart3,
   Inbox,
-  Plug,
   Settings,
   Menu,
   X,
@@ -19,6 +18,7 @@ import {
 } from "lucide-react";
 import { DexaMark } from "@/components/brand/dexa-logo";
 import { FullscreenButton } from "@/components/fullscreen-button";
+import { AccountSwitcher } from "@/components/account-switcher";
 import { logout, useCurrentUser } from "@/components/current-user";
 import { cn, initials } from "@/lib/utils";
 
@@ -29,7 +29,6 @@ const NAV_ITEMS = [
   { href: "/leads", label: "Заявки", icon: ClipboardList },
   { href: "/stats", label: "Статистика", icon: BarChart3 },
   { href: "/inbox", label: "История чатов", icon: Inbox },
-  { href: "/accounts", label: "Аккаунты", icon: Plug },
   { href: "/settings", label: "Настройки", icon: Settings },
 ];
 
@@ -113,9 +112,10 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
         })}
       </nav>
 
-      <div className="px-3 pb-2">
+      <div className="px-3 pb-1">
         <FullscreenButton withLabel className="w-full justify-start" />
       </div>
+      <AccountSwitcher onNavigate={onNavigate} />
       <UserMenu />
     </>
   );
