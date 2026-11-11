@@ -1,4 +1,5 @@
 import { buildSystemInstruction, GeminiRateLimitError, sendToGemini } from "../lib/gemini";
+import { createAdminClient } from "../lib/supabase/server";
 import type { SandboxChatMessage } from "../types";
 
 // Задержка перед ответом ИИ, чтобы поведение в песочнице совпадало с
@@ -16,7 +17,12 @@ export async function POST(req: Request) {
     const body = await req.json();
     const message: string = body.message;
     const history: SandboxChatMessage[] = body.history ?? [];
-    const accountId: string | null = body.account_id ?? null;
+    let accountId: string | null = body.account_id ?? null;
+    // Без аккаунта правила и знания всех аккаунтов смешались бы в одну инструкцию — берём первый.
+    if (!accountId) {
+      const { data } = await createAdminClient().from("accounts").select("id").eq("platform", "instagram").order("created_at").limit(1);
+      accountId = data?.[0]?.id ?? null;
+    }
 
     if (!message || typeof message !== "string") {
       return Response.json(
