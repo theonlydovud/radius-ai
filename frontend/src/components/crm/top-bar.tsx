@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, LogOut, Users } from "lucide-react";
 import { DexaLogo } from "@/components/brand/dexa-logo";
+import { FullscreenButton } from "@/components/fullscreen-button";
 import { logout, useCurrentUser } from "@/components/current-user";
 import { cn, initials } from "@/lib/utils";
 
@@ -26,6 +27,8 @@ export function TopBar() {
           <DexaLogo size={28} />
           <span className="hidden truncate rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600 sm:inline">{company.name}</span>
         </div>
+        <div className="flex items-center gap-1">
+        <FullscreenButton />
         <div className="relative" ref={ref}>
           <button
             type="button"
@@ -64,6 +67,7 @@ export function TopBar() {
               </button>
             </div>
           )}
+        </div>
         </div>
       </div>
     </header>

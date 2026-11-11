@@ -8,6 +8,8 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "DexaAI",
   description: "ИИ-менеджер для Instagram Direct и простая CRM для заявок.",
+  // Установленное приложение на iPad/iPhone тоже открывается без адресной строки.
+  appleWebApp: { capable: true, title: "DexaAI", statusBarStyle: "default" },
 };
 
 export default function RootLayout({

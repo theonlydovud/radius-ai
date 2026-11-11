@@ -18,6 +18,7 @@ import {
   Users,
 } from "lucide-react";
 import { DexaMark } from "@/components/brand/dexa-logo";
+import { FullscreenButton } from "@/components/fullscreen-button";
 import { logout, useCurrentUser } from "@/components/current-user";
 import { cn, initials } from "@/lib/utils";
 
@@ -112,6 +113,9 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
         })}
       </nav>
 
+      <div className="px-3 pb-2">
+        <FullscreenButton withLabel className="w-full justify-start" />
+      </div>
       <UserMenu />
     </>
   );
@@ -149,6 +153,7 @@ export function MobileNav() {
         <Brand />
         <div className="flex items-center gap-2">
           {current && <span className="max-w-[9rem] truncate text-xs text-slate-500">{current.label}</span>}
+          <FullscreenButton />
           <button
             type="button"
             onClick={() => setOpen(true)}
