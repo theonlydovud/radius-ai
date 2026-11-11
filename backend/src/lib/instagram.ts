@@ -31,12 +31,23 @@ function isInstagramLoginToken(token: string) {
   return token.startsWith("IG");
 }
 
+/** Ошибка Graph API с кодом Meta: по нему видно причину, текст бывает слишком общим. */
+export class GraphError extends Error {
+  constructor(message: string, readonly code?: number, readonly subcode?: number, readonly trace?: string) {
+    super(message);
+  }
+  get details() {
+    return [this.code && `code ${this.code}`, this.subcode && `subcode ${this.subcode}`, this.trace && `trace ${this.trace}`].filter(Boolean).join(", ");
+  }
+}
+
 async function graph(url: string, init?: RequestInit) {
   const res = await fetch(url, init);
   const data: any = await res.json().catch(() => ({}));
   if (!res.ok || data?.error) {
-    const msg = data?.error?.message ?? data?.error_message ?? `HTTP ${res.status}`;
-    throw new Error(msg);
+    const e = data?.error ?? {};
+    const msg = e.message ?? data?.error_message ?? `HTTP ${res.status}`;
+    throw new GraphError(msg, e.code ?? data?.code, e.error_subcode, e.fbtrace_id);
   }
   return data;
 }
@@ -99,12 +110,51 @@ export async function exchangeCodeForToken(rawCode: string) {
   const shortToken: string | undefined = short.access_token ?? short.data?.[0]?.access_token;
   if (!shortToken) throw new Error("Instagram не вернул access_token.");
 
-  const long = await graph(
-    `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${encodeURIComponent(
-      process.env.INSTAGRAM_APP_SECRET ?? ""
-    )}&access_token=${encodeURIComponent(shortToken)}`
+  return exchangeForLongToken(shortToken);
+}
+
+/**
+ * Короткий токен (1 час) → долгий (60 дней). Если Meta отказала («Unsupported request»),
+ * пробуем версионный адрес, а затем выясняем причину по самому аккаунту, чтобы показать
+ * понятную ошибку, а не английский текст Meta.
+ */
+async function exchangeForLongToken(shortToken: string) {
+  const query = `grant_type=ig_exchange_token&client_secret=${encodeURIComponent(
+    process.env.INSTAGRAM_APP_SECRET ?? ""
+  )}&access_token=${encodeURIComponent(shortToken)}`;
+  let firstError: GraphError | undefined;
+  for (const base of ["https://graph.instagram.com", `https://graph.instagram.com/${process.env.INSTAGRAM_GRAPH_VERSION || "v23.0"}`]) {
+    try {
+      const long = await graph(`${base}/access_token?${query}`);
+      if (long.access_token) return long.access_token as string;
+    } catch (e: any) {
+      firstError ??= e;
+      console.warn(`[ig] обмен на долгий токен через ${base} не удался: ${e?.message} (${e?.details ?? ""})`);
+    }
+  }
+
+  // Какой аккаунт вошёл и доступен ли он вообще с этим токеном.
+  let who = "";
+  try {
+    const me = await graph(`https://graph.instagram.com/me?fields=user_id,username&access_token=${encodeURIComponent(shortToken)}`);
+    // Тип аккаунта — отдельным запросом: если Meta не отдаст поле, имя аккаунта всё равно известно.
+    const type: string | undefined = await graph(
+      `https://graph.instagram.com/me?fields=account_type&access_token=${encodeURIComponent(shortToken)}`
+    ).then((r) => r.account_type, () => undefined);
+    who = `@${me.username}${type ? ` (${type})` : ""}`;
+    console.warn(`[ig] вошёл ${who}, но долгий токен Meta не выдала`);
+    if (type && !["BUSINESS", "MEDIA_CREATOR", "CREATOR"].includes(type.toUpperCase())) {
+      throw new Error(`@${me.username} — личный аккаунт. Переключите его на профессиональный (Бизнес или Автор) в настройках Instagram и подключите снова.`);
+    }
+  } catch (e: any) {
+    if (!(e instanceof GraphError)) throw e;
+    console.warn(`[ig] короткий токен не открывает аккаунт: ${e.message} (${e.details})`);
+  }
+  throw new Error(
+    `Instagram не выдал долгий доступ${who ? ` для ${who}` : ""}. Проверьте: аккаунт профессиональный (Бизнес или Автор), ` +
+      `вы вошли тем, кто ведёт его сообщения, и этот Instagram добавлен в роли приложения в Meta for Developers. ` +
+      `Ответ Meta: ${firstError?.message ?? "нет"}${firstError?.details ? ` (${firstError.details})` : ""}.`
   );
-  return long.access_token as string;
 }
 
 // ---------------------------------------------------------------------
