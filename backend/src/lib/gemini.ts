@@ -2,7 +2,7 @@ import { GoogleGenerativeAI, SchemaType, type ResponseSchema } from "@google/gen
 import { createAdminClient } from "./supabase/server";
 import type { KnowledgeItem, SandboxChatMessage, SystemRule } from "../types";
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
+export const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
 
 // Модель можно переопределить на Render: GEMINI_MODEL=gemini-2.5-flash-lite
 // (быстрее и дешевле; у 2.5-flash по умолчанию включён «thinking», это +секунды).
@@ -288,7 +288,7 @@ export class GeminiRateLimitError extends Error {
  * На лимит запросов (429) Google пишет, сколько подождать: ждём столько, но не дольше 30 с.
  * Постоянные ошибки (неверный ключ, модель) не повторяем.
  */
-async function withRetry<T>(call: () => Promise<T>): Promise<T> {
+export async function withRetry<T>(call: () => Promise<T>): Promise<T> {
   for (let attempt = 1; ; attempt++) {
     try {
       return await call();

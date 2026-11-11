@@ -8,6 +8,7 @@ import { ensureLeadsBotWebhook } from "./lib/lead-notify";
 import { sessionUser, type AuthUser } from "./lib/auth";
 
 import * as accounts from "./routes/accounts";
+import * as assistant from "./routes/assistant";
 import * as accountsTest from "./routes/accounts-test";
 import * as authInstagram from "./routes/auth-instagram";
 import * as authInstagramCallback from "./routes/auth-instagram-callback";
@@ -109,6 +110,8 @@ mount("/api/auth/login", authSession.login);
 mount("/api/auth/select", authSession.select);
 mount("/api/auth/logout", authSession.logout);
 mount("/api/accounts", accounts);
+mount("/api/assistant", assistant.chat);
+mount("/api/assistant/transcribe", assistant.transcribe);
 mount("/api/accounts/:id/test", accountsTest);
 mount("/api/auth/instagram", authInstagram);
 mount("/api/auth/instagram/callback", authInstagramCallback);

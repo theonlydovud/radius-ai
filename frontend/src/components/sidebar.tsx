@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   MessageSquareText,
+  Sparkles,
   BookOpen,
   ShieldCheck,
   ClipboardList,
@@ -25,6 +26,7 @@ import { cn, initials } from "@/lib/utils";
 import { t } from "@/lib/i18n";
 
 const NAV_ITEMS = [
+  { href: "/assistant", get label() { return t("ИИ ассистент"); }, icon: Sparkles },
   { href: "/playground", get label() { return t("Диалог с ИИ"); }, icon: MessageSquareText },
   { href: "/knowledge", get label() { return t("Знания ИИ"); }, icon: BookOpen },
   { href: "/rules", get label() { return t("Правила общения"); }, icon: ShieldCheck },

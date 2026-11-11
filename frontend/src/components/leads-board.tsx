@@ -38,8 +38,27 @@ function isClosed(lead: Lead) {
  * Заявки с фильтрами: вкладки, менеджер, даты. Общая для панели руководителя (карточки)
  * и страницы супер-админа (список). onChanged — после любого действия (чтобы обновить статистику рядом).
  */
-export function LeadsBoard({ onChanged, layout = "cards" }: { onChanged?: () => void; layout?: "cards" | "list" }) {
+const LIVE_REFRESH_MS = 5_000;
+
+export function LeadsBoard({
+  onChanged,
+  layout = "cards",
+  live = false,
+  onNewLead,
+}: {
+  onChanged?: () => void;
+  layout?: "cards" | "list";
+  /** Экран на стене: опрос каждые 5 с, новые заявки подсвечиваются и передаются в onNewLead. */
+  live?: boolean;
+  onNewLead?: (lead: Lead) => void;
+}) {
   const [leads, setLeads] = useState<Lead[]>([]);
+  // Live: какие заявки уже видели и какие только что пришли (для анимации).
+  const seenRef = useRef<Set<string> | null>(null);
+  const openedAt = useRef(Date.now());
+  const onNewLeadRef = useRef(onNewLead);
+  onNewLeadRef.current = onNewLead;
+  const [freshIds, setFreshIds] = useState<Set<string>>(new Set());
   const { user, managers, ready } = useCurrentUser();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -72,14 +91,30 @@ export function LeadsBoard({ onChanged, layout = "cards" }: { onChanged?: () => 
       const json = await res.json();
       if (!res.ok) throw new Error(json.error);
       if (request !== latestRequest.current) return;
-      setLeads(json.data ?? []);
+      const list: Lead[] = json.data ?? [];
+      setLeads(list);
       setError("");
+      if (live) {
+        if (!seenRef.current) seenRef.current = new Set(list.map((l) => l.id));
+        else {
+          // Новая = ещё не видели, статус «Новая» и создана после открытия страницы
+          // (переключение фильтров не должно вызывать «новые» заявки).
+          const arrived = list.filter((l) => !seenRef.current!.has(l.id) && l.status === "new" && Date.parse(l.created_at) >= openedAt.current - 60_000);
+          list.forEach((l) => seenRef.current!.add(l.id));
+          if (arrived.length) {
+            const ids = arrived.map((l) => l.id);
+            setFreshIds((prev) => new Set([...prev, ...ids]));
+            setTimeout(() => setFreshIds((prev) => new Set([...prev].filter((id) => !ids.includes(id)))), 15_000);
+            onNewLeadRef.current?.(arrived[0]);
+          }
+        }
+      }
     } catch (e: any) {
       if (request === latestRequest.current) setError(e?.message || tr("Не удалось загрузить заявки."));
     } finally {
       if (request === latestRequest.current) setLoading(false);
     }
-  }, [tab, managerFilter, dateFrom, dateTo, accountId]);
+  }, [tab, managerFilter, dateFrom, dateTo, accountId, live]);
 
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("lead");
@@ -104,9 +139,10 @@ export function LeadsBoard({ onChanged, layout = "cards" }: { onChanged?: () => 
   // Новые заявки появляются сами, пока вкладка открыта.
   useEffect(() => {
     if (!ready) return;
-    const timer = setInterval(() => document.visibilityState === "visible" && load(), REFRESH_MS);
+    // Экран на стене опрашивает часто и даже в фоне; обычная вкладка — раз в 30 с, только когда видна.
+    const timer = setInterval(() => (live || document.visibilityState === "visible") && load(), live ? LIVE_REFRESH_MS : REFRESH_MS);
     return () => clearInterval(timer);
-  }, [ready, load]);
+  }, [ready, load, live]);
 
   useEffect(() => {
     if (focusId && !loading) document.getElementById(`lead-${focusId}`)?.scrollIntoView({ block: "center" });
@@ -205,7 +241,7 @@ export function LeadsBoard({ onChanged, layout = "cards" }: { onChanged?: () => 
             const options = managers.filter((m) => m.is_active || m.id === lead.manager_id);
             const d = lead.collected_data;
             return (
-              <Card key={lead.id} id={`lead-${lead.id}`} className={cn("p-3 sm:p-4", focusId === lead.id && "ring-2 ring-brand")}>
+              <Card key={lead.id} id={`lead-${lead.id}`} className={cn("p-3 sm:p-4", focusId === lead.id && "ring-2 ring-brand", freshIds.has(lead.id) && "lead-arrive")}>
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
                   <div className="min-w-0 lg:w-52">
                     <div className="flex items-center gap-2">
@@ -215,7 +251,7 @@ export function LeadsBoard({ onChanged, layout = "cards" }: { onChanged?: () => 
                       </Badge>
                     </div>
                     <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
-                      <Phone className="h-3 w-3" /> {lead.client_phone}
+                      <Phone className="h-3 w-3" /> {lead.client_phone || "—"}
                     </p>
                     <p className="text-[11px] text-slate-400">
                       {formatDate(lead.created_at)}
@@ -298,13 +334,13 @@ export function LeadsBoard({ onChanged, layout = "cards" }: { onChanged?: () => 
               <Card
                 key={lead.id}
                 id={`lead-${lead.id}`}
-                className={cn("flex flex-col", focusId === lead.id && "ring-2 ring-brand")}
+                className={cn("flex flex-col", focusId === lead.id && "ring-2 ring-brand", freshIds.has(lead.id) && "lead-arrive")}
               >
                 <CardHeader className="flex-row items-start justify-between gap-2 space-y-0">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-slate-900">{lead.client_name}</p>
                     <p className="flex items-center gap-1 text-xs text-slate-400">
-                      <Phone className="h-3 w-3" /> {lead.client_phone}
+                      <Phone className="h-3 w-3" /> {lead.client_phone || "—"}
                     </p>
                   </div>
                   <Badge variant={STATUS_VARIANT[lead.status]} className="shrink-0">
