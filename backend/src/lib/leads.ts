@@ -25,9 +25,9 @@ export const STATUS_GROUPS: Record<string, string[]> = {
   not_sold: ["not_sold"],
 };
 
-/** Менеджеру — только его заявки; без привязки к менеджеру — ни одной. Руководителю — без ограничения. */
+/** Менеджеру — только его заявки; без привязки к менеджеру — ни одной. Руководителю и супер-админу — все. */
 export function ownManagerFilter(auth?: { role: string; manager_id: string | null }) {
-  if (!auth || auth.role === "owner") return undefined;
+  if (!auth || auth.role !== "manager") return undefined;
   return auth.manager_id ?? NO_LEADS;
 }
 const NO_LEADS = "00000000-0000-0000-0000-000000000000";

@@ -1,11 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Check,
-  ChevronDown,
   ClipboardList,
-  LogOut,
   MapPin,
   MessageCircle,
   Package,
@@ -14,23 +12,23 @@ import {
   RefreshCw,
   RotateCcw,
   Search,
-  Users,
   Weight,
   X,
 } from "lucide-react";
-import { DexaLogo } from "@/components/brand/dexa-logo";
-import { logout, useCurrentUser } from "@/components/current-user";
+import { useCurrentUser } from "@/components/current-user";
 import { CloseLeadDialog, type CloseMode } from "@/components/close-lead-dialog";
-import { DailyOutcomeChart, RankedBars, SERIES, StatusSplit } from "@/components/crm/charts";
+import { SERIES } from "@/components/crm/charts";
+import { StatsSection } from "@/components/crm/stats-section";
+import { greeting, plural, TopBar } from "@/components/crm/top-bar";
 import { LeadChatSheet } from "@/components/crm/lead-chat-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { lostReasonLabel, STATUS_LABEL, STATUS_VARIANT } from "@/lib/lead-meta";
-import { cn, dayEndISO, dayStartISO, formatDate, initials, toDateInput } from "@/lib/utils";
-import type { Lead, LeadStats } from "@/types";
+import { cn, formatDate } from "@/lib/utils";
+import type { Lead } from "@/types";
 
 const REFRESH_MS = 30_000;
 
@@ -40,14 +38,6 @@ const LEAD_TABS: { value: LeadTab; label: string }[] = [
   { value: "sold", label: "Продано" },
   { value: "not_sold", label: "Не продано" },
   { value: "all", label: "Все" },
-];
-
-type Period = "today" | "week" | "month" | "quarter";
-const PERIODS: { value: Period; label: string; days: number }[] = [
-  { value: "today", label: "Сегодня", days: 0 },
-  { value: "week", label: "7 дней", days: 6 },
-  { value: "month", label: "30 дней", days: 29 },
-  { value: "quarter", label: "90 дней", days: 89 },
 ];
 
 function inTab(lead: Lead, tab: LeadTab) {
@@ -69,101 +59,7 @@ function ago(iso: string) {
   return formatDate(iso);
 }
 
-/** 1 заявка, 2 заявки, 5 заявок. */
-function plural(n: number, one: string, few: string, many: string) {
-  const m10 = n % 10;
-  const m100 = n % 100;
-  if (m10 === 1 && m100 !== 11) return one;
-  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
-  return many;
-}
-
-function greeting() {
-  const h = new Date().getHours();
-  if (h < 5) return "Доброй ночи";
-  if (h < 12) return "Доброе утро";
-  if (h < 18) return "Добрый день";
-  return "Добрый вечер";
-}
-
-function daysAgo(days: number) {
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  return toDateInput(d);
-}
-
 // ---------------------------------------------------------------------
-
-function TopBar() {
-  const { user, company } = useCurrentUser();
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [open]);
-
-  return (
-    <header className="sticky top-0 z-30 border-b border-slate-200/70 bg-white/85 backdrop-blur">
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4 md:px-8">
-        <div className="flex min-w-0 items-center gap-3">
-          <DexaLogo size={28} />
-          <span className="hidden truncate rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600 sm:inline">{company.name}</span>
-        </div>
-        <div className="relative" ref={ref}>
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            className="flex items-center gap-2 rounded-full py-1 pl-1 pr-2 hover:bg-slate-100"
-            aria-expanded={open}
-            aria-haspopup="menu"
-          >
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#3D6BFF] to-[#22a2c8] text-xs font-semibold text-white">
-              {initials(user.name)}
-            </span>
-            <span className="hidden text-sm font-medium text-slate-800 sm:inline">{user.name}</span>
-            <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
-          </button>
-          {open && (
-            <div role="menu" className="absolute right-0 mt-2 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
-              <div className="px-3 py-2">
-                <p className="text-sm font-medium text-slate-900">{user.name}</p>
-                <p className="text-xs text-slate-500">
-                  {user.roleLabel} · {company.name}
-                </p>
-              </div>
-              <div className="my-1 h-px bg-slate-100" />
-              <button role="menuitem" onClick={() => logout("user")} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
-                <Users className="h-4 w-4 text-slate-400" />
-                Сменить пользователя
-              </button>
-              <button role="menuitem" onClick={() => logout("all")} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50">
-                <LogOut className="h-4 w-4" />
-                Выйти
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    </header>
-  );
-}
-
-function Tile({ label, value, hint, color, accent }: { label: string; value: string | number; hint?: string; color?: string; accent?: boolean }) {
-  return (
-    <div className={cn("rounded-xl border bg-white p-4 shadow-sm", accent ? "border-[#eda100]/50 ring-1 ring-[#eda100]/30" : "border-slate-200")}>
-      <p className="flex items-center gap-1.5 text-xs text-slate-500">
-        {color && <span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: color }} />}
-        {label}
-      </p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">{value}</p>
-      {hint && <p className="mt-0.5 text-[11px] text-slate-400">{hint}</p>}
-    </div>
-  );
-}
 
 function LeadRow({
   lead,
@@ -282,9 +178,7 @@ export default function CrmPage() {
   const [chatLead, setChatLead] = useState<Lead | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
 
-  const [period, setPeriod] = useState<Period>("month");
-  const [stats, setStats] = useState<LeadStats | null>(null);
-  const [statsError, setStatsError] = useState("");
+  const [statsKey, setStatsKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadLeads = useCallback(async () => {
@@ -299,29 +193,12 @@ export default function CrmPage() {
     }
   }, []);
 
-  const loadStats = useCallback(async () => {
-    const days = PERIODS.find((p) => p.value === period)!.days;
-    const params = new URLSearchParams({
-      from: dayStartISO(daysAgo(days)),
-      to: dayEndISO(daysAgo(0)),
-      tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    });
-    try {
-      const res = await fetch(`/api/leads/stats?${params}`, { cache: "no-store" });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error);
-      setStats(json.data);
-      setStatsError("");
-    } catch (e: any) {
-      setStatsError(e?.message || "Не удалось загрузить показатели.");
-    }
-  }, [period]);
-
   const refresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([loadLeads(), loadStats()]);
+    setStatsKey((k) => k + 1);
+    await loadLeads();
     setRefreshing(false);
-  }, [loadLeads, loadStats]);
+  }, [loadLeads]);
 
   // Ссылка из Telegram: /crm?lead=<id> — показываем все заявки и подсвечиваем эту.
   useEffect(() => {
@@ -336,20 +213,13 @@ export default function CrmPage() {
     loadLeads();
   }, [loadLeads]);
 
-  useEffect(() => {
-    loadStats();
-  }, [loadStats]);
-
   // Новые заявки появляются сами: опрос раз в 30 с, пока вкладка открыта.
   useEffect(() => {
     const timer = setInterval(() => {
-      if (document.visibilityState === "visible") {
-        loadLeads();
-        loadStats();
-      }
+      if (document.visibilityState === "visible") loadLeads();
     }, REFRESH_MS);
     return () => clearInterval(timer);
-  }, [loadLeads, loadStats]);
+  }, [loadLeads]);
 
   useEffect(() => {
     if (focusId && leads) document.getElementById(`lead-${focusId}`)?.scrollIntoView({ block: "center", behavior: "smooth" });
@@ -401,9 +271,6 @@ export default function CrmPage() {
   }
 
   const firstName = user.name.split(/\s+/)[0];
-  const periodLabel = PERIODS.find((p) => p.value === period)!.label.toLowerCase();
-  const reasons = (stats?.reasons ?? []).filter((r) => r.count > 0).map((r) => ({ label: lostReasonLabel(r.reason), count: r.count, percent: r.percent }));
-  const routes = (stats?.routes ?? []).map((r) => ({ label: r.route, count: r.count }));
 
   return (
     <div className="min-h-screen bg-[#f7f8fb]">
@@ -480,89 +347,7 @@ export default function CrmPage() {
           </div>
         </section>
 
-        {/* Показатели */}
-        <section className="mt-10">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">Мои показатели</h2>
-              <p className="text-sm text-slate-500">Заявки, полученные за {periodLabel === "сегодня" ? "сегодня" : periodLabel}.</p>
-            </div>
-            <Tabs value={period} onValueChange={(v) => setPeriod(v as Period)}>
-              <TabsList className="flex w-full sm:inline-flex sm:w-auto">
-                {PERIODS.map((p) => (
-                  <TabsTrigger key={p.value} value={p.value} className="flex-1 px-2 sm:flex-none sm:px-3">
-                    {p.label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
-          </div>
-
-          {statsError && <p className="mt-3 text-sm text-red-600">{statsError}</p>}
-
-          {!stats ? (
-            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-              {[0, 1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="h-24 animate-pulse rounded-xl bg-white/70" />
-              ))}
-            </div>
-          ) : (
-            <>
-              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-                <Tile label="Получено" value={stats.totals.total} />
-                <Tile label="Новые" value={stats.totals.new} color={SERIES.new.color} accent={stats.totals.new > 0} />
-                <Tile label="В работе" value={stats.totals.in_progress} color={SERIES.in_progress.color} />
-                <Tile label="Продано" value={stats.totals.sold} color={SERIES.sold.color} />
-                <Tile label="Не продано" value={stats.totals.not_sold} color={SERIES.not_sold.color} />
-                <Tile
-                  label="Конверсия"
-                  value={stats.totals.conversion === null ? "—" : `${stats.totals.conversion}%`}
-                  hint="продано / закрытые"
-                />
-              </div>
-
-              <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
-                <Card className="lg:col-span-2">
-                  <CardHeader>
-                    <CardTitle>Заявки по дням</CardTitle>
-                    <CardDescription>Высота — сколько пришло, цвет — чем закончились</CardDescription>
-                  </CardHeader>
-                  <CardContent className="px-5 pb-5">
-                    {stats.totals.total === 0 ? <p className="text-sm text-slate-400">За этот период заявок нет.</p> : <DailyOutcomeChart daily={stats.daily} />}
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Итоги периода</CardTitle>
-                    <CardDescription>Где сейчас ваши заявки</CardDescription>
-                  </CardHeader>
-                  <CardContent className="px-5 pb-5">
-                    {stats.totals.total === 0 ? <p className="text-sm text-slate-400">Пока пусто.</p> : <StatusSplit totals={stats.totals} />}
-                  </CardContent>
-                </Card>
-              </div>
-
-              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Причины отказа</CardTitle>
-                  </CardHeader>
-                  <CardContent className="px-5 pb-5">
-                    <RankedBars rows={reasons} empty="Отказов за этот период нет." />
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Направления</CardTitle>
-                  </CardHeader>
-                  <CardContent className="px-5 pb-5">
-                    <RankedBars rows={routes} empty="Направлений пока нет." />
-                  </CardContent>
-                </Card>
-              </div>
-            </>
-          )}
-        </section>
+        <StatsSection title="Мои показатели" splitHint="Где сейчас ваши заявки" refreshKey={statsKey} />
       </main>
 
       {closing && (

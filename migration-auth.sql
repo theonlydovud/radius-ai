@@ -18,7 +18,7 @@ create table if not exists app_users (
   id uuid primary key default gen_random_uuid(),
   company_id uuid not null references companies (id) on delete cascade,
   name text not null,
-  role text not null check (role in ('owner', 'manager')),
+  role text not null check (role in ('owner', 'manager', 'admin')),
   login text not null unique check (login = lower(login)),
   password_hash text not null,
   -- Менеджер в очереди заявок: по нему фильтруются «свои» заявки.

@@ -74,7 +74,7 @@ export const login = {
       clearFailures(key);
       const userCompany = await findCompany(user.company_id);
       if (!userCompany) return json({ error: WRONG }, 401);
-      return json({ data: { next: user.role === "owner" ? "owner" : "manager" } }, 200, [
+      return json({ data: { next: user.role } }, 200, [
         setCookie(COMPANY_COOKIE, companyToken(userCompany)),
         setCookie(USER_COOKIE, userToken(user)),
       ]);
@@ -106,7 +106,7 @@ export const select = {
       return json({ error: "Неверный пароль." }, 401);
     }
     clearFailures(key);
-    return json({ data: { next: user.role === "owner" ? "owner" : "manager" } }, 200, [setCookie(USER_COOKIE, userToken(user))]);
+    return json({ data: { next: user.role } }, 200, [setCookie(USER_COOKIE, userToken(user))]);
   },
 };
 

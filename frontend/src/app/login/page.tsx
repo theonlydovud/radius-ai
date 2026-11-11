@@ -46,7 +46,7 @@ function LoginForm() {
       }
       const step = json.data?.next;
       if (step === "select") router.push(`/select${next ? `?next=${encodeURIComponent(next)}` : ""}`);
-      else router.push(next ?? homeFor(step === "owner" ? "owner" : "manager"));
+      else router.push(next ?? homeFor(step));
     } catch {
       setError("Сервер недоступен. Проверьте интернет и попробуйте ещё раз.");
     } finally {

@@ -10,7 +10,8 @@ import { createAdminClient } from "./supabase/server";
  *
  * Куки — подписанные HMAC токены, без таблицы сессий. В токене лежит отпечаток
  * хеша пароля: смена пароля в БД сразу разлогинивает все устройства.
- * Роли: owner (руководитель) — всё; manager — только свои заявки и показатели.
+ * Роли: owner (руководитель) — всё; admin (супер-админ) — все заявки и статистика, больше ничего;
+ * manager — только свои заявки и показатели.
  */
 
 const scrypt = promisify(scryptCb) as (pw: string, salt: Buffer, len: number, opts: object) => Promise<Buffer>;
@@ -19,7 +20,7 @@ export const COMPANY_COOKIE = "dexa_c";
 export const USER_COOKIE = "dexa_u";
 const YEAR_S = 365 * 24 * 60 * 60;
 
-export type Role = "owner" | "manager";
+export type Role = "owner" | "manager" | "admin";
 export type AuthCompany = { id: string; name: string };
 export type AuthUser = { id: string; name: string; role: Role; manager_id: string | null; company: AuthCompany };
 

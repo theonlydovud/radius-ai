@@ -12,7 +12,7 @@ export async function GET(req: Request, ctx?: RouteContext) {
   }
 
   const auth = ctx?.auth;
-  if (auth && auth.role !== "owner") {
+  if (auth?.role === "manager") {
     const { data: own } = await supabase
       .from("leads")
       .select("id")

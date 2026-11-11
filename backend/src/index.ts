@@ -35,7 +35,8 @@ import * as webhooksInstagramAccount from "./routes/webhooks-instagram-account";
  * `(req: Request, { params, auth }) => Response`, их подключает mount().
  *
  * Доступ: все /api/* требуют входа (куки dexa_u), кроме вебхуков, health и шагов входа.
- * Руководитель (owner) может всё; менеджер — только свои заявки, их переписку и показатели.
+ * Руководитель (owner) может всё; супер-админ (admin) — все заявки, их переписку и статистику;
+ * менеджер — только свои заявки, их переписку и показатели.
  */
 
 export type RouteContext = { params: any; auth?: AuthUser };
@@ -65,10 +66,17 @@ const PUBLIC_PATHS = new Set([
 ]);
 const PUBLIC_PREFIXES = ["/api/webhooks/"];
 
-/** Что разрешено менеджеру: страница «Мои заявки» и её данные. */
-function managerAllowed(method: string, path: string) {
+/** Заявки и статистика: всё, что есть у менеджера и супер-админа. Чьи именно заявки — решают сами хендлеры. */
+function leadsAllowed(method: string, path: string) {
   if (method === "GET" && (path === "/api/leads" || path === "/api/leads/stats" || path === "/api/messages")) return true;
   return method === "PATCH" && /^\/api\/leads\/[^/]+$/.test(path) && path !== "/api/leads/stats";
+}
+
+function allowed(role: string, method: string, path: string) {
+  if (role === "owner") return true;
+  // Супер-админу нужен список менеджеров для фильтра и смены ответственного — только чтение.
+  if (role === "admin" && method === "GET" && path === "/api/managers") return true;
+  return leadsAllowed(method, path);
 }
 
 app.use("/api/*", async (c, next) => {
@@ -78,7 +86,7 @@ app.use("/api/*", async (c, next) => {
   }
   const user = await sessionUser(c.req.raw);
   if (!user) return c.json({ error: "Войдите в аккаунт.", code: "unauthorized" }, 401);
-  if (user.role !== "owner" && !managerAllowed(c.req.method, path)) {
+  if (!allowed(user.role, c.req.method, path)) {
     return c.json({ error: "Это доступно только руководителю.", code: "forbidden" }, 403);
   }
   c.set("auth", user);

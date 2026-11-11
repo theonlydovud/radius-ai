@@ -14,7 +14,7 @@ import type { Lead, LostReason } from "@/types";
 export type CloseMode = "sold" | "not_sold";
 
 /**
- * Закрытие заявки. «Кто закрывает» — вошедший пользователь; руководитель может выбрать
+ * Закрытие заявки. «Кто закрывает» — вошедший пользователь; руководитель и супер-админ могут выбрать
  * менеджера, менеджер закрывает только от своего имени (backend это и так проверяет).
  */
 export function CloseLeadDialog({
@@ -35,7 +35,7 @@ export function CloseLeadDialog({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const canPick = user.role === "owner";
+  const canPick = user.role !== "manager";
   // В списке — руководитель, активные менеджеры и текущий выбор, даже если менеджера уже отключили.
   const names = [...new Set([user.name, ...managers.filter((m) => m.is_active).map((m) => m.name)])];
   if (closedBy && !names.includes(closedBy)) names.push(closedBy);

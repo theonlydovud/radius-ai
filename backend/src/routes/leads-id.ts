@@ -17,7 +17,7 @@ export async function PATCH(req: Request, { params, auth }: RouteContext) {
   const body = await req.json();
   const updates: Record<string, unknown> = {};
 
-  if (auth && auth.role !== "owner") {
+  if (auth?.role === "manager") {
     const { data: own } = await supabase.from("leads").select("manager_id").eq("id", params.id).maybeSingle();
     if (!own || !auth.manager_id || own.manager_id !== auth.manager_id) {
       return Response.json({ error: "Это не ваша заявка." }, { status: 403 });

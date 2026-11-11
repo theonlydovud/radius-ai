@@ -10,20 +10,21 @@ import type { Manager } from "@/types";
  * Кто вошёл. Вход проверяет backend (куки dexa_c — компания, dexa_u — человек),
  * здесь только читаем /api/auth/me и разводим по страницам:
  *   нет компании → /login, нет человека → /select,
- *   руководитель → панель с меню, менеджер → /crm (только свои заявки).
+ *   руководитель → панель с меню, менеджер → /crm (только свои заявки),
+ *   супер-админ → /admin (все заявки и статистика, больше ничего).
  */
 
-export type Role = "owner" | "manager";
+export type Role = "owner" | "manager" | "admin";
 export type Session = {
   company: { id: string; name: string } | null;
   user: { id: string; name: string; role: Role; manager_id: string | null } | null;
   users: { id: string; name: string; role: Role }[];
 };
 
-export const ROLE_LABEL: Record<Role, string> = { owner: "Руководитель", manager: "Менеджер" };
+export const ROLE_LABEL: Record<Role, string> = { owner: "Руководитель", manager: "Менеджер", admin: "Супер-админ" };
 
 export function homeFor(role: Role) {
-  return role === "owner" ? "/leads" : "/crm";
+  return role === "owner" ? "/leads" : role === "admin" ? "/admin" : "/crm";
 }
 
 export async function fetchSession(): Promise<Session> {
@@ -52,7 +53,7 @@ export type CurrentUser = { id: string; name: string; role: Role; roleLabel: str
 type CurrentUserContextValue = {
   user: CurrentUser;
   company: { id: string; name: string };
-  /** Все менеджеры очереди (загружаются только для руководителя). */
+  /** Все менеджеры очереди (загружаются для руководителя и супер-админа). */
   managers: Manager[];
   ready: boolean;
   reloadManagers: () => Promise<void>;
@@ -82,7 +83,7 @@ export function CurrentUserProvider({ role, children }: { role: Role; children: 
   const [session, setSession] = useState<Session | null>(null);
   const [error, setError] = useState("");
   const [managers, setManagers] = useState<Manager[]>([]);
-  const [managersReady, setManagersReady] = useState(role !== "owner");
+  const [managersReady, setManagersReady] = useState(role === "manager");
 
   const reloadManagers = useCallback(async () => {
     try {
@@ -112,7 +113,7 @@ export function CurrentUserProvider({ role, children }: { role: Role; children: 
   }, [role, router, pathname]);
 
   useEffect(() => {
-    if (session?.user?.role === "owner") reloadManagers().finally(() => setManagersReady(true));
+    if (session?.user && session.user.role !== "manager") reloadManagers().finally(() => setManagersReady(true));
   }, [session, reloadManagers]);
 
   const value = useMemo<CurrentUserContextValue | null>(() => {

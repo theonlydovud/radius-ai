@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, ArrowRight, ChevronRight, Crown, Loader2, LogOut } from "lucide-react";
+import { ArrowLeft, ArrowRight, ChevronRight, Crown, Loader2, LogOut, ShieldCheck } from "lucide-react";
 import { AuthShell } from "@/components/auth-shell";
 import { PasswordInput } from "@/components/password-input";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,11 @@ function Avatar({ person, size = "md" }: { person: Person; size?: "md" | "lg" })
     <span
       className={cn(
         "flex shrink-0 items-center justify-center rounded-full font-semibold text-white",
-        person.role === "owner" ? "bg-gradient-to-br from-[#5B4BFF] to-[#A445F5]" : "bg-gradient-to-br from-[#3D6BFF] to-[#22a2c8]",
+        person.role === "owner"
+          ? "bg-gradient-to-br from-[#5B4BFF] to-[#A445F5]"
+          : person.role === "admin"
+            ? "bg-gradient-to-br from-[#A445F5] to-[#e0559b]"
+            : "bg-gradient-to-br from-[#3D6BFF] to-[#22a2c8]",
         size === "lg" ? "h-16 w-16 text-lg" : "h-11 w-11 text-sm"
       )}
     >
@@ -108,6 +112,7 @@ function SelectPerson() {
                     <span className="block truncate text-sm font-medium text-slate-900">{person.name}</span>
                     <span className="flex items-center gap-1 text-xs text-slate-500">
                       {person.role === "owner" && <Crown className="h-3 w-3 text-[#7a4cf5]" />}
+                      {person.role === "admin" && <ShieldCheck className="h-3 w-3 text-[#c0449a]" />}
                       {ROLE_LABEL[person.role]}
                     </span>
                   </span>
