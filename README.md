@@ -434,3 +434,11 @@ Facebook-страница не нужна — профессиональный �
 на backend; если не задан, выводится из `SUPABASE_SERVICE_ROLE_KEY`.
 
 Каналы для клиентов — только Instagram. Telegram используется лишь для уведомлений о заявках в группу.
+
+## Адреса
+
+- https://dexa.uz — сайт продукта DexaAI (лендинг).
+- https://radius.dexa.uz — рабочее место Radius Logistics (вход, CRM, панели).
+- https://radius-log.vercel.app — старый адрес: при `LEGACY_REDIRECT=1` на Vercel перенаправляет на новые.
+
+Маршрутизация по адресу — `frontend/src/middleware.ts`. DNS домена dexa.uz обслуживает Vercel (NS `ns1/ns2.vercel-dns.com`).
