@@ -9,6 +9,9 @@ import { sessionUser, type AuthUser } from "./lib/auth";
 
 import * as accounts from "./routes/accounts";
 import * as assistant from "./routes/assistant";
+import * as cabinet from "./routes/cabinet";
+import * as signup from "./routes/signup";
+import { ensureDexaBotWebhook } from "./lib/dexa-bot";
 import * as accountsTest from "./routes/accounts-test";
 import * as authInstagram from "./routes/auth-instagram";
 import * as authInstagramCallback from "./routes/auth-instagram-callback";
@@ -64,6 +67,10 @@ const PUBLIC_PATHS = new Set([
   "/api/instagram/deauthorize",
   "/api/instagram/data-deletion",
   "/api/telegram/leads-bot",
+  "/api/telegram/dexa-bot",
+  "/api/signup/start",
+  "/api/signup/status",
+  "/api/signup/complete",
 ]);
 const PUBLIC_PREFIXES = ["/api/webhooks/"];
 
@@ -88,6 +95,13 @@ app.use("/api/*", async (c, next) => {
   }
   const user = await sessionUser(c.req.raw);
   if (!user) return c.json({ error: "Войдите в аккаунт.", code: "unauthorized" }, 401);
+  // Компания зарегистрировалась сама и ещё не подключена: только её кабинет, к данным платформы доступа нет.
+  if (user.company.status === "pending" && !path.startsWith("/api/cabinet")) {
+    return c.json({ error: "Платформа ещё не подключена для вашей компании.", code: "not_connected" }, 403);
+  }
+  if (user.company.status !== "pending" && path.startsWith("/api/cabinet")) {
+    return c.json({ error: "Кабинет нужен только до подключения.", code: "forbidden" }, 403);
+  }
   if (!allowed(user.role, c.req.method, path)) {
     return c.json({ error: "Это доступно только руководителю.", code: "forbidden" }, 403);
   }
@@ -111,6 +125,12 @@ mount("/api/auth/select", authSession.select);
 mount("/api/auth/logout", authSession.logout);
 mount("/api/accounts", accounts);
 mount("/api/assistant", assistant.chat);
+mount("/api/signup/start", signup.start);
+mount("/api/signup/status", signup.status);
+mount("/api/signup/complete", signup.complete);
+mount("/api/telegram/dexa-bot", signup.webhook);
+mount("/api/cabinet", cabinet.company);
+mount("/api/cabinet/connect", cabinet.connect);
 mount("/api/assistant/transcribe", assistant.transcribe);
 mount("/api/accounts/:id/test", accountsTest);
 mount("/api/auth/instagram", authInstagram);
@@ -153,6 +173,8 @@ serve({ fetch: app.fetch, port }, () => {
 
   // Нажатия «✅ Ishga oldim» приходят на вебхук бота заявок.
   ensureLeadsBotWebhook().catch((e) => console.error("[leads-bot] вебхук не настроен:", e?.message ?? e));
+  // Регистрация и вход через бота DexaAI.
+  ensureDexaBotWebhook().catch((e) => console.error("[dexa-bot] вебхук не настроен:", e?.message ?? e));
 });
 
 process.on("SIGTERM", () => process.exit(0));

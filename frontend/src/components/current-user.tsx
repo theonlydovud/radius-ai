@@ -16,13 +16,19 @@ import { t } from "@/lib/i18n";
  */
 
 export type Role = "owner" | "manager" | "admin";
+export type CompanyStatus = "active" | "pending";
 export type Session = {
-  company: { id: string; name: string } | null;
+  company: { id: string; name: string; status?: CompanyStatus } | null;
   user: { id: string; name: string; role: Role; manager_id: string | null } | null;
   users: { id: string; name: string; role: Role }[];
 };
 
 export const ROLE_LABEL: Record<Role, string> = { get owner() { return t("Руководитель"); }, get manager() { return t("Менеджер"); }, get admin() { return t("Супер-админ"); } };
+
+/** Компания зарегистрировалась сама и ещё не подключена — у неё есть только кабинет. */
+export function isPending(company: Session["company"]) {
+  return company?.status === "pending";
+}
 
 export function homeFor(role: Role) {
   return role === "owner" ? "/leads" : role === "admin" ? "/admin" : "/crm";
@@ -53,7 +59,7 @@ export type CurrentUser = { id: string; name: string; role: Role; roleLabel: str
 
 type CurrentUserContextValue = {
   user: CurrentUser;
-  company: { id: string; name: string };
+  company: { id: string; name: string; status?: CompanyStatus };
   /** Все менеджеры очереди (загружаются для руководителя и супер-админа). */
   managers: Manager[];
   ready: boolean;
@@ -78,7 +84,8 @@ export function FullScreenLoader({ text }: { text?: string }) {
  * Пускает на страницу только нужную роль. Ссылка из Telegram (/leads?lead=…)
  * у менеджера открывается в его CRM с той же заявкой.
  */
-export function CurrentUserProvider({ role, children }: { role: Role; children: React.ReactNode }) {
+/** role — кто может быть на странице; "cabinet" — кабинет неподключённой компании. */
+export function CurrentUserProvider({ role, children }: { role: Role | "cabinet"; children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [session, setSession] = useState<Session | null>(null);
@@ -104,7 +111,10 @@ export function CurrentUserProvider({ role, children }: { role: Role; children: 
         const here = `${pathname}${window.location.search}`;
         if (!s.company) return router.replace(`/login?next=${encodeURIComponent(here)}`);
         if (!s.user) return router.replace(`/select?next=${encodeURIComponent(here)}`);
-        if (s.user.role !== role) return router.replace(`${homeFor(s.user.role)}${window.location.search}`);
+        // Неподключённая компания живёт только в кабинете, подключённой кабинет не нужен.
+        if (isPending(s.company) && role !== "cabinet") return router.replace("/cabinet");
+        if (!isPending(s.company) && role === "cabinet") return router.replace(homeFor(s.user.role));
+        if (role !== "cabinet" && s.user.role !== role) return router.replace(`${homeFor(s.user.role)}${window.location.search}`);
         setSession(s);
       })
       .catch((e) => !cancelled && setError(e?.message ?? t("Сервер недоступен.")));

@@ -141,11 +141,14 @@ export function LandingContent() {
           <div className="flex items-center gap-1">
             <LangSwitcher />
             <ThemeToggle />
+            <Link href="/login" className="ml-1 hidden h-9 items-center rounded-full px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-100 sm:inline-flex">
+              {t("Войти")}
+            </Link>
             <Link
-              href="/login"
+              href="/register"
               className="ml-1 inline-flex h-9 items-center gap-1.5 rounded-full bg-slate-900 px-4 text-sm font-medium text-background transition hover:opacity-90"
             >
-              {t("Войти")}
+              {t("Регистрация")}
               <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
@@ -174,10 +177,10 @@ export function LandingContent() {
             </p>
             <div className="mt-9 flex flex-col gap-3 sm:flex-row" data-reveal style={delay(240)}>
               <Link
-                href="/login"
+                href="/register"
                 className="group inline-flex h-12 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#3D6BFF] via-[#5B4BFF] to-[#A445F5] px-7 text-sm font-semibold text-white shadow-[0_10px_40px_-10px_rgba(91,75,255,0.8)] transition hover:shadow-[0_14px_50px_-8px_rgba(91,75,255,0.95)]"
               >
-                {t("Войти в платформу")}
+                {t("Зарегистрироваться")}
                 <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
               </Link>
               <a
@@ -324,8 +327,8 @@ export function LandingContent() {
           <div aria-hidden className="absolute inset-0 -z-10 bg-[radial-gradient(70%_120%_at_50%_0%,rgba(91,75,255,0.55),transparent_70%),linear-gradient(135deg,#0c1230,#130b2a)]" />
           <h2 className="mx-auto max-w-2xl text-3xl font-semibold tracking-tight text-white md:text-4xl">{t("Ваши клиенты уже пишут в Direct")}</h2>
           <p className="mx-auto mt-4 max-w-xl text-base text-white/75">{t("Пусть DexaAI отвечает им сразу, а менеджеры получают готовые заявки.")}</p>
-          <Link href="/login" className="mt-8 inline-flex h-12 items-center gap-2 rounded-full bg-white px-8 text-sm font-semibold text-[#0c1230] transition hover:bg-white/90">
-            {t("Войти в платформу")}
+          <Link href="/register" className="mt-8 inline-flex h-12 items-center gap-2 rounded-full bg-white px-8 text-sm font-semibold text-[#0c1230] transition hover:bg-white/90">
+            {t("Зарегистрироваться")}
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>

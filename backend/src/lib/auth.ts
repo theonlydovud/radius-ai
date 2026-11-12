@@ -21,7 +21,9 @@ export const USER_COOKIE = "dexa_u";
 const YEAR_S = 365 * 24 * 60 * 60;
 
 export type Role = "owner" | "manager" | "admin";
-export type AuthCompany = { id: string; name: string };
+/** active — платформа работает; pending — зарегистрировались сами, доступен только кабинет. */
+export type CompanyStatus = "active" | "pending";
+export type AuthCompany = { id: string; name: string; status: CompanyStatus };
 export type AuthUser = { id: string; name: string; role: Role; manager_id: string | null; company: AuthCompany };
 
 // ---------------------------------------------------------------------
@@ -34,7 +36,7 @@ export async function hashPassword(password: string) {
   return `scrypt$16384$8$1$${salt.toString("base64")}$${hash.toString("base64")}`;
 }
 
-export async function verifyPassword(password: string, stored: string) {
+export async function verifyPassword(password: string, stored: string | null | undefined) {
   const [kind, n, r, p, salt, hash] = String(stored ?? "").split("$");
   if (kind !== "scrypt" || !salt || !hash) return false;
   const expected = Buffer.from(hash, "base64");
@@ -82,12 +84,17 @@ function unsign(token: string | undefined): Record<string, any> | null {
 /** Отпечаток хеша пароля: меняется вместе с паролем. */
 const fingerprint = (passwordHash: string) => createHash("sha256").update(passwordHash).digest("base64url").slice(0, 16);
 
-export function companyToken(company: { id: string; password_hash: string }) {
-  return sign({ t: "c", id: company.id, v: fingerprint(company.password_hash), exp: Math.floor(Date.now() / 1000) + YEAR_S });
+/** У вошедших через Telegram пароля нет — отпечаток от Telegram ID (или от id компании). */
+const companyStamp = (c: { id: string; password_hash?: string | null }) => fingerprint(c.password_hash ?? `co:${c.id}`);
+const userStamp = (u: { id: string; password_hash?: string | null; telegram_id?: number | string | null }) =>
+  fingerprint(u.password_hash ?? `tg:${u.telegram_id ?? u.id}`);
+
+export function companyToken(company: { id: string; password_hash?: string | null }) {
+  return sign({ t: "c", id: company.id, v: companyStamp(company), exp: Math.floor(Date.now() / 1000) + YEAR_S });
 }
 
-export function userToken(user: { id: string; password_hash: string }) {
-  return sign({ t: "u", id: user.id, v: fingerprint(user.password_hash), exp: Math.floor(Date.now() / 1000) + YEAR_S });
+export function userToken(user: { id: string; password_hash?: string | null; telegram_id?: number | string | null }) {
+  return sign({ t: "u", id: user.id, v: userStamp(user), exp: Math.floor(Date.now() / 1000) + YEAR_S });
 }
 
 // ---------------------------------------------------------------------
@@ -150,14 +157,15 @@ export function clearCookie(name: string, req: Request): string[] {
 // Кто пришёл
 // ---------------------------------------------------------------------
 
-type CompanyRow = { id: string; name: string; login: string; password_hash: string };
+type CompanyRow = { id: string; name: string; login: string | null; password_hash: string | null; status?: CompanyStatus | null };
 type UserRow = {
   id: string;
   company_id: string;
   name: string;
   role: Role;
-  login: string;
-  password_hash: string;
+  login: string | null;
+  password_hash: string | null;
+  telegram_id?: number | null;
   manager_id: string | null;
   is_active: boolean;
   sort_order: number;
@@ -182,7 +190,7 @@ export function invalidateAuthCache() {
 
 async function companyById(id: string) {
   return cached(`c:${id}`, async () => {
-    const { data } = await createAdminClient().from("companies").select("id, name, login, password_hash").eq("id", id).maybeSingle();
+    const { data } = await createAdminClient().from("companies").select("*").eq("id", id).maybeSingle();
     return (data as CompanyRow | null) ?? null;
   });
 }
@@ -191,7 +199,7 @@ async function userById(id: string) {
   return cached(`u:${id}`, async () => {
     const { data } = await createAdminClient()
       .from("app_users")
-      .select("id, company_id, name, role, login, password_hash, manager_id, is_active, sort_order")
+      .select("*")
       .eq("id", id)
       .maybeSingle();
     return (data as UserRow | null) ?? null;
@@ -204,7 +212,7 @@ export async function sessionCompany(req: Request): Promise<AuthCompany | null> 
   const c = unsign(cookies[COMPANY_COOKIE]);
   if (c?.t === "c") {
     const company = await companyById(c.id);
-    if (company && fingerprint(company.password_hash) === c.v) return { id: company.id, name: company.name };
+    if (company && companyStamp(company) === c.v) return publicCompany(company);
   }
   const user = await sessionUser(req);
   return user?.company ?? null;
@@ -214,7 +222,7 @@ export async function sessionUser(req: Request): Promise<AuthUser | null> {
   const u = unsign(readCookies(req)[USER_COOKIE]);
   if (u?.t !== "u") return null;
   const user = await userById(u.id);
-  if (!user || !user.is_active || fingerprint(user.password_hash) !== u.v) return null;
+  if (!user || !user.is_active || userStamp(user) !== u.v) return null;
   const company = await companyById(user.company_id);
   if (!company) return null;
   return {
@@ -222,8 +230,12 @@ export async function sessionUser(req: Request): Promise<AuthUser | null> {
     name: user.name,
     role: user.role,
     manager_id: user.manager_id,
-    company: { id: company.id, name: company.name },
+    company: publicCompany(company),
   };
+}
+
+function publicCompany(c: CompanyRow): AuthCompany {
+  return { id: c.id, name: c.name, status: c.status === "pending" ? "pending" : "active" };
 }
 
 /** Люди компании для экрана «Выберите менеджера». */
@@ -241,7 +253,7 @@ export async function companyUsers(companyId: string) {
 export async function findCompanyByLogin(login: string) {
   const { data } = await createAdminClient()
     .from("companies")
-    .select("id, name, login, password_hash")
+    .select("*")
     .eq("login", login.trim().toLowerCase())
     .maybeSingle();
   return (data as CompanyRow | null) ?? null;
@@ -250,7 +262,7 @@ export async function findCompanyByLogin(login: string) {
 export async function findUserByLogin(login: string) {
   const { data } = await createAdminClient()
     .from("app_users")
-    .select("id, company_id, name, role, login, password_hash, manager_id, is_active, sort_order")
+    .select("*")
     .eq("login", login.trim().toLowerCase())
     .maybeSingle();
   return (data as UserRow | null) ?? null;

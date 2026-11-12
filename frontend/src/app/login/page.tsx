@@ -8,7 +8,9 @@ import { PasswordInput } from "@/components/password-input";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { fetchSession, homeFor, safeNext } from "@/components/current-user";
+import { fetchSession, homeFor, isPending, safeNext } from "@/components/current-user";
+import { TelegramAuthButton } from "@/components/telegram-auth";
+import Link from "next/link";
 import { goToWorkspace } from "@/lib/workspace";
 import { t } from "@/lib/i18n";
 
@@ -25,7 +27,8 @@ function LoginForm() {
     fetchSession()
       .then((s) => {
         // Уже вошли — сразу в рабочее место (на сайте продукта это другой адрес).
-        if (s.user) goToWorkspace(next ?? homeFor(s.user.role), router, true);
+        if (s.user && isPending(s.company)) router.replace("/cabinet");
+        else if (s.user) goToWorkspace(next ?? homeFor(s.user.role), router, true);
         else if (s.company) goToWorkspace(`/select${next ? `?next=${encodeURIComponent(next)}` : ""}`, router, true);
       })
       .catch(() => {});
@@ -99,6 +102,19 @@ function LoginForm() {
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
           {t("Войти")}</Button>
       </form>
+
+      <div className="my-5 flex items-center gap-3 text-xs text-slate-400">
+        <span className="h-px flex-1 bg-slate-200" />
+        {t("или")}
+        <span className="h-px flex-1 bg-slate-200" />
+      </div>
+      <TelegramAuthButton label={t("Войти через Telegram")} />
+      <p className="mt-4 text-center text-sm text-slate-500">
+        {t("Нет аккаунта?")}{" "}
+        <Link href="/register" className="font-medium text-brand hover:underline">
+          {t("Зарегистрироваться")}
+        </Link>
+      </p>
 
       <p className="mt-5 flex items-start gap-2 text-xs text-slate-500">
         <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" />
