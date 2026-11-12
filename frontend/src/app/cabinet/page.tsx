@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BarChart3, Bot, Check, CheckCircle2, ClipboardList, Clock, Loader2, Lock, LogOut, Rocket, Sparkles } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, BarChart3, Bot, Check, CheckCircle2, ClipboardList, Clock, Hourglass, Loader2, Lock, LogOut, Rocket, Sparkles } from "lucide-react";
 import { DexaLogo } from "@/components/brand/dexa-logo";
-import { logout, useCurrentUser } from "@/components/current-user";
+import { homeFor, logout, trialDaysLeft, useCurrentUser } from "@/components/current-user";
 import { LangSwitcher, ThemeToggle } from "@/components/prefs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,13 +14,13 @@ import { t } from "@/lib/i18n";
 import { cn, formatDate } from "@/lib/utils";
 
 /**
- * Кабинет компании, которая зарегистрировалась сама (до подключения).
- * Можно только заполнить анкету и отправить заявку на подключение — остальное
- * откроется, когда DexaAI подключит компанию (свой поддомен, ИИ, CRM).
+ * Кабинет компании на пробном периоде: анкета и заявка «подключить навсегда».
+ * На пробном периоде открыта вся панель (кнопка «В панель»); когда он закончится,
+ * остаётся только кабинет, а ИИ перестаёт отвечать клиентам.
  */
 
 type Profile = Record<string, string | null>;
-type Cabinet = { id: string; name: string; status: string; profile: Profile; connect_requested_at: string | null };
+type Cabinet = { id: string; name: string; status: string; trial_ends_at: string | null; profile: Profile; connect_requested_at: string | null };
 
 const FIELDS: { key: string; label: string; placeholder?: string; wide?: boolean }[] = [
   { key: "industry", label: "Сфера деятельности", placeholder: "Логистика, обучение, магазин…" },
@@ -45,7 +46,9 @@ function LockedFeature({ icon: Icon, title }: { icon: typeof Bot; title: string 
 }
 
 export default function CabinetPage() {
-  const { user } = useCurrentUser();
+  const { user, company } = useCurrentUser();
+  const daysLeft = trialDaysLeft(company);
+  const expired = company.status === "expired";
   const [data, setData] = useState<Cabinet | null>(null);
   const [name, setName] = useState("");
   const [profile, setProfile] = useState<Profile>({});
@@ -105,10 +108,10 @@ export default function CabinetPage() {
   const filled = !!name.trim() && !!profile.phone?.trim();
   const requested = !!data?.connect_requested_at;
   const steps = [
-    { title: "Аккаунт создан", done: true },
+    { title: "Аккаунт создан — 14 дней бесплатно", done: true },
+    { title: "Подключите Instagram и заполните базу знаний", done: false },
     { title: "Заполните данные компании", done: filled },
     { title: "Отправьте заявку на подключение", done: requested },
-    { title: "Мы настроим ИИ под вашу компанию и откроем рабочее место", done: false },
   ];
 
   return (
@@ -135,6 +138,28 @@ export default function CabinetPage() {
       <main className="mx-auto max-w-5xl px-4 py-8 md:px-8">
         <h1 className="text-2xl font-semibold tracking-tight text-slate-900">{t("Добро пожаловать, {0}!", user.name.split(/\s+/)[0])}</h1>
         <p className="mt-1 text-sm text-slate-500">{t("Это кабинет вашей компании в DexaAI.")}</p>
+
+        {expired ? (
+          <div className="mt-5 flex items-start gap-3 rounded-2xl border border-amber-300/60 bg-amber-50 p-4 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+            <Hourglass className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+            <div>
+              <p className="font-semibold">{t("Пробный период закончился")}</p>
+              <p className="mt-0.5">{t("ИИ больше не отвечает вашим клиентам, панель приостановлена. Все данные сохранены — отправьте заявку, и мы подключим вас навсегда.")}</p>
+            </div>
+          </div>
+        ) : daysLeft !== null ? (
+          <div className="mt-5 flex flex-wrap items-center gap-3 rounded-2xl border border-brand/20 bg-brand/5 p-4 text-sm text-slate-700">
+            <Sparkles className="h-5 w-5 shrink-0 text-brand" />
+            <p className="min-w-0 flex-1">
+              <span className="font-semibold">{t("Пробный период: осталось {0} дн.", daysLeft)}</span>{" "}
+              {t("Всё работает без ограничений: ИИ отвечает клиентам, заявки, CRM и статистика.")}
+            </p>
+            <Link href={homeFor(user.role)} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand px-3.5 py-2 text-sm font-semibold text-white hover:bg-brand/90">
+              {t("В панель")}
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        ) : null}
 
         <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
           {/* Анкета */}
@@ -196,8 +221,8 @@ export default function CabinetPage() {
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-surface shadow-sm">
               <div className="bg-gradient-to-br from-[#3D6BFF] via-[#5B4BFF] to-[#A445F5] p-5 text-white">
                 <Rocket className="h-6 w-6" />
-                <p className="mt-3 text-lg font-semibold">{t("Подключить ИИ-менеджера")}</p>
-                <p className="mt-1 text-sm text-white/80">{t("Мы настроим ИИ под вашу компанию: он будет отвечать клиентам в Instagram и приносить заявки.")}</p>
+                <p className="mt-3 text-lg font-semibold">{t("Подключить навсегда")}</p>
+                <p className="mt-1 text-sm text-white/80">{t("Свой ИИ-бот, адрес вашей компании на dexa.uz и настройка ИИ под ваш бизнес. Оставьте заявку — свяжемся в Telegram.")}</p>
               </div>
               <div className="p-5">
                 {requested ? (
@@ -238,16 +263,18 @@ export default function CabinetPage() {
               </ol>
             </div>
 
-            <div className="space-y-2">
-              <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-slate-400">
-                <Clock className="h-3.5 w-3.5" />
-                {t("Откроется после подключения")}
-              </p>
-              <LockedFeature icon={Bot} title="ИИ-менеджер в Instagram Direct" />
-              <LockedFeature icon={ClipboardList} title="Заявки и CRM для менеджеров" />
-              <LockedFeature icon={BarChart3} title="Статистика и графики" />
-              <LockedFeature icon={Sparkles} title="ИИ-ассистент руководителя" />
-            </div>
+            {expired && (
+              <div className="space-y-2">
+                <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-slate-400">
+                  <Clock className="h-3.5 w-3.5" />
+                  {t("Приостановлено до подключения")}
+                </p>
+                <LockedFeature icon={Bot} title="ИИ-менеджер в Instagram Direct" />
+                <LockedFeature icon={ClipboardList} title="Заявки и CRM для менеджеров" />
+                <LockedFeature icon={BarChart3} title="Статистика и графики" />
+                <LockedFeature icon={Sparkles} title="ИИ-ассистент руководителя" />
+              </div>
+            )}
           </div>
         </div>
       </main>

@@ -18,7 +18,8 @@ export async function GET(req: Request) {
   const state = verifyState(searchParams.get("state"));
 
   if (!code) return back({ ig_error: searchParams.get("error_description") || "Вход отменён." });
-  if (!state) return back({ ig_error: "Сессия входа устарела, попробуйте ещё раз." });
+  const companyId = typeof state?.c === "string" ? state.c : null;
+  if (!state || !companyId) return back({ ig_error: "Сессия входа устарела, попробуйте ещё раз." });
 
   try {
     const token = await exchangeCodeForToken(code);
@@ -27,21 +28,25 @@ export async function GET(req: Request) {
 
     const { data: existing } = await supabase
       .from("accounts")
-      .select("id")
+      .select("id, company_id")
       .eq("platform", "instagram")
       .eq("platform_account_id", profile.platform_account_id)
       .maybeSingle();
 
+    // Один Instagram — одна компания: иначе вебхук не поймёт, чьи правила и заявки.
+    if (existing && existing.company_id && existing.company_id !== companyId) {
+      return back({ ig_error: `@${profile.username} уже подключён к другой компании в DexaAI.` });
+    }
     if (existing) {
       await supabase
         .from("accounts")
-        .update({ access_token: token, status: "connected", account_name: `@${profile.username}` })
+        .update({ access_token: token, status: "connected", account_name: `@${profile.username}`, company_id: companyId })
         .eq("id", existing.id);
       return back({ ig: "reconnected", name: profile.username });
     }
 
     const sourceId = (state.s as string | null) ?? null;
-    const sourceError = await validateKnowledgeSource(supabase, null, sourceId);
+    const sourceError = await validateKnowledgeSource(supabase, null, sourceId, companyId);
 
     const { error } = await supabase.from("accounts").insert({
       platform: "instagram",
@@ -50,6 +55,7 @@ export async function GET(req: Request) {
       platform_account_id: profile.platform_account_id,
       knowledge_source_id: sourceError ? null : sourceId,
       status: "connected",
+      company_id: companyId,
     });
     if (error) throw new Error(error.message);
 

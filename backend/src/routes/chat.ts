@@ -1,6 +1,8 @@
 import { buildSystemInstruction, GeminiRateLimitError, sendToGemini } from "../lib/gemini";
 import { createAdminClient } from "../lib/supabase/server";
 import type { SandboxChatMessage } from "../types";
+import { ownsAccount } from "../lib/tenant";
+import type { RouteContext } from "../index";
 
 // Задержка перед ответом ИИ, чтобы поведение в песочнице совпадало с
 // продакшн-ботом (там задержка имитирует "живой" набор текста).
@@ -12,16 +14,20 @@ function randomDelay() {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export async function POST(req: Request) {
+export async function POST(req: Request, ctx: RouteContext) {
   try {
     const body = await req.json();
     const message: string = body.message;
     const history: SandboxChatMessage[] = body.history ?? [];
-    let accountId: string | null = body.account_id ?? null;
-    // Без аккаунта правила и знания всех аккаунтов смешались бы в одну инструкцию — берём первый.
+    const company = ctx.auth!.company.id;
+    let accountId: string | null = (await ownsAccount(company, body.account_id)) ? body.account_id : null;
+    // Без аккаунта правила и знания всех аккаунтов смешались бы в одну инструкцию — берём первый аккаунт компании.
     if (!accountId) {
-      const { data } = await createAdminClient().from("accounts").select("id").eq("platform", "instagram").order("created_at").limit(1);
+      const { data } = await createAdminClient().from("accounts").select("id").eq("platform", "instagram").eq("company_id", company).order("created_at").limit(1);
       accountId = data?.[0]?.id ?? null;
+    }
+    if (!accountId) {
+      return Response.json({ error: "Сначала подключите Instagram-аккаунт и заполните его базу знаний." }, { status: 400 });
     }
 
     if (!message || typeof message !== "string") {

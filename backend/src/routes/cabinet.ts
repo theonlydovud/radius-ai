@@ -1,10 +1,10 @@
 import { createAdminClient } from "../lib/supabase/server";
-import { invalidateAuthCache } from "../lib/auth";
+import { invalidateAuthCache, publicCompany } from "../lib/auth";
 import { notifyDexaAdmins } from "../lib/dexa-bot";
 import type { RouteContext } from "../index";
 
 /**
- * Кабинет компании, которая зарегистрировалась сама (status = pending):
+ * Кабинет компании на пробном периоде и после его конца:
  *   GET  /api/cabinet           → компания, анкета, отправлена ли заявка на подключение
  *   PUT  /api/cabinet           { name, profile }  — анкета компании
  *   POST /api/cabinet/connect                       — «Подключить ИИ-менеджера» → уведомление владельцу DexaAI
@@ -34,7 +34,15 @@ async function load(companyId: string) {
 }
 
 function view(c: any) {
-  return { id: c.id, name: c.name, status: c.status ?? "active", profile: c.profile ?? {}, connect_requested_at: c.connect_requested_at ?? null };
+  const info = publicCompany(c);
+  return {
+    id: c.id,
+    name: c.name,
+    status: info.status,
+    trial_ends_at: info.trial_ends_at,
+    profile: c.profile ?? {},
+    connect_requested_at: c.connect_requested_at ?? null,
+  };
 }
 
 export const company = {
@@ -68,8 +76,12 @@ export const connect = {
     }
     const p = c.profile ?? {};
     const line = (label: string, v: unknown) => (v ? `\n${label}: ${String(v).replace(/[<>&]/g, "")}` : "");
+    const info = publicCompany(c);
+    const trial = info.trial_ends_at
+      ? `\nПробный период: ${info.status === "expired" ? "закончился" : "до"} ${info.trial_ends_at.slice(0, 10)}`
+      : "";
     await notifyDexaAdmins(
-      `💼 <b>Заявка на подключение</b>\nКомпания: <b>${String(c.name).replace(/[<>&]/g, "")}</b>` +
+      `💼 <b>Заявка на подключение</b>\nКомпания: <b>${String(c.name).replace(/[<>&]/g, "")}</b>${trial}` +
         line("Сфера", p.industry) +
         line("Город", p.city) +
         line("Контакт", p.contact_name) +

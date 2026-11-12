@@ -1,6 +1,7 @@
 import { runAssistant, transcribeAudio, type AssistantMessage } from "../lib/assistant";
 import { GeminiRateLimitError } from "../lib/gemini";
 import type { RouteContext } from "../index";
+import { ownsAccount } from "../lib/tenant";
 
 /**
  * ИИ-ассистент панели руководителя (доступ — только owner, см. index.ts).
@@ -19,7 +20,7 @@ export const chat = {
     const history: AssistantMessage[] = Array.isArray(body.history)
       ? body.history.filter((m: any) => (m?.role === "user" || m?.role === "model") && typeof m.text === "string").map((m: any) => ({ role: m.role, text: m.text.slice(0, 4000) }))
       : [];
-    const accountId = typeof body.account_id === "string" && /^[0-9a-f-]{36}$/i.test(body.account_id) ? body.account_id : null;
+    const accountId = (await ownsAccount(auth.company.id, body.account_id)) ? (body.account_id as string) : null;
     try {
       return Response.json({ data: await runAssistant(auth, history, message, accountId) });
     } catch (e: any) {

@@ -1,10 +1,15 @@
 import { createAdminClient } from "../lib/supabase/server";
 import { invalidateAccountCache } from "../lib/gemini";
+import { ownsAccount, ownsAccountRow } from "../lib/tenant";
+import type { RouteContext } from "../index";
 
-export async function GET(req: Request) {
+const notFound = () => Response.json({ error: "Аккаунт не найден." }, { status: 404 });
+
+export async function GET(req: Request, ctx: RouteContext) {
   const supabase = createAdminClient();
   const accountId = new URL(req.url).searchParams.get("bot_id");
   if (!accountId) return Response.json({ error: "bot_id обязателен." }, { status: 400 });
+  if (!(await ownsAccount(ctx.auth!.company.id, accountId))) return notFound();
 
   const { data, error } = await supabase
     .from("knowledge")
@@ -16,9 +21,10 @@ export async function GET(req: Request) {
   return Response.json({ data });
 }
 
-export async function POST(req: Request) {
+export async function POST(req: Request, ctx: RouteContext) {
   const supabase = createAdminClient();
   const body = await req.json();
+  if (body.account_id && !(await ownsAccount(ctx.auth!.company.id, body.account_id))) return notFound();
 
   if (!body.title || !body.content || !body.account_id) {
     return Response.json(
@@ -38,11 +44,12 @@ export async function POST(req: Request) {
   return Response.json({ data });
 }
 
-export async function PATCH(req: Request) {
+export async function PATCH(req: Request, ctx: RouteContext) {
   const supabase = createAdminClient();
   const body = await req.json();
 
   if (!body.id) return Response.json({ error: "id обязателен." }, { status: 400 });
+  if (!(await ownsAccountRow(ctx.auth!.company.id, "knowledge", body.id))) return notFound();
   if (!body.title?.trim() || !body.content?.trim()) {
     return Response.json(
       { error: "Поля title и content обязательны." },
@@ -62,10 +69,11 @@ export async function PATCH(req: Request) {
   return Response.json({ data });
 }
 
-export async function DELETE(req: Request) {
+export async function DELETE(req: Request, ctx: RouteContext) {
   const supabase = createAdminClient();
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");
+  if (id && !(await ownsAccountRow(ctx.auth!.company.id, "knowledge", id))) return notFound();
 
   if (!id) return Response.json({ error: "id обязателен." }, { status: 400 });
 

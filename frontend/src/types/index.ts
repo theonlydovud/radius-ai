@@ -85,6 +85,8 @@ export interface LeadCollectedData {
   destination_city?: string;
   weight?: string;
   cargo_type?: string;
+  /** Что хочет клиент — у компаний не из логистики вместо маршрута и груза. */
+  request?: string;
   /** Комментарий к заявке, созданной вручную. */
   note?: string;
   /** Кто создал заявку вручную; нет — собрал ИИ. */

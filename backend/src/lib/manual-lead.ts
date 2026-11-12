@@ -2,10 +2,11 @@ import { createAdminClient } from "./supabase/server";
 import { fetchLead } from "./leads";
 import { assignNextManager } from "./managers";
 import type { AuthUser } from "./auth";
+import { ownsAccount } from "./tenant";
 
 /**
  * Заявка вручную — из формы «Новая заявка» и от ИИ-ассистента.
- *   { client_name, client_phone, origin_city?, destination_city?, weight?, cargo_type?, note?, manager_id?, account_id? }
+ *   { client_name, client_phone, origin_city?, destination_city?, weight?, cargo_type?, request?, note?, manager_id?, account_id? }
  * Менеджер создаёт заявку только себе — она сразу «В работе».
  * Руководитель и супер-админ выбирают ответственного: id менеджера, "auto" — следующий
  * по очереди, null — без ответственного. Такая заявка — «Новая».
@@ -26,6 +27,7 @@ export async function createManualLead(
   { requirePhone = true }: { requirePhone?: boolean } = {}
 ): Promise<ManualLeadResult> {
   const supabase = createAdminClient();
+  const company = auth.company.id;
 
   const client_name = field(body.client_name, 100) ?? (requirePhone ? undefined : "Клиент");
   const client_phone = field(body.client_phone, 40) ?? (requirePhone ? undefined : "");
@@ -37,9 +39,9 @@ export async function createManualLead(
     if (!auth.manager_id) return { error: "Вы не привязаны к очереди менеджеров.", status: 403 };
     manager_id = auth.manager_id;
   } else if (body.manager_id === "auto") {
-    manager_id = (await assignNextManager(supabase))?.id ?? null;
+    manager_id = (await assignNextManager(supabase, company))?.id ?? null;
   } else if (body.manager_id) {
-    const { data: m } = await supabase.from("managers").select("id").eq("id", body.manager_id).maybeSingle();
+    const { data: m } = await supabase.from("managers").select("id").eq("id", body.manager_id).eq("company_id", company).maybeSingle();
     if (!m) return { error: "Менеджер не найден.", status: 400 };
     manager_id = m.id;
   }
@@ -50,10 +52,12 @@ export async function createManualLead(
       destination_city: field(body.destination_city, 60),
       weight: field(body.weight, 60),
       cargo_type: field(body.cargo_type, 100),
+      // Что хочет клиент — для компаний не из логистики (lead_kind = generic).
+      request: field(body.request, 300),
       note: field(body.note, 1000),
       created_by: field(body.created_by, 100) ?? auth.name,
       // Аккаунт, выбранный в панели при создании: заявка видна в его разделе.
-      account_id: typeof body.account_id === "string" && /^[0-9a-f-]{36}$/i.test(body.account_id) ? body.account_id : undefined,
+      account_id: (await ownsAccount(company, body.account_id)) ? (body.account_id as string) : undefined,
     }).filter(([, v]) => v !== undefined)
   );
 
@@ -61,6 +65,7 @@ export async function createManualLead(
     .from("leads")
     .insert({
       session_id: null,
+      company_id: company,
       client_name,
       client_phone,
       collected_data,
@@ -74,5 +79,5 @@ export async function createManualLead(
     const hint = /session_id/.test(error.message) ? " Выполните migration-manual-leads.sql в Supabase." : "";
     return { error: `Не удалось создать заявку.${hint}`, status: 500 };
   }
-  return { lead: await fetchLead(supabase, data.id) };
+  return { lead: await fetchLead(supabase, data.id, company) };
 }

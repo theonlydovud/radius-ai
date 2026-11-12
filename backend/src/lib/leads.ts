@@ -33,6 +33,8 @@ export function ownManagerFilter(auth?: { role: string; manager_id: string | nul
 const NO_LEADS = "00000000-0000-0000-0000-000000000000";
 
 export type LeadFilters = {
+  /** Компания: только её заявки. Обязательно. */
+  company: string;
   /** active | sold | not_sold; не указан — все заявки */
   group?: string;
   /** id менеджера или "none" — без ответственного */
@@ -55,8 +57,9 @@ function flatten(row: any) {
   };
 }
 
-export async function fetchLead(supabase: any, id: string) {
-  const { data, error } = await supabase.from("leads").select(SELECT).eq("id", id).maybeSingle();
+/** Заявка компании; чужая — null. */
+export async function fetchLead(supabase: any, id: string, company: string) {
+  const { data, error } = await supabase.from("leads").select(SELECT).eq("id", id).eq("company_id", company).maybeSingle();
   if (error) throw new Error(error.message);
   return data ? flatten(data) : null;
 }
@@ -67,6 +70,7 @@ export async function fetchLeads(supabase: any, filters: LeadFilters) {
     let q = supabase
       .from("leads")
       .select(SELECT)
+      .eq("company_id", filters.company)
       .order("created_at", { ascending: false })
       .order("id", { ascending: true })
       .range(offset, offset + PAGE_SIZE - 1);

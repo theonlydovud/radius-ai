@@ -1,5 +1,6 @@
 "use client";
 
+import { isGenericLead, LeadRequest } from "@/components/lead-request";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, ClipboardList, MessageCircle, Phone, MapPin, Play, RotateCcw, Weight, Package, X } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -260,14 +261,20 @@ export function LeadsBoard({
                   </div>
 
                   <div className="min-w-0 flex-1 space-y-0.5 text-sm">
-                    <p className="flex min-w-0 items-center gap-2 font-medium text-slate-800">
-                      <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                      <span className="truncate">{d?.origin_city ?? "—"} → {d?.destination_city ?? "—"}</span>
-                    </p>
-                    <p className="flex min-w-0 items-center gap-2 text-slate-500">
-                      <Package className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                      <span className="truncate">{[d?.weight, d?.cargo_type].filter(Boolean).join(" · ") || tr("груз не указан")}</span>
-                    </p>
+                    {isGenericLead(d) ? (
+                      <LeadRequest d={d} className="font-medium text-slate-800" />
+                    ) : (
+                      <>
+                        <p className="flex min-w-0 items-center gap-2 font-medium text-slate-800">
+                          <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                          <span className="truncate">{d?.origin_city ?? "—"} → {d?.destination_city ?? "—"}</span>
+                        </p>
+                        <p className="flex min-w-0 items-center gap-2 text-slate-500">
+                          <Package className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                          <span className="truncate">{[d?.weight, d?.cargo_type].filter(Boolean).join(" · ") || tr("груз не указан")}</span>
+                        </p>
+                      </>
+                    )}
                   </div>
 
                   <Select value={lead.manager_id ?? NO_MANAGER} onValueChange={(v) => patchLead(lead, { manager_id: v === NO_MANAGER ? null : v })} disabled={busy}>
@@ -349,18 +356,24 @@ export function LeadsBoard({
                 </CardHeader>
                 <CardContent className="flex flex-1 flex-col gap-3">
                   <div className="space-y-1.5 text-sm text-slate-600">
-                    <p className="flex items-center gap-2">
-                      <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                      {lead.collected_data?.origin_city ?? "—"} → {lead.collected_data?.destination_city ?? "—"}
-                    </p>
-                    <p className="flex items-center gap-2">
-                      <Weight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                      {lead.collected_data?.weight ?? tr("не указан вес")}
-                    </p>
-                    <p className="flex items-center gap-2">
-                      <Package className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                      {lead.collected_data?.cargo_type ?? tr("не указан тип груза")}
-                    </p>
+                    {isGenericLead(lead.collected_data) ? (
+                      <LeadRequest d={lead.collected_data} />
+                    ) : (
+                      <>
+                        <p className="flex items-center gap-2">
+                          <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                          {lead.collected_data?.origin_city ?? "—"} → {lead.collected_data?.destination_city ?? "—"}
+                        </p>
+                        <p className="flex items-center gap-2">
+                          <Weight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                          {lead.collected_data?.weight ?? tr("не указан вес")}
+                        </p>
+                        <p className="flex items-center gap-2">
+                          <Package className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                          {lead.collected_data?.cargo_type ?? tr("не указан тип груза")}
+                        </p>
+                      </>
+                    )}
                     {lead.collected_data?.note && (
                       <p className="whitespace-pre-wrap break-words rounded-lg bg-amber-50/60 px-2.5 py-1.5 text-xs text-slate-700">💬 {lead.collected_data.note}</p>
                     )}

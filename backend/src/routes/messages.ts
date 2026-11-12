@@ -1,5 +1,6 @@
 import { createAdminClient } from "../lib/supabase/server";
 import type { RouteContext } from "../index";
+import { ownsSession } from "../lib/tenant";
 
 /** Переписка диалога. Менеджер видит только диалоги своих заявок. */
 export async function GET(req: Request, ctx?: RouteContext) {
@@ -12,6 +13,7 @@ export async function GET(req: Request, ctx?: RouteContext) {
   }
 
   const auth = ctx?.auth;
+  if (!(await ownsSession(auth!.company.id, sessionId))) return Response.json({ error: "Диалог не найден." }, { status: 404 });
   if (auth?.role === "manager") {
     const { data: own } = await supabase
       .from("leads")
@@ -32,9 +34,10 @@ export async function GET(req: Request, ctx?: RouteContext) {
   return Response.json({ data });
 }
 
-export async function POST(req: Request) {
+export async function POST(req: Request, ctx?: RouteContext) {
   const supabase = createAdminClient();
   const body = await req.json();
+  if (!(await ownsSession(ctx!.auth!.company.id, body.session_id))) return Response.json({ error: "Диалог не найден." }, { status: 404 });
 
   if (!body.session_id || !body.text || !body.sender) {
     return Response.json(

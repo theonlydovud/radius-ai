@@ -1,5 +1,6 @@
 "use client";
 
+import { isGenericLead, LeadRequest } from "@/components/lead-request";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Loader2, MapPin, Mic, Package, Phone, SendHorizontal, Sparkles, Square, Trash2, UserRound } from "lucide-react";
@@ -48,14 +49,20 @@ function LeadCard({ lead, verb }: { lead: Lead; verb: "created" | "updated" }) {
       </div>
       <p className="mt-2 text-base font-semibold text-slate-900">{lead.client_name}</p>
       <div className="mt-2 grid grid-cols-1 gap-1.5 text-sm text-slate-600 sm:grid-cols-2">
-        <p className="flex items-center gap-2">
-          <MapPin className="h-3.5 w-3.5 text-slate-400" />
-          {d.origin_city ?? "—"} → {d.destination_city ?? "—"}
-        </p>
-        <p className="flex items-center gap-2">
-          <Package className="h-3.5 w-3.5 text-slate-400" />
-          {[d.weight, d.cargo_type].filter(Boolean).join(" · ") || t("груз не указан")}
-        </p>
+        {isGenericLead(d) ? (
+          <LeadRequest d={d} className="sm:col-span-2" />
+        ) : (
+          <>
+            <p className="flex items-center gap-2">
+              <MapPin className="h-3.5 w-3.5 text-slate-400" />
+              {d.origin_city ?? "—"} → {d.destination_city ?? "—"}
+            </p>
+            <p className="flex items-center gap-2">
+              <Package className="h-3.5 w-3.5 text-slate-400" />
+              {[d.weight, d.cargo_type].filter(Boolean).join(" · ") || t("груз не указан")}
+            </p>
+          </>
+        )}
         <p className="flex items-center gap-2">
           <UserRound className="h-3.5 w-3.5 text-slate-400" />
           {lead.manager?.name ?? t("Без ответственного")}
@@ -144,7 +151,7 @@ function LeadsCard({ leads, total }: { leads: Lead[]; total: string }) {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-slate-900">{l.client_name}</p>
                   <p className="truncate text-xs text-slate-500">
-                    {d.origin_city ?? "—"} → {d.destination_city ?? "—"} · {l.manager?.name ?? t("Без ответственного")} · {formatDate(l.created_at)}
+                    {isGenericLead(d) ? d.request ?? "—" : `${d.origin_city ?? "—"} → ${d.destination_city ?? "—"}`} · {l.manager?.name ?? t("Без ответственного")} · {formatDate(l.created_at)}
                   </p>
                 </div>
                 <Badge variant={STATUS_VARIANT[l.status]} className="shrink-0">

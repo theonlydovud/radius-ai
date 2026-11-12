@@ -2,14 +2,14 @@ import { createHmac, randomBytes } from "node:crypto";
 import { createAdminClient } from "./supabase/server";
 import { tgCall } from "./lead-notify";
 import { backendUrl } from "./urls";
-import { invalidateAuthCache } from "./auth";
+import { invalidateAuthCache, TRIAL_DAYS } from "./auth";
 
 /**
  * Бот DexaAI: регистрация и вход в один клик + база подписчиков для рассылок.
  *
  * Сайт просит одноразовый код (createSignup) и открывает t.me/<бот>?start=<код>.
  * Человек жмёт Start — бот находит по Telegram ID аккаунт или создаёт новый
- * (компания в статусе pending: доступен только кабинет с анкетой) и подтверждает код.
+ * (компания на пробном периоде: всё открыто 14 дней) и подтверждает код.
  * Сайт, опрашивая статус кода, видит подтверждение и входит (consumeSignup).
  *
  * Переменные: DEXA_BOT_TOKEN — токен бота от @BotFather;
@@ -100,9 +100,9 @@ const langOf = (code?: string | null): Lang => (code?.startsWith("uz") ? "uz" : 
 
 const TEXT: Record<string, Record<Lang, string>> = {
   welcomeNew: {
-    ru: "🎉 Добро пожаловать в DexaAI!\n\nАккаунт создан. Вернитесь во вкладку браузера — вход выполнится автоматически.",
-    uz: "🎉 DexaAI’ga xush kelibsiz!\n\nAkkaunt yaratildi. Brauzerdagi sahifaga qayting — kirish avtomatik bajariladi.",
-    en: "🎉 Welcome to DexaAI!\n\nYour account is ready. Go back to the browser tab — you'll be signed in automatically.",
+    ru: "🎉 Добро пожаловать в DexaAI!\n\nАккаунт создан: 14 дней — бесплатно и без ограничений. Вернитесь во вкладку браузера — вход выполнится автоматически.",
+    uz: "🎉 DexaAI’ga xush kelibsiz!\n\nAkkaunt yaratildi: 14 kun — bepul va cheklovsiz. Brauzerdagi sahifaga qayting — kirish avtomatik bajariladi.",
+    en: "🎉 Welcome to DexaAI!\n\nYour account is ready: 14 days free, no limits. Go back to the browser tab — you'll be signed in automatically.",
   },
   welcomeBack: {
     ru: "✅ Вход подтверждён. Вернитесь во вкладку браузера.",
@@ -170,7 +170,11 @@ async function accountFor(from: any) {
   const person = [from.first_name, from.last_name].filter(Boolean).join(" ") || (from.username ? `@${from.username}` : "Владелец");
   const { data: company, error: ce } = await supabase
     .from("companies")
-    .insert({ name: "Моя компания", status: "pending", profile: { contact_name: person, telegram: from.username ? `@${from.username}` : null } })
+    .insert({
+      name: "Моя компания",
+      status: "trial",
+      trial_ends_at: new Date(Date.now() + TRIAL_DAYS * 86_400_000).toISOString(),
+      profile: { contact_name: person, telegram: from.username ? `@${from.username}` : null } })
     .select("id")
     .single();
   if (ce) throw new Error(ce.message);
@@ -251,7 +255,7 @@ export async function handleDexaBotUpdate(update: any) {
       reply_markup: { keyboard: [[{ text: TEXT.phoneButton[lang], request_contact: true }]], resize_keyboard: true, one_time_keyboard: true },
     });
     await notifyDexaAdmins(
-      `🆕 <b>Новая регистрация в DexaAI</b>\n${esc([from.first_name, from.last_name].filter(Boolean).join(" "))}` +
+      `🆕 <b>Новая регистрация в DexaAI</b> — пробный период ${TRIAL_DAYS} дней\n${esc([from.first_name, from.last_name].filter(Boolean).join(" "))}` +
         `${from.username ? ` · @${esc(from.username)}` : ""}\nTelegram ID: <code>${from.id}</code>\nЯзык: ${esc(from.language_code ?? "—")}`
     );
   } else {

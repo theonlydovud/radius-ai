@@ -1,5 +1,6 @@
 "use client";
 
+import { isGenericLead, LeadRequest } from "@/components/lead-request";
 import { useEffect, useRef, useState } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Bot, Loader2, MapPin, Package, Phone, Weight, X } from "lucide-react";
@@ -57,18 +58,24 @@ export function LeadChatSheet({ lead, onClose }: { lead: Lead | null; onClose: (
                   <a href={`tel:${lead.client_phone.replace(/[^\d+]/g, "")}`} className="flex items-center gap-2 font-medium text-brand hover:underline">
                     <Phone className="h-3.5 w-3.5" /> {lead.client_phone}
                   </a>
-                  <p className="flex items-center gap-2">
-                    <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                    <span className="truncate">{d?.origin_city ?? "—"} → {d?.destination_city ?? "—"}</span>
-                  </p>
-                  <p className="flex items-center gap-2">
-                    <Weight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                    <span className="truncate">{d?.weight ?? t("вес не указан")}</span>
-                  </p>
-                  <p className="flex items-center gap-2">
-                    <Package className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                    <span className="truncate">{d?.cargo_type ?? t("груз не указан")}</span>
-                  </p>
+                  {isGenericLead(d) ? (
+                    <LeadRequest d={d} className="sm:col-span-2" />
+                  ) : (
+                    <>
+                      <p className="flex items-center gap-2">
+                        <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                        <span className="truncate">{d?.origin_city ?? "—"} → {d?.destination_city ?? "—"}</span>
+                      </p>
+                      <p className="flex items-center gap-2">
+                        <Weight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                        <span className="truncate">{d?.weight ?? t("вес не указан")}</span>
+                      </p>
+                      <p className="flex items-center gap-2">
+                        <Package className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                        <span className="truncate">{d?.cargo_type ?? t("груз не указан")}</span>
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
 

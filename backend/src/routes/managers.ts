@@ -1,4 +1,5 @@
 import { createAdminClient } from "../lib/supabase/server";
+import type { RouteContext } from "../index";
 
 /**
  * Менеджеры, редактируются в «Настройках». Удаления нет намеренно: отключённый
@@ -13,19 +14,21 @@ function nameError(error: { code?: string; message: string }) {
   return error.message;
 }
 
-export async function GET() {
+export async function GET(_req: Request, ctx: RouteContext) {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("managers")
     .select("id, name, is_active, sort_order, telegram_id")
+    .eq("company_id", ctx.auth!.company.id)
     .order("sort_order", { ascending: true });
 
   if (error) return Response.json({ error: error.message }, { status: 500 });
   return Response.json({ data });
 }
 
-export async function POST(req: Request) {
+export async function POST(req: Request, ctx: RouteContext) {
   const supabase = createAdminClient();
+  const company = ctx.auth!.company.id;
   const body = await req.json();
   const name = String(body.name ?? "").trim();
   if (!name) return Response.json({ error: "Укажите имя менеджера." }, { status: 400 });
@@ -34,12 +37,13 @@ export async function POST(req: Request) {
   const { data: last } = await supabase
     .from("managers")
     .select("sort_order")
+    .eq("company_id", company)
     .order("sort_order", { ascending: false })
     .limit(1);
 
   const { data, error } = await supabase
     .from("managers")
-    .insert({ name, sort_order: (last?.[0]?.sort_order ?? 0) + 1 })
+    .insert({ name, company_id: company, sort_order: (last?.[0]?.sort_order ?? 0) + 1 })
     .select("id, name, is_active, sort_order, telegram_id")
     .single();
 
@@ -47,7 +51,7 @@ export async function POST(req: Request) {
   return Response.json({ data });
 }
 
-export async function PATCH(req: Request) {
+export async function PATCH(req: Request, ctx: RouteContext) {
   const supabase = createAdminClient();
   const body = await req.json();
   if (!body.id) return Response.json({ error: "id обязателен." }, { status: 400 });
@@ -70,9 +74,11 @@ export async function PATCH(req: Request) {
     .from("managers")
     .update(updates)
     .eq("id", body.id)
+    .eq("company_id", ctx.auth!.company.id)
     .select("id, name, is_active, sort_order, telegram_id")
-    .single();
+    .maybeSingle();
 
   if (error) return Response.json({ error: nameError(error) }, { status: 400 });
+  if (!data) return Response.json({ error: "Менеджер не найден." }, { status: 404 });
   return Response.json({ data });
 }

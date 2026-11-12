@@ -1,5 +1,13 @@
-import { extractPhone, isLeadComplete, sanitizeLeadFields, type ExtractedLeadFields } from "./lead-extraction";
-import { extractLeadFieldsWithGemini } from "./gemini";
+import {
+  extractPhone,
+  isGenericLeadComplete,
+  isLeadComplete,
+  sanitizeGenericLead,
+  sanitizeLeadFields,
+  type ExtractedLeadFields,
+} from "./lead-extraction";
+import { extractGenericLeadWithGemini, extractLeadFieldsWithGemini } from "./gemini";
+import type { AuthCompany } from "./auth";
 import { notifyNewLead } from "./lead-notify";
 import { assignNextManager } from "./managers";
 
@@ -88,11 +96,37 @@ async function extractFields(lines: Line[]): Promise<ExtractedLeadFields | null>
 }
 
 /**
+ * Заявка в едином виде для обоих типов компаний:
+ *   cargo   (Radius) — маршрут, вес, груз, телефон;
+ *   generic (все остальные) — что хочет клиент и телефон.
+ */
+type Extracted = { complete: boolean; phone?: string; data: Record<string, string | undefined> };
+
+async function extract(lines: Line[], company: AuthCompany): Promise<Extracted | null> {
+  if (company.lead_kind === "cargo") {
+    const f = await extractFields(lines);
+    if (!f) return null;
+    return {
+      complete: isLeadComplete(f),
+      phone: f.phone,
+      data: { origin_city: f.origin_city, destination_city: f.destination_city, weight: f.weight, cargo_type: f.cargo_type },
+    };
+  }
+  const conversation = lines.map((l) => `${l.who}: ${l.text}`).join("\n");
+  const clientText = lines.filter((l) => l.who === "Клиент").map((l) => l.text).join("\n");
+  const ai = await extractGenericLeadWithGemini(conversation, company.name);
+  if (!ai) return null;
+  const f = sanitizeGenericLead({ ...ai, phone: ai.phone ?? extractPhone(clientText) });
+  return { complete: isGenericLeadComplete(f), phone: f.phone, data: { request: f.request } };
+}
+
+/**
  * Заявки диалога. В одном чате клиент может оставить несколько заявок, поэтому:
  *  - заявки ещё нет — анализируем историю, полный набор данных → новая заявка + уведомление;
  *  - заявка уже есть — анализируем ТОЛЬКО сообщения после неё (иначе регулярки
  *    цепляют старые данные со дна чата). Снова полный набор → НОВАЯ заявка +
  *    уведомление; только уточнения → дописываем пустые поля текущей заявки.
+ * Заявка принадлежит компании Instagram-аккаунта, менеджер — из очереди этой компании.
  */
 export async function maybeCreateOrUpdateLead(
   supabase: any,
@@ -100,8 +134,13 @@ export async function maybeCreateOrUpdateLead(
   clientName: string,
   history: { role: string; text: string }[],
   latestReply: string,
+  company: AuthCompany | null,
   attempt = 1
 ) {
+  if (!company) {
+    console.warn(`[Lead Extraction] session ${sessionId.slice(0, 8)}: аккаунт не привязан к компании — заявка не создаётся`);
+    return;
+  }
   try {
     const { data: lastLeads, error: selectError } = await supabase
       .from("leads")
@@ -127,12 +166,15 @@ export async function maybeCreateOrUpdateLead(
     }
     if (lines[lines.length - 1]?.text !== latestReply) lines.push({ who: "Бот", text: latestReply });
 
-    const fields = await extractFields(lines);
+    const fields = await extract(lines, company);
     if (!fields) {
       // Gemini не ответил, а бот клиенту уже ответил: заявку нельзя потерять, пробуем позже.
       if (attempt < LEAD_RETRY_ATTEMPTS) {
         console.warn(`[Lead Extraction] session ${sessionId.slice(0, 8)}: Gemini не ответил, попытка ${attempt}, повтор через минуту`);
-        setTimeout(() => void maybeCreateOrUpdateLead(supabase, sessionId, clientName, history, latestReply, attempt + 1), LEAD_RETRY_DELAY_MS).unref();
+        setTimeout(
+          () => void maybeCreateOrUpdateLead(supabase, sessionId, clientName, history, latestReply, company, attempt + 1),
+          LEAD_RETRY_DELAY_MS
+        ).unref();
       } else {
         console.error(`[Lead Extraction] session ${sessionId.slice(0, 8)}: заявка не создана, Gemini не ответил за ${attempt} попыток`);
       }
@@ -140,20 +182,16 @@ export async function maybeCreateOrUpdateLead(
     }
     console.log(`[Lead Extraction] session ${sessionId.slice(0, 8)}: ${lastLead ? "после последней заявки" : "новая"} →`, fields);
 
-    if (isLeadComplete(fields)) {
-      const manager = await assignNextManager(supabase);
+    if (fields.complete) {
+      const manager = await assignNextManager(supabase, company.id);
       const { data: insertedLead, error: insertError } = await supabase
         .from("leads")
         .insert({
           session_id: sessionId,
+          company_id: company.id,
           client_name: clientName,
           client_phone: fields.phone ?? "",
-          collected_data: {
-            origin_city: fields.origin_city,
-            destination_city: fields.destination_city,
-            weight: fields.weight,
-            cargo_type: fields.cargo_type,
-          },
+          collected_data: fields.data,
           status: "new",
           manager_id: manager?.id ?? null,
         })
@@ -166,8 +204,8 @@ export async function maybeCreateOrUpdateLead(
       }
       console.log("[Lead Extraction] Lead created:", insertedLead.id);
 
-      // Получатели и токен бота настраиваются на странице «Настройки» дашборда.
-      await notifyNewLead(insertedLead.id);
+      // Telegram-группа заявок есть только у компаний с подключённым ботом заявок (Radius).
+      if (company.telegram_leads) await notifyNewLead(insertedLead.id);
       return;
     }
 
@@ -175,8 +213,8 @@ export async function maybeCreateOrUpdateLead(
     if (lastLead && (lastLead.status === "new" || lastLead.status === "in_progress")) {
       const current = lastLead.collected_data ?? {};
       const patch: Record<string, string> = {};
-      for (const k of ["origin_city", "destination_city", "weight", "cargo_type"] as const) {
-        if (!current[k] && fields[k]) patch[k] = fields[k] as string;
+      for (const [k, v] of Object.entries(fields.data)) {
+        if (!current[k] && v) patch[k] = v;
       }
       const phone = !lastLead.client_phone && fields.phone ? fields.phone : null;
       if (Object.keys(patch).length || phone) {

@@ -39,6 +39,8 @@ import * as webhooksInstagramAccount from "./routes/webhooks-instagram-account";
  * `(req: Request, { params, auth }) => Response`, их подключает mount().
  *
  * Доступ: все /api/* требуют входа (куки dexa_u), кроме вебхуков, health и шагов входа.
+ * Данные разделены по компаниям: каждый хендлер читает и пишет только данные auth.company.id
+ * (см. lib/tenant.ts). Компания на пробном периоде работает полностью, после его конца — только кабинет.
  * Руководитель (owner) может всё; супер-админ (admin) — все заявки, их переписку и статистику;
  * менеджер — только свои заявки, их переписку и показатели.
  */
@@ -95,12 +97,16 @@ app.use("/api/*", async (c, next) => {
   }
   const user = await sessionUser(c.req.raw);
   if (!user) return c.json({ error: "Войдите в аккаунт.", code: "unauthorized" }, 401);
-  // Компания зарегистрировалась сама и ещё не подключена: только её кабинет, к данным платформы доступа нет.
-  if (user.company.status === "pending" && !path.startsWith("/api/cabinet")) {
-    return c.json({ error: "Платформа ещё не подключена для вашей компании.", code: "not_connected" }, 403);
+  // Пробный период закончился: остаётся только кабинет компании (анкета и заявка на подключение).
+  if (user.company.status === "expired" && !path.startsWith("/api/cabinet")) {
+    return c.json({ error: "Пробный период закончился.", code: "trial_ended" }, 403);
   }
-  if (user.company.status !== "pending" && path.startsWith("/api/cabinet")) {
-    return c.json({ error: "Кабинет нужен только до подключения.", code: "forbidden" }, 403);
+  if (user.company.status === "active" && path.startsWith("/api/cabinet")) {
+    return c.json({ error: "Кабинет нужен только на пробном периоде.", code: "forbidden" }, 403);
+  }
+  // Бот заявок с Telegram-группой — отдельная услуга (пока только у Radius).
+  if (path.startsWith("/api/settings/lead-notifications") && !user.company.telegram_leads) {
+    return c.json({ error: "Уведомления о заявках в Telegram подключаются отдельно.", code: "not_available" }, 403);
   }
   if (!allowed(user.role, c.req.method, path)) {
     return c.json({ error: "Это доступно только руководителю.", code: "forbidden" }, 403);

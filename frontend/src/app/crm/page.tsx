@@ -1,5 +1,6 @@
 "use client";
 
+import { isGenericLead, LeadRequest } from "@/components/lead-request";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Check,
@@ -111,22 +112,28 @@ function LeadRow({
           </p>
         </div>
 
-        <div className="grid min-w-0 flex-1 grid-cols-1 gap-1 text-sm text-slate-600 sm:grid-cols-[1.5fr_0.8fr_1fr] sm:gap-3">
-          <p className="flex min-w-0 items-center gap-2">
-            <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-            <span className="truncate">
-              {d?.origin_city ?? "—"} → {d?.destination_city ?? "—"}
-            </span>
-          </p>
-          <p className="flex min-w-0 items-center gap-2">
-            <Weight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-            <span className="truncate">{d?.weight ?? tr("вес не указан")}</span>
-          </p>
-          <p className="flex min-w-0 items-center gap-2">
-            <Package className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-            <span className="truncate">{d?.cargo_type ?? tr("груз не указан")}</span>
-          </p>
-        </div>
+        {isGenericLead(d) ? (
+          <div className="min-w-0 flex-1 text-sm text-slate-600">
+            <LeadRequest d={d} />
+          </div>
+        ) : (
+          <div className="grid min-w-0 flex-1 grid-cols-1 gap-1 text-sm text-slate-600 sm:grid-cols-[1.5fr_0.8fr_1fr] sm:gap-3">
+            <p className="flex min-w-0 items-center gap-2">
+              <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+              <span className="truncate">
+                {d?.origin_city ?? "—"} → {d?.destination_city ?? "—"}
+              </span>
+            </p>
+            <p className="flex min-w-0 items-center gap-2">
+              <Weight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+              <span className="truncate">{d?.weight ?? tr("вес не указан")}</span>
+            </p>
+            <p className="flex min-w-0 items-center gap-2">
+              <Package className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+              <span className="truncate">{d?.cargo_type ?? tr("груз не указан")}</span>
+            </p>
+          </div>
+        )}
 
         <div className="flex flex-wrap items-center gap-2 lg:flex-nowrap lg:justify-end">
           {lead.session_id && (
@@ -248,7 +255,7 @@ export default function CrmPage() {
       .filter((l) => {
         if (!q) return true;
         const d = l.collected_data ?? {};
-        return [l.client_name, l.client_phone, d.origin_city, d.destination_city, d.cargo_type, d.weight]
+        return [l.client_name, l.client_phone, d.origin_city, d.destination_city, d.cargo_type, d.weight, d.request]
           .filter(Boolean)
           .some((v) => String(v).toLowerCase().includes(q));
       })

@@ -1,6 +1,7 @@
 import { AccountProvider } from "@/components/account-switcher";
 import { CurrentUserProvider } from "@/components/current-user";
 import { MobileNav, Sidebar } from "@/components/sidebar";
+import { TrialBanner } from "@/components/trial-banner";
 
 export default function DashboardLayout({
   children,
@@ -14,6 +15,7 @@ export default function DashboardLayout({
         <Sidebar />
         <div className="flex min-w-0 flex-1 flex-col">
           <MobileNav />
+          <TrialBanner />
           <main className="flex-1">
             <div className="mx-auto max-w-6xl px-4 py-5 md:px-8 md:py-8">{children}</div>
           </main>

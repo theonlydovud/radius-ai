@@ -191,7 +191,7 @@ export function LandingContent() {
               </a>
             </div>
             <ul className="mt-10 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-500" data-reveal style={delay(320)}>
-              {["Ответ 24/7", "Заявки без мусора", "Очередь менеджеров", "Работает с телефона"].map((x) => (
+              {["14 дней бесплатно", "Ответ 24/7", "Заявки без мусора", "Очередь менеджеров", "Работает с телефона"].map((x) => (
                 <li key={x} className="flex items-center gap-2">
                   <span className="h-1 w-1 rounded-full bg-brand" />
                   {t(x)}

@@ -9,7 +9,8 @@
 export async function validateKnowledgeSource(
   supabase: any,
   accountId: string | null,
-  sourceId: string | null
+  sourceId: string | null,
+  companyId: string
 ): Promise<string | null> {
   if (!sourceId) return null;
   if (sourceId === accountId) return "Аккаунт не может брать знания сам у себя.";
@@ -18,6 +19,7 @@ export async function validateKnowledgeSource(
     .from("accounts")
     .select("id, knowledge_source_id")
     .eq("id", sourceId)
+    .eq("company_id", companyId)
     .maybeSingle();
   if (!source) return "Агент не найден.";
   if (source.knowledge_source_id) return "Выбранный аккаунт сам использует чужие знания — выберите основной.";

@@ -21,9 +21,25 @@ export const USER_COOKIE = "dexa_u";
 const YEAR_S = 365 * 24 * 60 * 60;
 
 export type Role = "owner" | "manager" | "admin";
-/** active — платформа работает; pending — зарегистрировались сами, доступен только кабинет. */
-export type CompanyStatus = "active" | "pending";
-export type AuthCompany = { id: string; name: string; status: CompanyStatus };
+/**
+ * active  — платная, работает без ограничений;
+ * trial   — зарегистрировались сами: всё открыто 14 дней (TRIAL_DAYS);
+ * expired — пробный период закончился: доступен только кабинет.
+ */
+export type CompanyStatus = "active" | "trial" | "expired";
+export type LeadKind = "cargo" | "generic";
+export type AuthCompany = {
+  id: string;
+  name: string;
+  status: CompanyStatus;
+  trial_ends_at: string | null;
+  /** Поддомен (radius → radius.dexa.uz). Нет — компания работает на dexa.uz. */
+  subdomain: string | null;
+  lead_kind: LeadKind;
+  /** Уведомления о заявках в свою Telegram-группу (бот заявок). */
+  telegram_leads: boolean;
+};
+export const TRIAL_DAYS = 14;
 export type AuthUser = { id: string; name: string; role: Role; manager_id: string | null; company: AuthCompany };
 
 // ---------------------------------------------------------------------
@@ -157,7 +173,18 @@ export function clearCookie(name: string, req: Request): string[] {
 // Кто пришёл
 // ---------------------------------------------------------------------
 
-type CompanyRow = { id: string; name: string; login: string | null; password_hash: string | null; status?: CompanyStatus | null };
+type CompanyRow = {
+  id: string;
+  name: string;
+  login: string | null;
+  password_hash: string | null;
+  status?: string | null;
+  created_at?: string | null;
+  trial_ends_at?: string | null;
+  subdomain?: string | null;
+  lead_kind?: string | null;
+  telegram_leads?: boolean | null;
+};
 type UserRow = {
   id: string;
   company_id: string;
@@ -234,8 +261,26 @@ export async function sessionUser(req: Request): Promise<AuthUser | null> {
   };
 }
 
-function publicCompany(c: CompanyRow): AuthCompany {
-  return { id: c.id, name: c.name, status: c.status === "pending" ? "pending" : "active" };
+/** Конец пробного периода: из базы, а у старых записей без даты — от регистрации. */
+function trialEnd(c: CompanyRow) {
+  if (c.trial_ends_at) return c.trial_ends_at;
+  const start = Date.parse(c.created_at ?? "") || Date.now();
+  return new Date(start + TRIAL_DAYS * 86_400_000).toISOString();
+}
+
+export function publicCompany(c: CompanyRow): AuthCompany {
+  // До migration-multitenant.sql статуса trial нет: самостоятельная регистрация — pending.
+  const trial = c.status === "trial" || c.status === "pending";
+  const ends = trial ? trialEnd(c) : null;
+  return {
+    id: c.id,
+    name: c.name,
+    status: !trial ? "active" : Date.parse(ends!) > Date.now() ? "trial" : "expired",
+    trial_ends_at: ends,
+    subdomain: c.subdomain ?? null,
+    lead_kind: c.lead_kind === "cargo" ? "cargo" : "generic",
+    telegram_leads: c.telegram_leads === true,
+  };
 }
 
 /** Люди компании для экрана «Выберите менеджера». */
@@ -307,4 +352,11 @@ export function recordFailure(key: string) {
 
 export function clearFailures(key: string) {
   failures.delete(key);
+}
+
+/** Компания с вычисленным статусом пробного периода (кэш 30 с) — для вебхуков и фоновых задач. */
+export async function companyInfo(id: string | null | undefined): Promise<AuthCompany | null> {
+  if (!id) return null;
+  const c = await companyById(id);
+  return c ? publicCompany(c) : null;
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { isGenericLead, LeadRequest } from "@/components/lead-request";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BellRing, MapPin, Package, UserRound, Volume2, VolumeX } from "lucide-react";
 import { t } from "@/lib/i18n";
@@ -134,10 +135,14 @@ export function NewLeadAlert({ lead, onDone }: { lead: Lead | null; onDone: () =
         </div>
         <div className="space-y-2 px-5 py-4">
           <p className="text-xl font-semibold text-slate-900">{lead.client_name}</p>
-          <p className="flex items-center gap-2 text-base text-slate-700">
-            <MapPin className="h-4 w-4 text-slate-400" />
-            {d.origin_city ?? "—"} → {d.destination_city ?? "—"}
-          </p>
+          {isGenericLead(d) ? (
+            <LeadRequest d={d} className="text-base text-slate-700" iconClassName="h-4 w-4" />
+          ) : (
+            <p className="flex items-center gap-2 text-base text-slate-700">
+              <MapPin className="h-4 w-4 text-slate-400" />
+              {d.origin_city ?? "—"} → {d.destination_city ?? "—"}
+            </p>
+          )}
           {(d.weight || d.cargo_type) && (
             <p className="flex items-center gap-2 text-sm text-slate-600">
               <Package className="h-4 w-4 text-slate-400" />

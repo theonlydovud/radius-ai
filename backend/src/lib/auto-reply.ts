@@ -2,6 +2,7 @@ import { createAdminClient } from "./supabase/server";
 import { buildSystemInstruction, GeminiRateLimitError, sendToGemini } from "./gemini";
 import { getHistory, getOrCreateSession, maybeCreateOrUpdateLead } from "./conversation";
 import { splitPending } from "./burst";
+import { accountCompany, aiAllowed } from "./tenant";
 
 /**
  * Ответ бота в Instagram: один ответ на все сообщения
@@ -39,6 +40,13 @@ export async function replyToPending(options: {
   const session = await getOrCreateSession(supabase, accountId, clientId, clientName);
   if (!session || session.status === "manager_takeover") return;
 
+  // Пробный период компании закончился — бот молчит, сообщения клиента остаются в истории.
+  const company = await accountCompany(accountId);
+  if (!aiAllowed(company)) {
+    console.log(`${tag} пробный период компании «${company?.name}» закончился — ИИ не отвечает`);
+    return;
+  }
+
   const { before, pending } = splitPending(await getHistory(supabase, session.id));
   if (!pending) return; // уже ответили (например, менеджер)
 
@@ -62,6 +70,6 @@ export async function replyToPending(options: {
 
   await supabase.from("messages").insert({ session_id: session.id, sender: "ai", text: reply });
   if (reply !== BUSY_REPLY) {
-    await maybeCreateOrUpdateLead(supabase, session.id, session.client_name, [...before, { role: "user", text: pending }], reply);
+    await maybeCreateOrUpdateLead(supabase, session.id, session.client_name, [...before, { role: "user", text: pending }], reply, company);
   }
 }

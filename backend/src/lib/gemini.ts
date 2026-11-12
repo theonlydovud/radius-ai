@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI, SchemaType, type ResponseSchema } from "@google/generative-ai";
 import { createAdminClient } from "./supabase/server";
 import type { KnowledgeItem, SandboxChatMessage, SystemRule } from "../types";
+import { replyLanguageRule, withLanguageHint } from "./language";
 
 export const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
 
@@ -30,7 +31,7 @@ const BASE_SYSTEM_INSTRUCTION = `Ты — AI-консультант компан
 
 КРИТИЧЕСКИЕ ПРАВИЛА КОНТЕКСТА И ЯЗЫКА:
 - ВСЕГДА анализируй всю историю переписки. Помни всё, что клиент уже сообщил ранее. Никогда не запрашивай повторно данные, которые уже были озвучены.
-- Клиент может писать на русском, узбекском (латиница/кириллица) или смешанном языке.
+- Клиент может писать на любом языке: русском, узбекском (латиница/кириллица), английском или смешанном. Отвечай на его языке.
 - Понимай узбекские падежные окончания: "-дан" / "-dan" означает «из» ("мумбайдан" = из Мумбаи), "-га" / "-ga" / "-ка" / "-ka" означает «в» ("тошкенга" = в Ташкент). Не придумывай того, о чём клиент не писал.
 - Веди диалог поэтапно, коротко и дружелюбно.
 - Точную цену самостоятельно не называй, если в правилах ниже прямо не сказано иначе.`;
@@ -312,7 +313,11 @@ export async function sendToGemini(
   history: SandboxChatMessage[],
   message: string
 ) {
-  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL, systemInstruction }, { timeout: REQUEST_TIMEOUT_MS });
+  // Язык ответа = язык клиента: правило в самом конце, чтобы перекрыть правила аккаунта.
+  const instruction = `${systemInstruction}
+
+${replyLanguageRule(message, history)}`;
+  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL, systemInstruction: instruction }, { timeout: REQUEST_TIMEOUT_MS });
   const chatHistory = normalizeHistory(history).map((m) => ({
     role: m.role,
     parts: [{ text: m.text }],
@@ -327,7 +332,7 @@ export async function sendToGemini(
       },
     });
 
-    const result = await chat.sendMessage(message);
+    const result = await chat.sendMessage(withLanguageHint(message, history));
     return result.response.text();
   });
 }
@@ -399,6 +404,60 @@ ${conversation}
     });
   } catch (err: any) {
     console.error("[Gemini Lead Extraction] Error:", err?.message);
+    return null;
+  }
+}
+
+const GENERIC_LEAD_SCHEMA: ResponseSchema = {
+  type: SchemaType.OBJECT,
+  properties: {
+    is_lead: { type: SchemaType.BOOLEAN },
+    request: nullableText,
+    phone: nullableText,
+  },
+  required: ["is_lead", "request", "phone"],
+};
+
+/**
+ * Заявка для компании не из логистики (companies.lead_kind = generic): что хочет клиент и телефон.
+ * Отрасль любая — магазин, школа, клиника, услуги. null — модель не ответила.
+ */
+export async function extractGenericLeadWithGemini(conversation: string, companyName: string): Promise<Record<string, unknown> | null> {
+  const model = genAI.getGenerativeModel(
+    {
+      model: GEMINI_MODEL,
+      generationConfig: { responseMimeType: "application/json", responseSchema: GENERIC_LEAD_SCHEMA, temperature: 0 },
+    },
+    { timeout: REQUEST_TIMEOUT_MS }
+  );
+
+  const prompt = `Ты извлекаешь заявку из переписки клиента с ботом компании «${companyName}» в Instagram Direct.
+Строки «Клиент:» — сообщения клиента, «Бот:» — ответы бота, «Менеджер:» — ответы сотрудника.
+Факты бери из сообщений клиента. Если бот подытожил запрос, а клиент не возразил — это подтверждено клиентом.
+
+Переписка:
+${conversation}
+
+Верни JSON:
+{ "is_lead": true или false, "request": "..." или null, "phone": "..." или null }
+
+ПРАВИЛА:
+- is_lead = true, только если клиент действительно хочет купить, заказать, записаться, получить услугу или консультацию менеджера.
+  Приветствие, шутка, спам, вопрос не по теме — false.
+- request — коротко по-русски, что именно хочет клиент, с важными деталями, которые он назвал
+  (товар/услуга, количество, размер, дата, адрес, бюджет). Например: «Курс PRO по логистике, хочет учиться по вечерам»,
+  «Диван угловой серый, доставка в Чиланзар». Общие слова без конкретики («хочу узнать», «интересно») — null.
+- phone — номер телефона клиента, как он его написал. Нет номера — null.
+- Ничего не придумывай. Не сказал явно — null.`;
+
+  try {
+    return await withRetry(async () => {
+      const result = await model.generateContent(prompt);
+      const raw = result.response.text();
+      return JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1));
+    });
+  } catch (err: any) {
+    console.error("[Gemini Generic Lead] Error:", err?.message);
     return null;
   }
 }

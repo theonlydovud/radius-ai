@@ -16,9 +16,10 @@ export async function PATCH(req: Request, { params, auth }: RouteContext) {
   const supabase = createAdminClient();
   const body = await req.json();
   const updates: Record<string, unknown> = {};
+  const company = auth!.company.id;
 
   if (auth?.role === "manager") {
-    const { data: own } = await supabase.from("leads").select("manager_id").eq("id", params.id).maybeSingle();
+    const { data: own } = await supabase.from("leads").select("manager_id").eq("id", params.id).eq("company_id", company).maybeSingle();
     if (!own || !auth.manager_id || own.manager_id !== auth.manager_id) {
       return Response.json({ error: "Это не ваша заявка." }, { status: 403 });
     }
@@ -30,7 +31,7 @@ export async function PATCH(req: Request, { params, auth }: RouteContext) {
 
   if (body.manager_id !== undefined) {
     if (body.manager_id !== null) {
-      const { data: manager } = await supabase.from("managers").select("id").eq("id", body.manager_id).maybeSingle();
+      const { data: manager } = await supabase.from("managers").select("id").eq("id", body.manager_id).eq("company_id", company).maybeSingle();
       if (!manager) return Response.json({ error: "Менеджер не найден." }, { status: 400 });
     }
     updates.manager_id = body.manager_id;
@@ -62,9 +63,9 @@ export async function PATCH(req: Request, { params, auth }: RouteContext) {
     return Response.json({ error: "Нечего менять." }, { status: 400 });
   }
 
-  const { data: updated, error } = await supabase.from("leads").update(updates).eq("id", params.id).select("id").maybeSingle();
+  const { data: updated, error } = await supabase.from("leads").update(updates).eq("id", params.id).eq("company_id", company).select("id").maybeSingle();
   if (error) return Response.json({ error: error.message }, { status: 500 });
   if (!updated) return Response.json({ error: "Заявка не найдена." }, { status: 404 });
 
-  return Response.json({ data: await fetchLead(supabase, params.id) });
+  return Response.json({ data: await fetchLead(supabase, params.id, company) });
 }

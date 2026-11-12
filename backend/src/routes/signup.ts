@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
-import { clientIp, COMPANY_COOKIE, companyToken, setCookie, USER_COOKIE, userToken } from "../lib/auth";
+import { clientIp, COMPANY_COOKIE, companyToken, setCookie, USER_COOKIE, userToken, publicCompany } from "../lib/auth";
 import { consumeSignup, createSignup, dexaBotSecret, dexaBotToken, handleDexaBotUpdate, signupStatus } from "../lib/dexa-bot";
 
 /**
@@ -59,8 +59,9 @@ export const complete = {
     const result = await consumeSignup(body.nonce);
     if (!result) return json({ error: "Ссылка устарела. Попробуйте ещё раз." }, 410);
     const { user, company, isNew } = result;
-    const next = company.status === "pending" ? "/cabinet" : user.role === "owner" ? "/leads" : user.role === "admin" ? "/admin" : "/crm";
-    return json({ data: { next, is_new: isNew, workspace: company.status !== "pending" } }, 200, [
+    const info = publicCompany(company);
+    const next = info.status === "expired" ? "/cabinet" : user.role === "owner" ? "/leads" : user.role === "admin" ? "/admin" : "/crm";
+    return json({ data: { next, is_new: isNew, company: info } }, 200, [
       setCookie(COMPANY_COOKIE, companyToken(company), req),
       setCookie(USER_COOKIE, userToken(user), req),
     ]);

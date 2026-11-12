@@ -164,7 +164,7 @@ async function runTool(name: string, args: Record<string, any>, ctx: Ctx): Promi
     if (!isDay(args.from) || !isDay(args.to)) return { error: "Нужны даты from и to в формате YYYY-MM-DD." };
     const m = args.manager ? findManager(ctx, args.manager) : undefined;
     if (args.manager && !m) return { error: `Менеджер «${args.manager}» не найден.` };
-    const leads = await fetchLeads(supabase, { from: dayStart(args.from), to: dayEnd(args.to), manager: m?.id, account: ctx.accountId ?? undefined });
+    const leads = await fetchLeads(supabase, { company: ctx.auth.company.id, from: dayStart(args.from), to: dayEnd(args.to), manager: m?.id, account: ctx.accountId ?? undefined });
     const stats = buildLeadStats(leads, m ? [m] : ctx.managers, { from: dayStart(args.from), to: dayEnd(args.to), timeZone: TZ });
     ctx.actions.push({ type: "stats", from: args.from, to: args.to, manager: m?.name ?? null, stats });
     return { period: `${args.from} — ${args.to}`, totals: stats.totals, managers: stats.managers, reasons: stats.reasons.filter((r: any) => r.count), routes: stats.routes.slice(0, 5) };
@@ -182,6 +182,7 @@ async function runTool(name: string, args: Record<string, any>, ctx: Ctx): Promi
       }
     }
     let leads = await fetchLeads(supabase, {
+      company: ctx.auth.company.id,
       group: status,
       manager,
       from: isDay(args.from) ? dayStart(args.from) : undefined,
@@ -203,10 +204,10 @@ async function runTool(name: string, args: Record<string, any>, ctx: Ctx): Promi
 
   if (name === "update_lead") {
     let lead: any = null;
-    if (args.lead_id) lead = await fetchLead(supabase, String(args.lead_id)).catch(() => null);
+    if (args.lead_id) lead = await fetchLead(supabase, String(args.lead_id), ctx.auth.company.id).catch(() => null);
     if (!lead && args.find) {
       const q = String(args.find).trim().toLowerCase();
-      const all = await fetchLeads(supabase, { account: ctx.accountId ?? undefined });
+      const all = await fetchLeads(supabase, { company: ctx.auth.company.id, account: ctx.accountId ?? undefined });
       const hits = all.filter((l: any) => {
         const d = l.collected_data ?? {};
         return [l.client_name, l.client_phone, d.origin_city, d.destination_city].filter(Boolean).some((v) => String(v).toLowerCase().includes(q));
@@ -234,9 +235,9 @@ async function runTool(name: string, args: Record<string, any>, ctx: Ctx): Promi
     }
     if (!Object.keys(updates).length) return { error: "Не понял, что изменить в заявке." };
 
-    const { error } = await supabase.from("leads").update(updates).eq("id", lead.id);
+    const { error } = await supabase.from("leads").update(updates).eq("id", lead.id).eq("company_id", ctx.auth.company.id);
     if (error) return { error: error.message };
-    const fresh = await fetchLead(supabase, lead.id);
+    const fresh = await fetchLead(supabase, lead.id, ctx.auth.company.id);
     ctx.actions.push({ type: "lead", verb: "updated", lead: fresh });
     return { updated: brief(fresh) };
   }
@@ -250,12 +251,12 @@ async function runTool(name: string, args: Record<string, any>, ctx: Ctx): Promi
 
 export async function runAssistant(auth: AuthUser, history: AssistantMessage[], message: string, accountId: string | null) {
   const supabase = createAdminClient();
-  const { data: managers } = await supabase.from("managers").select("id, name, is_active").order("sort_order", { ascending: true });
+  const { data: managers } = await supabase.from("managers").select("id, name, is_active").eq("company_id", auth.company.id).order("sort_order", { ascending: true });
   const ctx: Ctx = { auth, accountId, managers: (managers ?? []) as Ctx["managers"], actions: [] };
 
   let accountLine = "Все Instagram-аккаунты компании.";
   if (accountId) {
-    const { data: acc } = await supabase.from("accounts").select("account_name").eq("id", accountId).maybeSingle();
+    const { data: acc } = await supabase.from("accounts").select("account_name").eq("id", accountId).eq("company_id", auth.company.id).maybeSingle();
     if (acc) accountLine = `Выбран аккаунт ${acc.account_name}: заявки и статистика — только по нему, новые заявки создаются в нём.`;
   }
 

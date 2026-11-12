@@ -84,3 +84,29 @@ export function isLeadComplete(fields: ExtractedLeadFields) {
       fields.phone
   );
 }
+
+// ---------------------------------------------------------------------
+// Заявка «что хочет клиент» — для компаний не из логистики (lead_kind = generic)
+// ---------------------------------------------------------------------
+
+export interface GenericLeadFields {
+  is_lead?: boolean;
+  /** Что хочет клиент, коротко по-русски. */
+  request?: string;
+  phone?: string;
+}
+
+export function sanitizeGenericLead(raw: Partial<Record<keyof GenericLeadFields, unknown>>): GenericLeadFields {
+  const request = clean(raw.request);
+  const phoneRaw = clean(raw.phone);
+  const digits = phoneRaw?.replace(/\D/g, "") ?? "";
+  return {
+    is_lead: raw.is_lead === true,
+    request: request && request.length >= 3 ? request.slice(0, 300) : undefined,
+    phone: digits.length >= 7 && digits.length <= 15 ? phoneRaw : undefined,
+  };
+}
+
+export function isGenericLeadComplete(fields: GenericLeadFields) {
+  return Boolean(fields.is_lead && fields.request && fields.phone);
+}

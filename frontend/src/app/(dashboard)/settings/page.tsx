@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { ManagersCard } from "@/components/managers-card";
+import { useCurrentUser } from "@/components/current-user";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
 
@@ -27,7 +28,33 @@ type Notice = { ok: boolean; text: string } | null;
 
 const API = "/api/settings/lead-notifications";
 
+/** Telegram-группа заявок — отдельная услуга (бот заявок); без неё в настройках только менеджеры. */
 export default function SettingsPage() {
+  const { company } = useCurrentUser();
+  if (company.telegram_leads) return <TelegramSettingsPage />;
+  return (
+    <div>
+      <div className="mb-6">
+        <h1 className="text-lg font-semibold text-slate-900">{t("Настройки")}</h1>
+        <p className="mt-1 text-sm text-slate-500">{t("Менеджеры и очередь заявок.")}</p>
+      </div>
+      <Card className="max-w-2xl">
+        <CardHeader className="flex-row items-center gap-3 space-y-0">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-soft">
+            <Bell className="h-4 w-4 text-brand" />
+          </div>
+          <div>
+            <CardTitle>{t("Заявки в Telegram")}</CardTitle>
+            <p className="text-xs text-slate-400">{t("Уведомления о новых заявках в вашу Telegram-группу подключаются вместе с постоянным тарифом.")}</p>
+          </div>
+        </CardHeader>
+      </Card>
+      <ManagersCard />
+    </div>
+  );
+}
+
+function TelegramSettingsPage() {
   const [settings, setSettings] = useState<LeadNotifySettings | null>(null);
   const [enabled, setEnabled] = useState(true);
   const [chatIds, setChatIds] = useState<string[]>([]);

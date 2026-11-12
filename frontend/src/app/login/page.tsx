@@ -8,7 +8,7 @@ import { PasswordInput } from "@/components/password-input";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { fetchSession, homeFor, isPending, safeNext } from "@/components/current-user";
+import { fetchSession, homeFor, isExpired, safeNext } from "@/components/current-user";
 import { TelegramAuthButton } from "@/components/telegram-auth";
 import Link from "next/link";
 import { goToWorkspace } from "@/lib/workspace";
@@ -27,9 +27,9 @@ function LoginForm() {
     fetchSession()
       .then((s) => {
         // Уже вошли — сразу в рабочее место (на сайте продукта это другой адрес).
-        if (s.user && isPending(s.company)) router.replace("/cabinet");
-        else if (s.user) goToWorkspace(next ?? homeFor(s.user.role), router, true);
-        else if (s.company) goToWorkspace(`/select${next ? `?next=${encodeURIComponent(next)}` : ""}`, router, true);
+        if (s.user && isExpired(s.company)) goToWorkspace("/cabinet", router, s.company, true);
+        else if (s.user) goToWorkspace(next ?? homeFor(s.user.role), router, s.company, true);
+        else if (s.company) goToWorkspace(`/select${next ? `?next=${encodeURIComponent(next)}` : ""}`, router, s.company, true);
       })
       .catch(() => {});
   }, [router, next]);
@@ -52,8 +52,10 @@ function LoginForm() {
       }
       const step = json.data?.next;
       // Только после правильных логина и пароля — переход в рабочее место компании.
-      if (step === "select") goToWorkspace(`/select${next ? `?next=${encodeURIComponent(next)}` : ""}`, router);
-      else goToWorkspace(next ?? homeFor(step), router);
+      // Адрес компании (поддомен) знает сессия — она уже открыта этим входом.
+      const company = (await fetchSession().catch(() => null))?.company;
+      if (step === "select") goToWorkspace(`/select${next ? `?next=${encodeURIComponent(next)}` : ""}`, router, company);
+      else goToWorkspace(isExpired(company ?? null) ? "/cabinet" : next ?? homeFor(step), router, company);
     } catch {
       setError(t("Сервер недоступен. Проверьте интернет и попробуйте ещё раз."));
     } finally {

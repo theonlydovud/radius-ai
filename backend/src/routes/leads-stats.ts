@@ -27,9 +27,10 @@ export async function GET(req: Request, ctx?: RouteContext) {
   // Менеджер видит показатели только по своим заявкам.
   const own = ownManagerFilter(ctx?.auth);
   try {
-    let managersQuery = supabase.from("managers").select("id, name, is_active").order("sort_order", { ascending: true });
+    const company = ctx!.auth!.company.id;
+    let managersQuery = supabase.from("managers").select("id, name, is_active").eq("company_id", company).order("sort_order", { ascending: true });
     if (own) managersQuery = managersQuery.eq("id", own);
-    const [leads, managers] = await Promise.all([fetchLeads(supabase, { from, to, manager: own, account: searchParams.get("account") || undefined }), managersQuery]);
+    const [leads, managers] = await Promise.all([fetchLeads(supabase, { company, from, to, manager: own, account: searchParams.get("account") || undefined }), managersQuery]);
     if (managers.error) throw new Error(managers.error.message);
 
     return Response.json({

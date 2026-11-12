@@ -6,6 +6,7 @@ import { Loader2 } from "lucide-react";
 import { DexaMark } from "@/components/brand/dexa-logo";
 import type { Manager } from "@/types";
 import { t } from "@/lib/i18n";
+import { workspaceUrl } from "@/lib/workspace";
 
 /**
  * Кто вошёл. Вход проверяет backend (куки dexa_c — компания, dexa_u — человек),
@@ -16,18 +17,34 @@ import { t } from "@/lib/i18n";
  */
 
 export type Role = "owner" | "manager" | "admin";
-export type CompanyStatus = "active" | "pending";
+/** active — платная; trial — пробный период (всё открыто); expired — пробный закончился, только кабинет. */
+export type CompanyStatus = "active" | "trial" | "expired";
+export type SessionCompany = {
+  id: string;
+  name: string;
+  status?: CompanyStatus;
+  trial_ends_at?: string | null;
+  subdomain?: string | null;
+  lead_kind?: "cargo" | "generic";
+  telegram_leads?: boolean;
+};
 export type Session = {
-  company: { id: string; name: string; status?: CompanyStatus } | null;
+  company: SessionCompany | null;
   user: { id: string; name: string; role: Role; manager_id: string | null } | null;
   users: { id: string; name: string; role: Role }[];
 };
 
 export const ROLE_LABEL: Record<Role, string> = { get owner() { return t("Руководитель"); }, get manager() { return t("Менеджер"); }, get admin() { return t("Супер-админ"); } };
 
-/** Компания зарегистрировалась сама и ещё не подключена — у неё есть только кабинет. */
-export function isPending(company: Session["company"]) {
-  return company?.status === "pending";
+/** Пробный период закончился — у компании остаётся только кабинет. */
+export function isExpired(company: Session["company"]) {
+  return company?.status === "expired";
+}
+
+/** Сколько дней пробного периода осталось (округление вверх), null — не на пробном. */
+export function trialDaysLeft(company: Session["company"]) {
+  if (company?.status !== "trial" || !company.trial_ends_at) return null;
+  return Math.max(0, Math.ceil((Date.parse(company.trial_ends_at) - Date.now()) / 86_400_000));
 }
 
 export function homeFor(role: Role) {
@@ -59,7 +76,7 @@ export type CurrentUser = { id: string; name: string; role: Role; roleLabel: str
 
 type CurrentUserContextValue = {
   user: CurrentUser;
-  company: { id: string; name: string; status?: CompanyStatus };
+  company: SessionCompany;
   /** Все менеджеры очереди (загружаются для руководителя и супер-админа). */
   managers: Manager[];
   ready: boolean;
@@ -84,7 +101,7 @@ export function FullScreenLoader({ text }: { text?: string }) {
  * Пускает на страницу только нужную роль. Ссылка из Telegram (/leads?lead=…)
  * у менеджера открывается в его CRM с той же заявкой.
  */
-/** role — кто может быть на странице; "cabinet" — кабинет неподключённой компании. */
+/** role — кто может быть на странице; "cabinet" — кабинет компании на пробном периоде. */
 export function CurrentUserProvider({ role, children }: { role: Role | "cabinet"; children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -111,9 +128,12 @@ export function CurrentUserProvider({ role, children }: { role: Role | "cabinet"
         const here = `${pathname}${window.location.search}`;
         if (!s.company) return router.replace(`/login?next=${encodeURIComponent(here)}`);
         if (!s.user) return router.replace(`/select?next=${encodeURIComponent(here)}`);
-        // Неподключённая компания живёт только в кабинете, подключённой кабинет не нужен.
-        if (isPending(s.company) && role !== "cabinet") return router.replace("/cabinet");
-        if (!isPending(s.company) && role === "cabinet") return router.replace(homeFor(s.user.role));
+        // Каждая компания работает на своём адресе: Radius — radius.dexa.uz, остальные — dexa.uz.
+        const own = workspaceUrl(here, s.company);
+        if (own !== here) return window.location.replace(own);
+        // Пробный период закончился — только кабинет; платной компании кабинет не нужен.
+        if (isExpired(s.company) && role !== "cabinet") return router.replace("/cabinet");
+        if (s.company.status === "active" && role === "cabinet") return router.replace(homeFor(s.user.role));
         if (role !== "cabinet" && s.user.role !== role) return router.replace(`${homeFor(s.user.role)}${window.location.search}`);
         setSession(s);
       })

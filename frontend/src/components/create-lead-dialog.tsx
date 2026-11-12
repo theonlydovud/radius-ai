@@ -15,14 +15,16 @@ import { t } from "@/lib/i18n";
 const AUTO = "auto";
 const NONE = "none";
 
-const EMPTY = { client_name: "", client_phone: "", origin_city: "", destination_city: "", weight: "", cargo_type: "", note: "" };
+const EMPTY = { client_name: "", client_phone: "", origin_city: "", destination_city: "", weight: "", cargo_type: "", request: "", note: "" };
 
 /**
  * Кнопка «Новая заявка» и форма. Менеджер создаёт заявку себе (сразу «В работе»),
  * руководитель и супер-админ выбирают ответственного: по очереди, конкретного или никого.
  */
 export function CreateLeadButton({ onCreated, className }: { onCreated: () => void; className?: string }) {
-  const { user, managers } = useCurrentUser();
+  const { user, managers, company } = useCurrentUser();
+  // Логистика (Radius) — маршрут, вес, груз; остальные компании — «что хочет клиент».
+  const cargo = company.lead_kind === "cargo";
   const canAssign = user.role !== "manager";
   const accountId = useAccountId();
   const [open, setOpen] = useState(false);
@@ -91,22 +93,31 @@ export function CreateLeadButton({ onCreated, className }: { onCreated: () => vo
                 <Label htmlFor="cl-phone">{t("Телефон *")}</Label>
                 <Input id="cl-phone" value={form.client_phone} onChange={set("client_phone")} placeholder="+998 90 123 45 67" inputMode="tel" />
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="cl-from">{t("Откуда")}</Label>
-                <Input id="cl-from" value={form.origin_city} onChange={set("origin_city")} placeholder={t("Китай")} />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="cl-to">{t("Куда")}</Label>
-                <Input id="cl-to" value={form.destination_city} onChange={set("destination_city")} placeholder={t("Ташкент")} />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="cl-weight">{t("Вес / объём")}</Label>
-                <Input id="cl-weight" value={form.weight} onChange={set("weight")} placeholder={t("5 т")} />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="cl-cargo">{t("Груз")}</Label>
-                <Input id="cl-cargo" value={form.cargo_type} onChange={set("cargo_type")} placeholder={t("Мебель")} />
-              </div>
+              {cargo ? (
+                <>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="cl-from">{t("Откуда")}</Label>
+                    <Input id="cl-from" value={form.origin_city} onChange={set("origin_city")} placeholder={t("Китай")} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="cl-to">{t("Куда")}</Label>
+                    <Input id="cl-to" value={form.destination_city} onChange={set("destination_city")} placeholder={t("Ташкент")} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="cl-weight">{t("Вес / объём")}</Label>
+                    <Input id="cl-weight" value={form.weight} onChange={set("weight")} placeholder={t("5 т")} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="cl-cargo">{t("Груз")}</Label>
+                    <Input id="cl-cargo" value={form.cargo_type} onChange={set("cargo_type")} placeholder={t("Мебель")} />
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label htmlFor="cl-request">{t("Что хочет клиент")}</Label>
+                  <Input id="cl-request" value={form.request} onChange={set("request")} placeholder={t("Например, курс PRO или диван угловой")} />
+                </div>
+              )}
             </div>
 
             {canAssign && (

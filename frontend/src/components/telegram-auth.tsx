@@ -48,10 +48,9 @@ export function TelegramAuthButton({ label }: { label: string }) {
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error ?? "Ссылка устарела. Попробуйте ещё раз.");
       setPhase("done");
-      const { next, workspace } = json.data;
-      // Кабинет — на сайте продукта; подключённая компания — в своё рабочее место.
-      if (workspace) goToWorkspace(next, router, true);
-      else router.replace(next);
+      const { next, company } = json.data;
+      // Компания с поддоменом — на свой адрес, остальные остаются на dexa.uz.
+      goToWorkspace(next, router, company, true);
     } catch (e: any) {
       finishing.current = false;
       setError(t(e?.message || "Ссылка устарела. Попробуйте ещё раз."));

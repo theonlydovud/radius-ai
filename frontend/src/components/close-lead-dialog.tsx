@@ -76,7 +76,7 @@ export function CloseLeadDialog({
         <DialogHeader>
           <DialogTitle>{mode === "sold" ? t("Продано") : t("Не продано")}</DialogTitle>
           <DialogDescription>
-            {lead.client_name} · {lead.collected_data?.origin_city ?? "—"} → {lead.collected_data?.destination_city ?? "—"}
+            {lead.client_name} · {lead.collected_data?.request ?? `${lead.collected_data?.origin_city ?? "—"} → ${lead.collected_data?.destination_city ?? "—"}`}
           </DialogDescription>
         </DialogHeader>
 

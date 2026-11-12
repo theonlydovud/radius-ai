@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Bell, Building2, Sparkles } from "lucide-react";
 import { AuthShell } from "@/components/auth-shell";
 import { TelegramAuthButton } from "@/components/telegram-auth";
-import { fetchSession, homeFor, isPending } from "@/components/current-user";
+import { fetchSession, homeFor, isExpired } from "@/components/current-user";
 import { t } from "@/lib/i18n";
 import { goToWorkspace } from "@/lib/workspace";
 
@@ -19,8 +19,7 @@ export default function RegisterPage() {
     fetchSession()
       .then((s) => {
         if (!s.user) return;
-        if (isPending(s.company)) router.replace("/cabinet");
-        else goToWorkspace(homeFor(s.user.role), router, true);
+        goToWorkspace(isExpired(s.company) ? "/cabinet" : homeFor(s.user.role), router, s.company, true);
       })
       .catch(() => {});
   }, [router]);
@@ -37,8 +36,8 @@ export default function RegisterPage() {
 
         <ul className="mt-6 space-y-3 text-sm text-slate-600">
           {[
-            { icon: Building2, text: "Личный кабинет компании — сразу после регистрации" },
-            { icon: Sparkles, text: "ИИ-менеджер для Instagram Direct — подключаем после консультации" },
+            { icon: Sparkles, text: "14 дней бесплатно — всё работает без ограничений" },
+            { icon: Building2, text: "ИИ-менеджер для Instagram Direct, заявки, CRM и статистика — сразу после регистрации" },
             { icon: Bell, text: "Новости и полезное от DexaAI — в нашем Telegram-боте" },
           ].map((x) => (
             <li key={x.text} className="flex items-start gap-2.5">

@@ -26,6 +26,7 @@ export async function GET(req: Request, ctx?: RouteContext) {
 
   try {
     const data = await fetchLeads(createAdminClient(), {
+      company: ctx!.auth!.company.id,
       group: status === "all" ? undefined : status,
       manager: ownManagerFilter(ctx?.auth) ?? searchParams.get("manager") ?? undefined,
       account: searchParams.get("account") || undefined,
