@@ -26,7 +26,11 @@ services:
         sync: false
       - key: TELEGRAM_OWNER_CHAT_ID   # необязательно: владелец в личку (дубль и запасной путь)
         sync: false
-      - key: FRONTEND_URL      # https://<проект>.vercel.app — для CORS и OAuth-редиректов
+      - key: FRONTEND_URL      # https://dexa.uz — ссылки из Telegram, OAuth-редиректы, CORS
+        sync: false
+      - key: DEXA_BOT_TOKEN    # бот DexaAI (@BotFather): регистрация и вход в один клик, рассылки
+        sync: false
+      - key: DEXA_ADMIN_CHAT_IDS   # твой Telegram ID (через запятую): уведомления о регистрациях и заявках
         sync: false
       - key: INSTAGRAM_APP_ID
         sync: false
