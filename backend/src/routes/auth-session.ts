@@ -66,7 +66,7 @@ export const login = {
     if (company && (await verifyPassword(password, company.password_hash))) {
       clearFailures(key);
       // Новая компания на устройстве — прежний выбор человека сбрасываем.
-      return json({ data: { next: "select" } }, 200, [setCookie(COMPANY_COOKIE, companyToken(company)), clearCookie(USER_COOKIE)]);
+      return json({ data: { next: "select" } }, 200, [setCookie(COMPANY_COOKIE, companyToken(company), req), ...clearCookie(USER_COOKIE, req)]);
     }
 
     const user = company ? null : await findUserByLogin(loginName);
@@ -75,8 +75,8 @@ export const login = {
       const userCompany = await findCompany(user.company_id);
       if (!userCompany) return json({ error: WRONG }, 401);
       return json({ data: { next: user.role } }, 200, [
-        setCookie(COMPANY_COOKIE, companyToken(userCompany)),
-        setCookie(USER_COOKIE, userToken(user)),
+        setCookie(COMPANY_COOKIE, companyToken(userCompany), req),
+        setCookie(USER_COOKIE, userToken(user), req),
       ]);
     }
 
@@ -106,7 +106,7 @@ export const select = {
       return json({ error: "Неверный пароль." }, 401);
     }
     clearFailures(key);
-    return json({ data: { next: user.role } }, 200, [setCookie(USER_COOKIE, userToken(user))]);
+    return json({ data: { next: user.role } }, 200, [setCookie(USER_COOKIE, userToken(user), req)]);
   },
 };
 
@@ -114,8 +114,8 @@ export const select = {
 export const logout = {
   async POST(req: Request) {
     const body = await readBody(req);
-    const cookies = [clearCookie(USER_COOKIE)];
-    if (body.scope === "all") cookies.push(clearCookie(COMPANY_COOKIE));
+    const cookies = clearCookie(USER_COOKIE, req);
+    if (body.scope === "all") cookies.push(...clearCookie(COMPANY_COOKIE, req));
     return json({ ok: true }, 200, cookies);
   },
 };

@@ -107,12 +107,43 @@ function secureCookies() {
   return /^https:/i.test(process.env.FRONTEND_URL ?? "") || process.env.NODE_ENV === "production";
 }
 
-export function setCookie(name: string, value: string) {
-  return `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${YEAR_S}; HttpOnly; SameSite=Lax${secureCookies() ? "; Secure" : ""}`;
+/**
+ * Общий домен для куки входа. Вход на dexa.uz должен действовать и на radius.dexa.uz
+ * (и других поддоменах компаний), поэтому для запросов с этих адресов кука ставится
+ * на весь домен. Адрес берём из Origin (браузер шлёт его на POST), иначе — из
+ * x-forwarded-host / Referer. Для прочих адресов (vercel.app, localhost) — как раньше.
+ */
+const COOKIE_DOMAIN = (process.env.COOKIE_DOMAIN || "dexa.uz").toLowerCase();
+
+export function cookieDomainFor(req: Request): string | null {
+  for (const header of ["origin", "x-forwarded-host", "referer"]) {
+    const raw = req.headers.get(header);
+    if (!raw) continue;
+    let host = raw;
+    try {
+      host = new URL(raw.includes("://") ? raw : `https://${raw}`).hostname;
+    } catch {
+      continue;
+    }
+    host = host.toLowerCase();
+    return host === COOKIE_DOMAIN || host.endsWith(`.${COOKIE_DOMAIN}`) ? COOKIE_DOMAIN : null;
+  }
+  return null;
 }
 
-export function clearCookie(name: string) {
-  return `${name}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax${secureCookies() ? "; Secure" : ""}`;
+function attrs(req: Request) {
+  const domain = cookieDomainFor(req);
+  return `Path=/; HttpOnly; SameSite=Lax${secureCookies() ? "; Secure" : ""}${domain ? `; Domain=${domain}` : ""}`;
+}
+
+export function setCookie(name: string, value: string, req: Request) {
+  return `${name}=${encodeURIComponent(value)}; Max-Age=${YEAR_S}; ${attrs(req)}`;
+}
+
+/** Стираем и общую куку, и привязанную к одному адресу (она могла остаться от прежних входов). */
+export function clearCookie(name: string, req: Request): string[] {
+  const hostOnly = `${name}=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax${secureCookies() ? "; Secure" : ""}`;
+  return cookieDomainFor(req) ? [`${name}=; Max-Age=0; ${attrs(req)}`, hostOnly] : [hostOnly];
 }
 
 // ---------------------------------------------------------------------

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { fetchSession, homeFor, safeNext } from "@/components/current-user";
+import { goToWorkspace } from "@/lib/workspace";
 import { t } from "@/lib/i18n";
 
 function LoginForm() {
@@ -23,8 +24,9 @@ function LoginForm() {
   useEffect(() => {
     fetchSession()
       .then((s) => {
-        if (s.user) router.replace(next ?? homeFor(s.user.role));
-        else if (s.company) router.replace(`/select${next ? `?next=${encodeURIComponent(next)}` : ""}`);
+        // Уже вошли — сразу в рабочее место (на сайте продукта это другой адрес).
+        if (s.user) goToWorkspace(next ?? homeFor(s.user.role), router, true);
+        else if (s.company) goToWorkspace(`/select${next ? `?next=${encodeURIComponent(next)}` : ""}`, router, true);
       })
       .catch(() => {});
   }, [router, next]);
@@ -46,8 +48,9 @@ function LoginForm() {
         return;
       }
       const step = json.data?.next;
-      if (step === "select") router.push(`/select${next ? `?next=${encodeURIComponent(next)}` : ""}`);
-      else router.push(next ?? homeFor(step));
+      // Только после правильных логина и пароля — переход в рабочее место компании.
+      if (step === "select") goToWorkspace(`/select${next ? `?next=${encodeURIComponent(next)}` : ""}`, router);
+      else goToWorkspace(next ?? homeFor(step), router);
     } catch {
       setError(t("Сервер недоступен. Проверьте интернет и попробуйте ещё раз."));
     } finally {
