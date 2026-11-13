@@ -633,4 +633,12 @@ export const uz: Record<string, string> = {
   "Угловой диван, доставка в Чиланзар": "Burchak divan, Chilonzorga yetkazish",
   "Курс Beginner, вечерняя группа": "Beginner kursi, kechki guruh",
   "ИИ-ассистент": "SI-yordamchi",
+  "Instagram-аккаунты": "Instagram akkauntlar",
+  "Можно подключить несколько аккаунтов.": "Bir nechta akkaunt ulash mumkin.",
+  "Один аккаунт — одна компания.": "Bitta akkaunt — bitta kompaniya.",
+  "Управлять": "Boshqarish",
+  "Подключить ещё Instagram": "Yana Instagram ulash",
+  "Instagram, менеджеры и очередь заявок.": "Instagram, menejerlar va arizalar navbati.",
+  "Instagram-аккаунты вашей компании. Можно подключить несколько — у каждого свои знания и правила.": "Kompaniyangizning Instagram akkauntlari. Bir nechtasini ulash mumkin — har birining o‘z bilimlari va qoidalari bor.",
+  "Instagram-аккаунты, уведомления о новых заявках и менеджеры.": "Instagram akkauntlar, yangi arizalar haqida bildirishnomalar va menejerlar.",
 };

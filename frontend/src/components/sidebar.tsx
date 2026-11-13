@@ -20,7 +20,6 @@ import {
 import { DexaMark, DexaWordmark } from "@/components/brand/dexa-logo";
 import { FullscreenButton } from "@/components/fullscreen-button";
 import { LangSwitcher, ThemeToggle } from "@/components/prefs";
-import { InstagramStatus } from "@/components/account-switcher";
 import { PlanCard } from "@/components/plan-card";
 import { hasFeature, logout, useCurrentUser, type Feature } from "@/components/current-user";
 import { cn, initials } from "@/lib/utils";
@@ -101,7 +100,8 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
     <>
       <nav className="flex-1 space-y-0.5 px-3">
         {items.map((item) => {
-          const active = pathname?.startsWith(item.href);
+          // Страница «Аккаунты» открывается из «Настроек» — подсвечиваем их.
+          const active = pathname?.startsWith(item.href) || (item.href === "/settings" && pathname?.startsWith("/accounts"));
           const Icon = item.icon;
           return (
             <Link
@@ -130,7 +130,6 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
         </div>
       </div>
       <PlanCard onNavigate={onNavigate} />
-      <InstagramStatus onNavigate={onNavigate} />
       <UserMenu />
     </>
   );

@@ -633,4 +633,12 @@ export const en: Record<string, string> = {
   "Угловой диван, доставка в Чиланзар": "Corner sofa, delivery to Chilanzar",
   "Курс Beginner, вечерняя группа": "Beginner course, evening group",
   "ИИ-ассистент": "AI assistant",
+  "Instagram-аккаунты": "Instagram accounts",
+  "Можно подключить несколько аккаунтов.": "You can connect several accounts.",
+  "Один аккаунт — одна компания.": "One account — one company.",
+  "Управлять": "Manage",
+  "Подключить ещё Instagram": "Connect another Instagram",
+  "Instagram, менеджеры и очередь заявок.": "Instagram, managers and the lead queue.",
+  "Instagram-аккаунты вашей компании. Можно подключить несколько — у каждого свои знания и правила.": "Your company Instagram accounts. You can connect several — each has its own knowledge and rules.",
+  "Instagram-аккаунты, уведомления о новых заявках и менеджеры.": "Instagram accounts, new-lead alerts and managers.",
 };

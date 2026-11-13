@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { ManagersCard } from "@/components/managers-card";
+import { InstagramAccountsCard } from "@/components/instagram-accounts-card";
 import { hasFeature, useCurrentUser } from "@/components/current-user";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
@@ -36,8 +37,9 @@ export default function SettingsPage() {
     <div>
       <div className="mb-6">
         <h1 className="text-lg font-semibold text-slate-900">{t("Настройки")}</h1>
-        <p className="mt-1 text-sm text-slate-500">{t("Менеджеры и очередь заявок.")}</p>
+        <p className="mt-1 text-sm text-slate-500">{t("Instagram, менеджеры и очередь заявок.")}</p>
       </div>
+      <InstagramAccountsCard />
       <Card className="max-w-2xl">
         <CardHeader className="flex-row items-center gap-3 space-y-0">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-soft">
@@ -163,9 +165,10 @@ function TelegramSettingsPage() {
     <div>
       <div className="mb-6">
         <h1 className="text-lg font-semibold text-slate-900">{t("Настройки")}</h1>
-        <p className="mt-1 text-sm text-slate-500">{t("Куда отправлять уведомления о новых заявках и кто их получает.")}</p>
+        <p className="mt-1 text-sm text-slate-500">{t("Instagram-аккаунты, уведомления о новых заявках и менеджеры.")}</p>
       </div>
 
+      <InstagramAccountsCard />
       <Card className="max-w-2xl">
         <CardHeader className="flex-row items-center justify-between space-y-0">
           <div className="flex items-center gap-3">

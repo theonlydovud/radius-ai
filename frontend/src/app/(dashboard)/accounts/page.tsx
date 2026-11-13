@@ -21,6 +21,8 @@ import { cn, formatDate } from "@/lib/utils";
 import type { AccountPublic } from "@/types";
 import { InstagramSetup } from "@/components/instagram-setup";
 import { useAccountFilter } from "@/components/account-switcher";
+import { useCurrentUser } from "@/components/current-user";
+import { instagramLimit } from "@/components/instagram-accounts-card";
 import { t } from "@/lib/i18n";
 
 /** Вебхуки принимает backend (Render) напрямую; один общий URL на приложение Meta. */
@@ -34,6 +36,7 @@ function webhookUrl() {
 
 export default function AccountsPage() {
   const accountCtx = useAccountFilter();
+  const { company } = useCurrentUser();
   const [accounts, setAccounts] = useState<AccountPublic[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -86,7 +89,9 @@ export default function AccountsPage() {
   }, []);
 
   // Один Instagram — одна компания: когда аккаунт уже есть, второй не подключить (сервер проверяет то же).
-  const canAdd = accounts.length === 0;
+  // Radius — сколько угодно аккаунтов, остальные — по тарифу (один). Сервер проверяет то же.
+  const limit = instagramLimit(company);
+  const canAdd = limit === null || accounts.length < limit;
 
   function resetForm() {
     setAccountName("");
@@ -160,7 +165,9 @@ export default function AccountsPage() {
         <div>
           <h1 className="text-lg font-semibold text-slate-900">{t("Аккаунты")}</h1>
           <p className="mt-1 text-sm text-slate-500">
-            {t("Instagram-аккаунт вашей компании. Один аккаунт — одна компания: для другого Instagram зарегистрируйте отдельную компанию.")}</p>
+            {limit === null
+              ? t("Instagram-аккаунты вашей компании. Можно подключить несколько — у каждого свои знания и правила.")
+              : t("Instagram-аккаунт вашей компании. Один аккаунт — одна компания: для другого Instagram зарегистрируйте отдельную компанию.")}</p>
         </div>
         <Dialog
           open={open}

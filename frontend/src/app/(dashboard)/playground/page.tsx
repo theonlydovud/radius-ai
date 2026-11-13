@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import type { SandboxChatMessage } from "@/types";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
+import { AccountPicker } from "@/components/bot-selector";
 
 interface DisplayMessage extends SandboxChatMessage {
   id: string;
@@ -103,9 +104,12 @@ export default function PlaygroundPage() {
           <p className="mt-1 text-sm text-slate-500">
             {t("Песочница для проверки поведения консультанта Gemini 2.5 Flash-Lite перед публикацией правил.")}</p>
         </div>
-        <Button variant="outline" size="sm" onClick={handleReset}>
-          <RotateCcw className="h-3.5 w-3.5" />
-          {t("Очистить диалог")}</Button>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <AccountPicker />
+          <Button variant="outline" size="sm" onClick={handleReset}>
+            <RotateCcw className="h-3.5 w-3.5" />
+            {t("Очистить диалог")}</Button>
+        </div>
       </div>
 
       <Card className="flex flex-1 flex-col overflow-hidden">

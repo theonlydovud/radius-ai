@@ -18,7 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { useSelectedBot } from "@/components/bot-selector";
+import { AccountPicker, useSelectedBot } from "@/components/bot-selector";
 import type { RuleType, SystemRule } from "@/types";
 import { t as tr } from "@/lib/i18n";
 
@@ -140,6 +140,7 @@ export default function RulesPage() {
             {tr("ИИ отвечает по знаниям и правилам аккаунта, выбранного внизу меню.")}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap sm:gap-3">
+        <AccountPicker />
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button size="sm" onClick={openCreateDialog} disabled={!botId}>

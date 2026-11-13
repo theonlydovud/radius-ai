@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDate } from "@/lib/utils";
-import { useSelectedBot } from "@/components/bot-selector";
+import { AccountPicker, useSelectedBot } from "@/components/bot-selector";
 import type { KnowledgeItem } from "@/types";
 import { t } from "@/lib/i18n";
 
@@ -115,6 +115,7 @@ export default function KnowledgePage() {
             {t("Статьи о компании, товарах и услугах — ИИ отвечает клиентам только по этим фактам.")}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap sm:gap-3">
+        <AccountPicker />
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button size="sm" onClick={openCreateDialog} disabled={!botId}>
