@@ -13,7 +13,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CloseLeadDialog, type CloseMode } from "@/components/close-lead-dialog";
 import { LeadChatSheet } from "@/components/crm/lead-chat-sheet";
 import { useAccountId } from "@/components/account-switcher";
-import { useCurrentUser } from "@/components/current-user";
+import { hasFeature, useCurrentUser } from "@/components/current-user";
 import { lostReasonLabel, STATUS_LABEL, STATUS_VARIANT } from "@/lib/lead-meta";
 import { cn, dayEndISO, dayStartISO, formatDate } from "@/lib/utils";
 import type { Lead } from "@/types";
@@ -78,6 +78,9 @@ export function LeadsBoard({
   const latestRequest = useRef(0);
   // Панель руководителя: заявки выбранного Instagram-аккаунта (undefined — список аккаунтов ещё грузится).
   const accountId = useAccountId();
+  // Менеджеры и передача заявок — по тарифу; без них заявки остаются у владельца.
+  const { company } = useCurrentUser(); // тариф
+  const transfer = hasFeature(company, "lead_transfer");
 
   const load = useCallback(async () => {
     if (accountId === undefined) return;
@@ -185,7 +188,7 @@ export function LeadsBoard({
         </Tabs>
 
         <div className="grid grid-cols-2 items-end gap-2 sm:flex sm:flex-wrap">
-          <div className="col-span-2 space-y-1 sm:w-48">
+          <div className={transfer ? "col-span-2 space-y-1 sm:w-48" : "hidden"}>
             <Label className="text-xs text-slate-500">{tr("Менеджер")}</Label>
             <Select value={managerFilter} onValueChange={setManagerFilter}>
               <SelectTrigger className="h-9">
@@ -277,7 +280,7 @@ export function LeadsBoard({
                     )}
                   </div>
 
-                  <Select value={lead.manager_id ?? NO_MANAGER} onValueChange={(v) => patchLead(lead, { manager_id: v === NO_MANAGER ? null : v })} disabled={busy}>
+                  {transfer && <Select value={lead.manager_id ?? NO_MANAGER} onValueChange={(v) => patchLead(lead, { manager_id: v === NO_MANAGER ? null : v })} disabled={busy}>
                     <SelectTrigger className="h-8 text-xs lg:w-36" aria-label={tr("Ответственный")}>
                       <SelectValue />
                     </SelectTrigger>
@@ -289,7 +292,7 @@ export function LeadsBoard({
                         </SelectItem>
                       ))}
                     </SelectContent>
-                  </Select>
+                  </Select>}
 
                   <div className="flex flex-wrap items-center gap-1.5 lg:flex-nowrap lg:justify-end">
                     {lead.session_id && (
@@ -379,7 +382,7 @@ export function LeadsBoard({
                     )}
                   </div>
 
-                  <div className="space-y-1">
+                  <div className={transfer ? "space-y-1" : "hidden"}>
                     <Label className="text-xs text-slate-500">{tr("Ответственный")}</Label>
                     <Select
                       value={lead.manager_id ?? NO_MANAGER}

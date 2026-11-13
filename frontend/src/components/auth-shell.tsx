@@ -8,8 +8,8 @@ export function AuthShell({ children, footer }: { children: React.ReactNode; foo
   return (
     <div className="relative flex min-h-screen flex-col overflow-hidden bg-background">
       <div aria-hidden className="pointer-events-none absolute inset-0">
-        <div className="auth-blob absolute -left-32 -top-32 h-[28rem] w-[28rem] rounded-full bg-[#3D6BFF]/20 blur-3xl" />
-        <div className="auth-blob absolute -right-40 top-1/3 h-[30rem] w-[30rem] rounded-full bg-[#A445F5]/15 blur-3xl [animation-delay:-6s]" />
+        <div className="auth-blob absolute -left-32 -top-32 h-[28rem] w-[28rem] rounded-full bg-[#7A6CFF]/20 blur-3xl" />
+        <div className="auth-blob absolute -right-40 top-1/3 h-[30rem] w-[30rem] rounded-full bg-[#8E5CF7]/15 blur-3xl [animation-delay:-6s]" />
         <div className="absolute inset-0 bg-[radial-gradient(#0f172a0d_1px,transparent_1px)] [background-size:22px_22px]" />
       </div>
 

@@ -28,9 +28,9 @@ const VERTEX = /* glsl */ `
     float pulse = sin(uTime * 1.6 + aRand * 6.2831) * 0.015;
     vec3 p = dir * (length(position) + wave * 0.16 + pulse);
 
-    vec3 blue = vec3(0.24, 0.42, 1.0);
-    vec3 violet = vec3(0.64, 0.27, 0.96);
-    vec3 cyan = vec3(0.13, 0.83, 0.93);
+    vec3 blue = vec3(0.36, 0.30, 0.93);
+    vec3 violet = vec3(0.61, 0.42, 1.0);
+    vec3 cyan = vec3(0.30, 0.58, 1.0);
     vec3 c = mix(blue, violet, smoothstep(-0.8, 0.9, dir.y + wave * 0.6));
     c = mix(c, cyan, smoothstep(0.35, 0.95, wave + aRand * 0.25) * 0.55);
     vColor = c;

@@ -18,10 +18,10 @@ function Avatar({ person, size = "md" }: { person: Person; size?: "md" | "lg" })
       className={cn(
         "flex shrink-0 items-center justify-center rounded-full font-semibold text-white",
         person.role === "owner"
-          ? "bg-gradient-to-br from-[#5B4BFF] to-[#A445F5]"
+          ? "bg-gradient-to-br from-[#5B4CED] to-[#8E5CF7]"
           : person.role === "admin"
-            ? "bg-gradient-to-br from-[#A445F5] to-[#e0559b]"
-            : "bg-gradient-to-br from-[#3D6BFF] to-[#22a2c8]",
+            ? "bg-gradient-to-br from-[#8E5CF7] to-[#e0559b]"
+            : "bg-gradient-to-br from-[#7A6CFF] to-[#22a2c8]",
         size === "lg" ? "h-16 w-16 text-lg" : "h-11 w-11 text-sm"
       )}
     >
@@ -89,7 +89,7 @@ function SelectPerson() {
   }
 
   return (
-    <div className="rounded-2xl border border-white/60 bg-surface/80 p-6 shadow-[0_20px_60px_-20px_rgba(47,91,232,0.25)] backdrop-blur-xl sm:p-8">
+    <div className="rounded-2xl border border-white/60 bg-surface/80 p-6 shadow-[0_20px_60px_-20px_rgba(91,76,237,0.25)] backdrop-blur-xl sm:p-8">
       {!picked ? (
         <>
           <p className="text-xs font-medium uppercase tracking-wider text-brand">{session.company?.name}</p>

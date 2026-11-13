@@ -1,5 +1,5 @@
 import { createAdminClient } from "../lib/supabase/server";
-import { invalidateAuthCache, publicCompany } from "../lib/auth";
+import { describeCompany, invalidateAuthCache } from "../lib/auth";
 import { notifyDexaAdmins } from "../lib/dexa-bot";
 import type { RouteContext } from "../index";
 
@@ -33,13 +33,14 @@ async function load(companyId: string) {
   return data;
 }
 
-function view(c: any) {
-  const info = publicCompany(c);
+async function view(c: any) {
+  const info = await describeCompany(c);
   return {
     id: c.id,
     name: c.name,
     status: info.status,
     trial_ends_at: info.trial_ends_at,
+    plan: info.plan,
     profile: c.profile ?? {},
     connect_requested_at: c.connect_requested_at ?? null,
   };
@@ -49,7 +50,7 @@ export const company = {
   async GET(_req: Request, ctx: RouteContext) {
     const c = await load(ctx.auth!.company.id);
     if (!c) return Response.json({ error: "Компания не найдена." }, { status: 404 });
-    return Response.json({ data: view(c) });
+    return Response.json({ data: await view(c) });
   },
 
   async PUT(req: Request, ctx: RouteContext) {
@@ -63,7 +64,7 @@ export const company = {
     const { error } = await createAdminClient().from("companies").update({ name, profile }).eq("id", ctx.auth!.company.id);
     if (error) return Response.json({ error: error.message }, { status: 500 });
     invalidateAuthCache();
-    return Response.json({ data: view(await load(ctx.auth!.company.id)) });
+    return Response.json({ data: await view(await load(ctx.auth!.company.id)) });
   },
 };
 
@@ -76,12 +77,12 @@ export const connect = {
     }
     const p = c.profile ?? {};
     const line = (label: string, v: unknown) => (v ? `\n${label}: ${String(v).replace(/[<>&]/g, "")}` : "");
-    const info = publicCompany(c);
+    const info = await describeCompany(c);
     const trial = info.trial_ends_at
       ? `\nПробный период: ${info.status === "expired" ? "закончился" : "до"} ${info.trial_ends_at.slice(0, 10)}`
       : "";
     await notifyDexaAdmins(
-      `💼 <b>Заявка на подключение</b>\nКомпания: <b>${String(c.name).replace(/[<>&]/g, "")}</b>${trial}` +
+      `💼 <b>Заявка на подключение</b>\nКомпания: <b>${String(c.name).replace(/[<>&]/g, "")}</b>${info.plan ? " · тариф " + info.plan.name : ""}${trial}` +
         line("Сфера", p.industry) +
         line("Город", p.city) +
         line("Контакт", p.contact_name) +
@@ -92,6 +93,6 @@ export const connect = {
         line("Сотрудников", p.employees) +
         line("О компании", p.about)
     );
-    return Response.json({ data: view(await load(c.id)) });
+    return Response.json({ data: await view(await load(c.id)) });
   },
 };

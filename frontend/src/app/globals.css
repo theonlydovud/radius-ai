@@ -8,9 +8,9 @@
   --foreground: 222 20% 12%;
   --background: 247 248 251;
   --surface: 255 255 255;
-  --brand: 47 91 232;
-  --brand-dark: 36 72 196;
-  --brand-soft: 238 242 255;
+  --brand: 91 76 237;
+  --brand-dark: 72 58 212;
+  --brand-soft: 239 237 254;
   --slate-50: 248 250 252;
   --slate-100: 241 245 249;
   --slate-200: 226 232 240;
@@ -34,9 +34,9 @@
   --foreground: 220 30% 94%;
   --background: 10 13 21;
   --surface: 18 23 34;
-  --brand: 96 128 255;
-  --brand-dark: 76 108 242;
-  --brand-soft: 30 40 75;
+  --brand: 128 116 255;
+  --brand-dark: 108 96 245;
+  --brand-soft: 38 34 80;
   /* Шкала slate перевёрнута: «тёмный текст» становится светлым, «светлый фон» — тёмным. */
   --slate-50: 24 30 44;
   --slate-100: 32 40 56;
@@ -130,7 +130,7 @@ body {
   100% { background-position: 200% 50%; }
 }
 .text-gradient-anim {
-  background-image: linear-gradient(90deg, #3d6bff, #8b4dff, #0ea5c6, #3d6bff);
+  background-image: linear-gradient(90deg, #5b4ced, #9b6bff, #3d8bff, #5b4ced);
   background-size: 200% auto;
   -webkit-background-clip: text;
   background-clip: text;
@@ -143,7 +143,7 @@ body {
   position: relative;
   background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,255,255,0.6));
   border: 1px solid rgb(var(--slate-200));
-  box-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 8px 24px -12px rgba(47,91,232,0.15);
+  box-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 8px 24px -12px rgba(91,76,237,0.18);
 }
 .dark .glow-card {
   background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
@@ -156,7 +156,7 @@ body {
   inset: -1px;
   border-radius: inherit;
   padding: 1px;
-  background: linear-gradient(135deg, rgba(61,107,255,0.6), transparent 40%, transparent 60%, rgba(164,69,245,0.6));
+  background: linear-gradient(135deg, rgba(91,76,237,0.7), transparent 40%, transparent 60%, rgba(155,107,255,0.6));
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
@@ -183,7 +183,52 @@ body {
   .chat-pop, .text-gradient-anim, .bar-grow, .float-y { animation: none; }
 }
 
-.dark .text-gradient-anim { background-image: linear-gradient(90deg, #7ea2ff, #b388ff, #5ee7f5, #7ea2ff); }
+.dark .text-gradient-anim { background-image: linear-gradient(90deg, #a79fff, #c9a7ff, #7fb4ff, #a79fff); }
+
+/* Фон первого экрана: мягкие пятна фирменного фиолетового + тонкая сетка. Без blur-фильтров. */
+.hero-mesh {
+  background:
+    radial-gradient(45% 55% at 78% 40%, rgba(91, 76, 237, 0.20), transparent 70%),
+    radial-gradient(35% 45% at 95% 85%, rgba(155, 107, 255, 0.14), transparent 70%),
+    radial-gradient(40% 40% at 5% 5%, rgba(61, 139, 255, 0.10), transparent 70%);
+}
+.dark .hero-mesh {
+  background:
+    radial-gradient(45% 55% at 78% 40%, rgba(91, 76, 237, 0.32), transparent 70%),
+    radial-gradient(35% 45% at 95% 85%, rgba(155, 107, 255, 0.20), transparent 70%),
+    radial-gradient(40% 40% at 5% 5%, rgba(61, 139, 255, 0.12), transparent 70%);
+}
+.hero-grid {
+  background-image: linear-gradient(rgba(91, 76, 237, 0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(91, 76, 237, 0.07) 1px, transparent 1px);
+  background-size: 56px 56px;
+  -webkit-mask-image: radial-gradient(70% 60% at 60% 40%, #000, transparent);
+  mask-image: radial-gradient(70% 60% at 60% 40%, #000, transparent);
+}
+
+/* Бегущая строка «для кого» */
+@keyframes marquee { to { transform: translateX(-50%); } }
+.marquee { animation: marquee 40s linear infinite; }
+.marquee-mask { -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); }
+.marquee-mask:hover .marquee { animation-play-state: paused; }
+
+/* Очередь менеджеров: подсвечивается тот, чья очередь */
+@keyframes queue-turn {
+  0%, 30%, 100% { transform: translateY(0); box-shadow: none; }
+  10%, 20% { transform: translateY(-6px); box-shadow: 0 8px 20px -6px rgba(91, 76, 237, 0.8); }
+}
+.queue-dot { animation: queue-turn 3.6s ease-in-out infinite; }
+
+/* Голос ассистента */
+@keyframes wave { 0%, 100% { height: 20%; } 50% { height: 100%; } }
+.wave-bar { height: 20%; animation: wave 0.9s ease-in-out infinite; }
+
+/* Вопросы: без стандартного треугольника */
+.faq summary::-webkit-details-marker { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee, .queue-dot, .wave-bar { animation: none; }
+  .wave-bar { height: 60%; }
+}
 
 /* ---------- Live: новая заявка ---------- */
 @keyframes lead-arrive {

@@ -12,10 +12,10 @@ import {
   isLocked,
   recordFailure,
   sessionCompany,
-  sessionUser,
+  sessionState,
   setCookie,
+  startSession,
   USER_COOKIE,
-  userToken,
   verifyPassword,
 } from "../lib/auth";
 
@@ -39,13 +39,15 @@ async function readBody(req: Request) {
 /** Кто вошёл на этом устройстве: компания, человек и список людей для выбора. */
 export const me = {
   async GET(req: Request) {
-    const [company, user] = await Promise.all([sessionCompany(req), sessionUser(req)]);
-    if (!company) return json({ data: { company: null, user: null, users: [] } });
+    const [company, { user, replaced }] = await Promise.all([sessionCompany(req), sessionState(req)]);
+    // replaced — в этот аккаунт вошли с другого устройства: сайт покажет это и попросит войти заново.
+    if (!company) return json({ data: { company: null, user: null, users: [], replaced } });
     return json({
       data: {
         company,
         user: user && user.company.id === company.id ? user : null,
         users: await companyUsers(company.id),
+        replaced,
       },
     });
   },
@@ -76,7 +78,7 @@ export const login = {
       if (!userCompany) return json({ error: WRONG }, 401);
       return json({ data: { next: user.role } }, 200, [
         setCookie(COMPANY_COOKIE, companyToken(userCompany), req),
-        setCookie(USER_COOKIE, userToken(user), req),
+        setCookie(USER_COOKIE, await startSession(user, userCompany), req),
       ]);
     }
 
@@ -106,7 +108,9 @@ export const select = {
       return json({ error: "Неверный пароль." }, 401);
     }
     clearFailures(key);
-    return json({ data: { next: user.role } }, 200, [setCookie(USER_COOKIE, userToken(user), req)]);
+    const row = await findCompany(company.id);
+    if (!row) return json({ error: "Компания не найдена." }, 404);
+    return json({ data: { next: user.role } }, 200, [setCookie(USER_COOKIE, await startSession(user, row), req)]);
   },
 };
 

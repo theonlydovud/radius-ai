@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { t } from "@/lib/i18n";
+import { locale, t } from "@/lib/i18n";
 import { cn, formatDate } from "@/lib/utils";
 
 /**
@@ -151,8 +151,9 @@ export default function CabinetPage() {
           <div className="mt-5 flex flex-wrap items-center gap-3 rounded-2xl border border-brand/20 bg-brand/5 p-4 text-sm text-slate-700">
             <Sparkles className="h-5 w-5 shrink-0 text-brand" />
             <p className="min-w-0 flex-1">
-              <span className="font-semibold">{t("Пробный период: осталось {0} дн.", daysLeft)}</span>{" "}
-              {t("Всё работает без ограничений: ИИ отвечает клиентам, заявки, CRM и статистика.")}
+              <span className="font-semibold">{t("Пробный период тарифа {0}: осталось {1} дн.", company.plan?.name ?? "", daysLeft)}</span>{" "}
+              {company.usage?.messages_limit != null &&
+                t("Сообщения: {0} / {1}", company.usage.messages_used.toLocaleString(locale()), company.usage.messages_limit.toLocaleString(locale()))}
             </p>
             <Link href={homeFor(user.role)} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand px-3.5 py-2 text-sm font-semibold text-white hover:bg-brand/90">
               {t("В панель")}
@@ -219,7 +220,7 @@ export default function CabinetPage() {
           {/* Статус и подключение */}
           <div className="space-y-4">
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-surface shadow-sm">
-              <div className="bg-gradient-to-br from-[#3D6BFF] via-[#5B4BFF] to-[#A445F5] p-5 text-white">
+              <div className="bg-gradient-to-br from-[#7A6CFF] via-[#5B4CED] to-[#8E5CF7] p-5 text-white">
                 <Rocket className="h-6 w-6" />
                 <p className="mt-3 text-lg font-semibold">{t("Подключить навсегда")}</p>
                 <p className="mt-1 text-sm text-white/80">{t("Свой ИИ-бот, адрес вашей компании на dexa.uz и настройка ИИ под ваш бизнес. Оставьте заявку — свяжемся в Telegram.")}</p>

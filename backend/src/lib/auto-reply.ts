@@ -2,7 +2,8 @@ import { createAdminClient } from "./supabase/server";
 import { buildSystemInstruction, GeminiRateLimitError, sendToGemini } from "./gemini";
 import { getHistory, getOrCreateSession, maybeCreateOrUpdateLead } from "./conversation";
 import { splitPending } from "./burst";
-import { accountCompany, aiAllowed } from "./tenant";
+import { accountCompany, aiBlockReason, countBotReply } from "./tenant";
+import { notifyDexaAdmins } from "./dexa-bot";
 
 /**
  * Ответ бота в Instagram: один ответ на все сообщения
@@ -40,10 +41,12 @@ export async function replyToPending(options: {
   const session = await getOrCreateSession(supabase, accountId, clientId, clientName);
   if (!session || session.status === "manager_takeover") return;
 
-  // Пробный период компании закончился — бот молчит, сообщения клиента остаются в истории.
+  // Пробный/оплаченный период или сообщения тарифа закончились — бот молчит, сообщения клиента остаются в истории.
   const company = await accountCompany(accountId);
-  if (!aiAllowed(company)) {
-    console.log(`${tag} пробный период компании «${company?.name}» закончился — ИИ не отвечает`);
+  const blocked = await aiBlockReason(company);
+  if (blocked) {
+    const why = { trial: "пробный период закончился", period: "оплаченный период закончился", limit: "сообщения тарифа закончились" }[blocked];
+    console.log(`${tag} компания «${company?.name}»: ${why} — ИИ не отвечает`);
     return;
   }
 
@@ -70,6 +73,7 @@ export async function replyToPending(options: {
 
   await supabase.from("messages").insert({ session_id: session.id, sender: "ai", text: reply });
   if (reply !== BUSY_REPLY) {
+    await countBotReply(company, notifyDexaAdmins);
     await maybeCreateOrUpdateLead(supabase, session.id, session.client_name, [...before, { role: "user", text: pending }], reply, company);
   }
 }

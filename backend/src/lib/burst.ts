@@ -5,12 +5,13 @@
  * сохраняется в БД, а ответ откладывается до паузы в переписке: бот отвечает
  * один раз на всё, что клиент написал после его последнего ответа.
  *
- * REPLY_DEBOUNCE_MS — сколько ждать тишины (по умолчанию 7 с);
- * REPLY_MAX_WAIT_MS — дольше этого не ждём, даже если клиент пишет без остановки.
+ * REPLY_DEBOUNCE_MS — сколько ждать тишины (по умолчанию 20 с): клиент дописал — отсчёт заново;
+ * REPLY_MAX_WAIT_MS — дольше этого не ждём, даже если клиент пишет без остановки (60 с).
+ * Один ответ на всю серию = один запрос к ИИ = одно сообщение тарифа.
  */
 
-const QUIET_MS = Number(process.env.REPLY_DEBOUNCE_MS || 7000);
-const MAX_WAIT_MS = Number(process.env.REPLY_MAX_WAIT_MS || 25000);
+const QUIET_MS = Number(process.env.REPLY_DEBOUNCE_MS || 20_000);
+const MAX_WAIT_MS = Number(process.env.REPLY_MAX_WAIT_MS || 60_000);
 
 type Burst = { timer: NodeJS.Timeout; startedAt: number };
 const g = globalThis as unknown as { __radiusBursts?: Map<string, Burst> };

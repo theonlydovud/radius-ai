@@ -17,22 +17,26 @@ import {
   LogOut,
   Users,
 } from "lucide-react";
-import { DexaMark } from "@/components/brand/dexa-logo";
+import { DexaMark, DexaWordmark } from "@/components/brand/dexa-logo";
 import { FullscreenButton } from "@/components/fullscreen-button";
 import { LangSwitcher, ThemeToggle } from "@/components/prefs";
-import { AccountSwitcher } from "@/components/account-switcher";
-import { logout, useCurrentUser } from "@/components/current-user";
+import { InstagramStatus } from "@/components/account-switcher";
+import { PlanCard } from "@/components/plan-card";
+import { hasFeature, logout, useCurrentUser, type Feature } from "@/components/current-user";
 import { cn, initials } from "@/lib/utils";
 import { t } from "@/lib/i18n";
 
-const NAV_ITEMS = [
-  { href: "/assistant", get label() { return t("ИИ ассистент"); }, icon: Sparkles },
+type NavItem = { href: string; label: string; icon: typeof Sparkles; feature?: Feature };
+
+/** Пункты меню. feature — закрыто тарифом: пункт скрыт, а API отвечает 403. */
+const NAV_ITEMS: NavItem[] = [
+  { href: "/assistant", get label() { return t("ИИ ассистент"); }, icon: Sparkles, feature: "assistant" },
   { href: "/playground", get label() { return t("Диалог с ИИ"); }, icon: MessageSquareText },
   { href: "/knowledge", get label() { return t("Знания ИИ"); }, icon: BookOpen },
   { href: "/rules", get label() { return t("Правила общения"); }, icon: ShieldCheck },
   { href: "/leads", get label() { return t("Заявки"); }, icon: ClipboardList },
-  { href: "/stats", get label() { return t("Статистика"); }, icon: BarChart3 },
-  { href: "/inbox", get label() { return t("История чатов"); }, icon: Inbox },
+  { href: "/stats", get label() { return t("Статистика"); }, icon: BarChart3, feature: "stats" },
+  { href: "/inbox", get label() { return t("История чатов"); }, icon: Inbox, feature: "chat_history" },
   { href: "/settings", get label() { return t("Настройки"); }, icon: Settings },
 ];
 
@@ -40,11 +44,9 @@ function Brand() {
   const { company } = useCurrentUser();
   return (
     <div className="flex items-center gap-2">
-      <DexaMark size={32} />
+      <DexaMark size={30} />
       <div className="leading-tight">
-        <p className="text-sm font-semibold text-slate-900">
-          Dexa<span className="text-brand">AI</span>
-        </p>
+        <DexaWordmark className="block text-[15px] text-slate-900" />
         <p className="text-[11px] text-slate-400">{company.name}</p>
       </div>
     </div>
@@ -57,7 +59,7 @@ function UserMenu() {
   return (
     <div className="border-t border-slate-200 p-3">
       <div className="flex items-center gap-3 px-2 py-1.5">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#3D6BFF] to-[#A445F5] text-xs font-medium text-white">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#7A6CFF] to-[#8E5CF7] text-xs font-medium text-white">
           {initials(user.name)}
         </span>
         <span className="min-w-0 leading-tight">
@@ -86,13 +88,19 @@ function UserMenu() {
 }
 
 /** Содержимое меню — общее для десктопного сайдбара и мобильной шторки. */
+function useNavItems() {
+  const { company } = useCurrentUser();
+  return NAV_ITEMS.filter((i) => !i.feature || hasFeature(company, i.feature));
+}
+
 function NavContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
+  const items = useNavItems();
 
   return (
     <>
       <nav className="flex-1 space-y-0.5 px-3">
-        {NAV_ITEMS.map((item) => {
+        {items.map((item) => {
           const active = pathname?.startsWith(item.href);
           const Icon = item.icon;
           return (
@@ -121,7 +129,8 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
           <LangSwitcher up />
         </div>
       </div>
-      <AccountSwitcher onNavigate={onNavigate} />
+      <PlanCard onNavigate={onNavigate} />
+      <InstagramStatus onNavigate={onNavigate} />
       <UserMenu />
     </>
   );

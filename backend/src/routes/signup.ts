@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
-import { clientIp, COMPANY_COOKIE, companyToken, setCookie, USER_COOKIE, userToken, publicCompany } from "../lib/auth";
+import { clientIp, COMPANY_COOKIE, companyToken, describeCompany, setCookie, startSession, USER_COOKIE } from "../lib/auth";
+import { getPlans } from "../lib/plans";
 import { consumeSignup, createSignup, dexaBotSecret, dexaBotToken, handleDexaBotUpdate, signupStatus } from "../lib/dexa-bot";
 
 /**
@@ -36,7 +37,9 @@ export const start = {
     const body = await req.json().catch(() => ({}));
     try {
       const lang = ["ru", "uz", "en"].includes(body?.lang) ? body.lang : undefined;
-      return json({ data: await createSignup({ lang, ip, userAgent: req.headers.get("user-agent") ?? undefined }) });
+      // Тариф, выбранный на странице регистрации: пробный период пойдёт на нём.
+      const plan = (await getPlans()).find((p) => p.code === body?.plan)?.code;
+      return json({ data: await createSignup({ lang, plan, ip, userAgent: req.headers.get("user-agent") ?? undefined }) });
     } catch (e: any) {
       console.error("[signup] start:", e?.message);
       return json({ error: "Регистрация через Telegram временно недоступна." }, 503);
@@ -59,11 +62,11 @@ export const complete = {
     const result = await consumeSignup(body.nonce);
     if (!result) return json({ error: "Ссылка устарела. Попробуйте ещё раз." }, 410);
     const { user, company, isNew } = result;
-    const info = publicCompany(company);
+    const info = await describeCompany(company);
     const next = info.status === "expired" ? "/cabinet" : user.role === "owner" ? "/leads" : user.role === "admin" ? "/admin" : "/crm";
     return json({ data: { next, is_new: isNew, company: info } }, 200, [
       setCookie(COMPANY_COOKIE, companyToken(company), req),
-      setCookie(USER_COOKIE, userToken(user), req),
+      setCookie(USER_COOKIE, await startSession(user, company), req),
     ]);
   },
 };

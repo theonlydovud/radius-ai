@@ -30,6 +30,9 @@ export async function PATCH(req: Request, { params, auth }: RouteContext) {
   }
 
   if (body.manager_id !== undefined) {
+    if (!auth!.company.features.lead_transfer) {
+      return Response.json({ error: "Передача заявок менеджерам недоступна на вашем тарифе.", code: "plan_required", feature: "lead_transfer" }, { status: 403 });
+    }
     if (body.manager_id !== null) {
       const { data: manager } = await supabase.from("managers").select("id").eq("id", body.manager_id).eq("company_id", company).maybeSingle();
       if (!manager) return Response.json({ error: "Менеджер не найден." }, { status: 400 });

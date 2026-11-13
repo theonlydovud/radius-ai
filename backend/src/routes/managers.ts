@@ -1,11 +1,26 @@
 import { createAdminClient } from "../lib/supabase/server";
 import type { RouteContext } from "../index";
+import type { AuthCompany } from "../lib/auth";
 
 /**
  * Менеджеры, редактируются в «Настройках». Удаления нет намеренно: отключённый
  * менеджер (is_active = false) не получает новых заявок, но его заявки и
  * статистика остаются.
  */
+
+/**
+ * Пользователи по тарифу: владелец + активные менеджеры ≤ включено в тариф + докупленные.
+ * exceptId — менеджер, которого включают обратно (он уже может быть активен).
+ */
+async function usersLimitError(supabase: any, company: AuthCompany, exceptId: string | null): Promise<string | null> {
+  const limit = company.usage.users_limit;
+  if (limit === null) return null;
+  let q = supabase.from("managers").select("id").eq("company_id", company.id).eq("is_active", true);
+  if (exceptId) q = q.neq("id", exceptId);
+  const { data } = await q;
+  if ((data?.length ?? 0) + 1 < limit) return null;
+  return `На тарифе ${company.plan?.name} — ${limit} ${limit === 1 ? "пользователь" : "пользователей"} (вместе с вами). Чтобы добавить ещё, докупите пользователя или перейдите на тариф выше.`;
+}
 
 function nameError(error: { code?: string; message: string }) {
   if (error.code === "23505") {
@@ -41,6 +56,9 @@ export async function POST(req: Request, ctx: RouteContext) {
     .order("sort_order", { ascending: false })
     .limit(1);
 
+  const limitError = await usersLimitError(supabase, ctx.auth!.company, null);
+  if (limitError) return Response.json({ error: limitError, code: "users_limit" }, { status: 403 });
+
   const { data, error } = await supabase
     .from("managers")
     .insert({ name, company_id: company, sort_order: (last?.[0]?.sort_order ?? 0) + 1 })
@@ -62,7 +80,13 @@ export async function PATCH(req: Request, ctx: RouteContext) {
     if (!name) return Response.json({ error: "Укажите имя менеджера." }, { status: 400 });
     updates.name = name;
   }
-  if (body.is_active !== undefined) updates.is_active = Boolean(body.is_active);
+  if (body.is_active !== undefined) {
+    updates.is_active = Boolean(body.is_active);
+    if (updates.is_active) {
+      const limitError = await usersLimitError(supabase, ctx.auth!.company, String(body.id));
+      if (limitError) return Response.json({ error: limitError, code: "users_limit" }, { status: 403 });
+    }
+  }
   if (body.telegram_id !== undefined) {
     const raw = String(body.telegram_id ?? "").trim();
     if (raw && !/^\d{5,15}$/.test(raw)) return Response.json({ error: "Telegram ID — это число, например 7060366480." }, { status: 400 });

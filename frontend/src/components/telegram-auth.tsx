@@ -28,7 +28,8 @@ function TelegramIcon({ className }: { className?: string }) {
 
 type Phase = "idle" | "starting" | "waiting" | "done" | "expired" | "error";
 
-export function TelegramAuthButton({ label }: { label: string }) {
+/** plan — тариф, выбранный при регистрации: пробный период пойдёт на нём (при входе не нужен). */
+export function TelegramAuthButton({ label, plan }: { label: string; plan?: string }) {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>("idle");
   const [link, setLink] = useState("");
@@ -93,7 +94,7 @@ export function TelegramAuthButton({ label }: { label: string }) {
       const res = await fetch("/api/signup/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lang: getLang() }),
+        body: JSON.stringify({ lang: getLang(), plan }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error ?? "Регистрация через Telegram временно недоступна.");

@@ -27,11 +27,33 @@ export type SessionCompany = {
   subdomain?: string | null;
   lead_kind?: "cargo" | "generic";
   telegram_leads?: boolean;
+  /** Наша компания (Radius): без тарифных ограничений. */
+  unlimited?: boolean;
+  plan?: { code: string; name: string; price: number } | null;
+  /** Что открыто тарифом; нет поля (старый backend) — открыто всё. */
+  features?: Partial<Record<Feature, boolean>>;
+  usage?: {
+    messages_used: number;
+    messages_limit: number | null;
+    period_end: string | null;
+    users_limit: number | null;
+    instagram_accounts: number | null;
+  };
+  ai_blocked?: "limit" | "period" | null;
 };
+
+export type Feature = "manual_leads" | "chat_history" | "stats" | "lead_transfer" | "assistant";
+
+/** Открыта ли функция тарифом. Сервер проверяет то же самое и отвечает 403 plan_required. */
+export function hasFeature(company: SessionCompany | null | undefined, feature: Feature) {
+  return company?.features?.[feature] !== false;
+}
 export type Session = {
   company: SessionCompany | null;
   user: { id: string; name: string; role: Role; manager_id: string | null } | null;
   users: { id: string; name: string; role: Role }[];
+  /** В этот аккаунт вошли с другого устройства — здесь вход закончился. */
+  replaced?: boolean;
 };
 
 export const ROLE_LABEL: Record<Role, string> = { get owner() { return t("Руководитель"); }, get manager() { return t("Менеджер"); }, get admin() { return t("Супер-админ"); } };
@@ -126,6 +148,8 @@ export function CurrentUserProvider({ role, children }: { role: Role | "cabinet"
       .then((s) => {
         if (cancelled) return;
         const here = `${pathname}${window.location.search}`;
+        // Один аккаунт — одно устройство: вошли с другого — здесь просим войти заново.
+        if (s.replaced) return router.replace("/login?replaced=1");
         if (!s.company) return router.replace(`/login?next=${encodeURIComponent(here)}`);
         if (!s.user) return router.replace(`/select?next=${encodeURIComponent(here)}`);
         // Каждая компания работает на своём адресе: Radius — radius.dexa.uz, остальные — dexa.uz.

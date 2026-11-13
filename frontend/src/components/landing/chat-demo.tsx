@@ -50,7 +50,7 @@ export function ChatDemo() {
 
   return (
     <div ref={box} className="relative mx-auto w-full max-w-sm">
-      <div className="absolute -inset-6 -z-10 rounded-[2.5rem] bg-gradient-to-br from-[#3D6BFF]/30 via-[#5B4BFF]/20 to-[#A445F5]/30 blur-2xl" />
+      <div className="absolute -inset-6 -z-10 rounded-[2.5rem] bg-gradient-to-br from-[#7A6CFF]/30 via-[#5B4CED]/20 to-[#8E5CF7]/30 blur-2xl" />
       <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-[#0b0d1a]/90 shadow-2xl backdrop-blur">
         <div className="flex items-center gap-3 border-b border-white/10 px-4 py-3">
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#feda75] via-[#d62976] to-[#4f5bd5] text-white">
@@ -70,7 +70,7 @@ export function ChatDemo() {
                   "max-w-[82%] rounded-2xl px-3 py-2 text-[13px] leading-snug",
                   m.from === "ai"
                     ? "rounded-bl-md border border-white/10 bg-white/[0.06] text-white/90"
-                    : "rounded-br-md bg-gradient-to-br from-[#3D6BFF] to-[#5B4BFF] text-white"
+                    : "rounded-br-md bg-gradient-to-br from-[#7A6CFF] to-[#5B4CED] text-white"
                 )}
               >
                 {m.from === "ai" && (

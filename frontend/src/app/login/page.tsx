@@ -16,7 +16,10 @@ import { t } from "@/lib/i18n";
 
 function LoginForm() {
   const router = useRouter();
-  const next = safeNext(useSearchParams().get("next"));
+  const params = useSearchParams();
+  const next = safeNext(params.get("next"));
+  // Пришли сюда, потому что в аккаунт вошли с другого устройства.
+  const replaced = params.get("replaced") === "1";
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -26,6 +29,7 @@ function LoginForm() {
   useEffect(() => {
     fetchSession()
       .then((s) => {
+        if (s.replaced) return;
         // Уже вошли — сразу в рабочее место (на сайте продукта это другой адрес).
         if (s.user && isExpired(s.company)) goToWorkspace("/cabinet", router, s.company, true);
         else if (s.user) goToWorkspace(next ?? homeFor(s.user.role), router, s.company, true);
@@ -64,9 +68,14 @@ function LoginForm() {
   }
 
   return (
-    <div className="rounded-2xl border border-white/60 bg-surface/80 p-6 shadow-[0_20px_60px_-20px_rgba(47,91,232,0.25)] backdrop-blur-xl sm:p-8">
+    <div className="rounded-2xl border border-white/60 bg-surface/80 p-6 shadow-[0_20px_60px_-20px_rgba(91,76,237,0.25)] backdrop-blur-xl sm:p-8">
       <h1 className="text-xl font-semibold tracking-tight text-slate-900">{t("Вход в платформу")}</h1>
       <p className="mt-1 text-sm text-slate-500">{t("Логин и пароль вашей компании.")}</p>
+      {replaced && (
+        <p role="status" className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          {t("В ваш аккаунт вошли с другого устройства, поэтому здесь вход завершён. Один аккаунт работает на одном устройстве.")}
+        </p>
+      )}
 
       <form onSubmit={submit} className="mt-6 space-y-4">
         <div className="space-y-1.5">

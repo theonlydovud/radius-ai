@@ -18,7 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { BotSelector, useSelectedBot } from "@/components/bot-selector";
+import { useSelectedBot } from "@/components/bot-selector";
 import type { RuleType, SystemRule } from "@/types";
 import { t as tr } from "@/lib/i18n";
 
@@ -29,7 +29,7 @@ const RULE_TYPE_LABELS: Record<RuleType, string> = {
 };
 
 export default function RulesPage() {
-  const { bots, botId, setBotId, ready } = useSelectedBot();
+  const { bots, botId, ready } = useSelectedBot();
   const [rules, setRules] = useState<SystemRule[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -140,7 +140,6 @@ export default function RulesPage() {
             {tr("ИИ отвечает по знаниям и правилам аккаунта, выбранного внизу меню.")}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap sm:gap-3">
-        <BotSelector bots={bots} botId={botId} onChange={setBotId} />
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button size="sm" onClick={openCreateDialog} disabled={!botId}>

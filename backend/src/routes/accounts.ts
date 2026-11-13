@@ -2,7 +2,7 @@ import { createAdminClient } from "../lib/supabase/server";
 import { connectInstagramAccount } from "../lib/instagram";
 import { handOverKnowledgeBeforeDelete, validateKnowledgeSource } from "../lib/agents";
 import { invalidateAccountCache } from "../lib/gemini";
-import { ownsAccount } from "../lib/tenant";
+import { instagramLimitError, ownsAccount } from "../lib/tenant";
 import type { RouteContext } from "../index";
 
 /**
@@ -55,6 +55,8 @@ export async function POST(req: Request, ctx: RouteContext) {
     return Response.json({ error: "Подключить можно только Instagram." }, { status: 400 });
   }
   if (!access_token) return Response.json({ error: "Укажите Access Token." }, { status: 400 });
+  const limitError = await instagramLimitError(ctx.auth!.company);
+  if (limitError) return Response.json({ error: limitError, code: "accounts_limit" }, { status: 403 });
 
   const sourceError = await validateKnowledgeSource(supabase, null, knowledge_source_id, company);
   if (sourceError) return Response.json({ error: sourceError }, { status: 400 });

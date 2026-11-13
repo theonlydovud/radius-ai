@@ -1,54 +1,33 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Check, ChevronsUpDown, Instagram, Layers, Plus, Settings2 } from "lucide-react";
+import { ChevronRight, Instagram } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AccountPublic } from "@/types";
 import { t } from "@/lib/i18n";
 
 /**
- * Выбранный Instagram-аккаунт в панели руководителя — как переключатель аккаунтов в Instagram.
- * От него зависят заявки, статистика, история чатов, а также знания/правила/диалог с ИИ
- * (через агента аккаунта). Выбор хранится в этом браузере.
+ * Instagram-аккаунт компании. Одна компания — один аккаунт (второй Instagram — это
+ * отдельная компания со своими заявками, знаниями и правилами), поэтому переключателя
+ * аккаунтов больше нет: все страницы панели работают с данными своей компании целиком.
  */
 
-export const ALL_ACCOUNTS = "all";
-const KEY = "dexa.account";
-const BOT_KEY = "radius.botId"; // агент для «Знаний», «Правил» и «Диалога с ИИ»
+const BOT_KEY = "radius.botId"; // «Диалог с ИИ» читает отсюда, с каким аккаунтом говорить
 
 type AccountCtx = {
   accounts: AccountPublic[];
-  /** id аккаунта или ALL_ACCOUNTS */
-  selected: string;
+  /** Аккаунт компании (первый подключённый) или null, если Instagram ещё не подключён. */
   account: AccountPublic | null;
-  setSelected: (id: string) => void;
   reload: () => Promise<void>;
   ready: boolean;
 };
 
 const Ctx = createContext<AccountCtx | null>(null);
 
-function save(key: string, value: string) {
-  try {
-    window.localStorage.setItem(key, value);
-  } catch {
-    /* private mode */
-  }
-}
-
 export function AccountProvider({ children }: { children: React.ReactNode }) {
   const [accounts, setAccounts] = useState<AccountPublic[]>([]);
-  const [selected, setSelectedState] = useState<string>(ALL_ACCOUNTS);
   const [ready, setReady] = useState(false);
-
-  const apply = useCallback((id: string, list: AccountPublic[]) => {
-    setSelectedState(id);
-    save(KEY, id);
-    // «Знания» и «Правила» редактируются у агента: у подключённого аккаунта это его источник.
-    const acc = list.find((a) => a.id === id);
-    if (acc) save(BOT_KEY, acc.knowledge_source_id ?? acc.id);
-  }, []);
 
   const reload = useCallback(async () => {
     try {
@@ -56,143 +35,68 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       const json = await res.json();
       const list: AccountPublic[] = (json.data ?? []).sort((a: AccountPublic, b: AccountPublic) => a.created_at.localeCompare(b.created_at));
       setAccounts(list);
-      let stored: string | null = null;
       try {
-        stored = window.localStorage.getItem(KEY);
+        if (list[0]) window.localStorage.setItem(BOT_KEY, list[0].id);
+        else window.localStorage.removeItem(BOT_KEY);
       } catch {
-        /* ignore */
+        /* private mode */
       }
-      const keep = stored === ALL_ACCOUNTS || list.some((a) => a.id === stored) ? stored! : list[0]?.id ?? ALL_ACCOUNTS;
-      apply(keep, list);
+    } catch {
+      /* статус Instagram в меню — не критично */
     } finally {
       setReady(true);
     }
-  }, [apply]);
+  }, []);
 
   useEffect(() => {
     reload();
   }, [reload]);
 
-  const value = useMemo<AccountCtx>(
-    () => ({
-      accounts,
-      selected,
-      account: accounts.find((a) => a.id === selected) ?? null,
-      setSelected: (id: string) => apply(id, accounts),
-      reload,
-      ready,
-    }),
-    [accounts, selected, apply, reload, ready]
-  );
-
+  const value = useMemo<AccountCtx>(() => ({ accounts, account: accounts[0] ?? null, reload, ready }), [accounts, reload, ready]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
-/** Контекст аккаунта; вне панели руководителя (CRM, супер-админ) — null, фильтра нет. */
+/** Аккаунт компании; вне панели руководителя (CRM, супер-админ) — null. */
 export function useAccountFilter() {
   return useContext(Ctx);
 }
 
-/** id для запросов к API: null — все аккаунты. */
-export function useAccountId() {
-  const ctx = useContext(Ctx);
-  if (!ctx || !ctx.ready) return ctx ? undefined : null;
-  return ctx.selected === ALL_ACCOUNTS ? null : ctx.selected;
+/**
+ * Фильтр по аккаунту для запросов к API. Аккаунт у компании один, данные и так
+ * разделены по компаниям на сервере — фильтра нет.
+ */
+export function useAccountId(): string | null {
+  return null;
 }
 
-function Avatar({ name, all }: { name: string; all?: boolean }) {
-  return (
-    <span
-      className={cn(
-        "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white",
-        all ? "bg-slate-700" : "bg-gradient-to-br from-[#feda75] via-[#d62976] to-[#4f5bd5]"
-      )}
-    >
-      {all ? <Layers className="h-4 w-4" /> : <span className="text-xs font-semibold">{name.replace(/^@/, "").slice(0, 1).toUpperCase()}</span>}
-    </span>
-  );
-}
-
-/** Переключатель внизу бокового меню: аккаунты, «Все аккаунты», добавить и управление. */
-export function AccountSwitcher({ onNavigate }: { onNavigate?: () => void }) {
+/** Внизу бокового меню: какой Instagram подключён, или кнопка «Подключить». */
+export function InstagramStatus({ onNavigate }: { onNavigate?: () => void }) {
   const ctx = useAccountFilter();
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [open]);
-
-  if (!ctx) return null;
-  const { accounts, selected, account, setSelected } = ctx;
-  const all = selected === ALL_ACCOUNTS;
-  const pick = (id: string) => {
-    setSelected(id);
-    setOpen(false);
-  };
+  if (!ctx?.ready) return null;
+  const account = ctx.account;
+  const ok = account?.status === "connected";
 
   return (
-    <div className="relative px-3 pb-2" ref={ref}>
-      {open && (
-        <div role="menu" className="absolute bottom-full left-3 right-3 z-50 mb-1 overflow-hidden rounded-xl border border-slate-200 bg-surface p-1 shadow-lg">
-          <p className="px-3 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-slate-400">{t("Аккаунты")}</p>
-          {accounts.map((a) => (
-            <button key={a.id} role="menuitemradio" aria-checked={selected === a.id} onClick={() => pick(a.id)} className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-slate-50">
-              <Avatar name={a.account_name} />
-              <span className="min-w-0 flex-1 truncate text-sm text-slate-800">{a.account_name}</span>
-              {selected === a.id && <Check className="h-4 w-4 text-brand" />}
-            </button>
-          ))}
-          {accounts.length > 1 && (
-            <button role="menuitemradio" aria-checked={all} onClick={() => pick(ALL_ACCOUNTS)} className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-slate-50">
-              <Avatar name="" all />
-              <span className="min-w-0 flex-1 truncate text-sm text-slate-800">{t("Все аккаунты")}</span>
-              {all && <Check className="h-4 w-4 text-brand" />}
-            </button>
-          )}
-          <div className="my-1 h-px bg-slate-100" />
-          <Link href="/accounts?add=1" onClick={() => { setOpen(false); onNavigate?.(); }} className="flex items-center gap-2.5 rounded-lg px-2 py-2 text-sm font-medium text-brand hover:bg-brand-soft">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full border border-dashed border-brand/40">
-              <Plus className="h-4 w-4" />
-            </span>
-            {t("Добавить аккаунт")}</Link>
-          <Link href="/accounts" onClick={() => { setOpen(false); onNavigate?.(); }} className="flex items-center gap-2.5 rounded-lg px-2 py-2 text-sm text-slate-600 hover:bg-slate-50">
-            <span className="flex h-8 w-8 items-center justify-center">
-              <Settings2 className="h-4 w-4 text-slate-400" />
-            </span>
-            {t("Управление аккаунтами")}</Link>
-        </div>
-      )}
-
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label={t("Сменить Instagram-аккаунт")}
-        className="flex w-full items-center gap-2.5 rounded-xl border border-slate-200 bg-surface px-2.5 py-2 text-left shadow-sm transition hover:border-brand/40"
-      >
-        {accounts.length === 0 ? (
-          <>
-            <span className="flex h-8 w-8 items-center justify-center rounded-full border border-dashed border-slate-300">
-              <Instagram className="h-4 w-4 text-slate-400" />
-            </span>
-            <span className="flex-1 text-sm text-slate-500">{t("Нет аккаунтов")}</span>
-          </>
-        ) : (
-          <>
-            <Avatar name={account?.account_name ?? ""} all={all} />
-            <span className="min-w-0 flex-1 leading-tight">
-              <span className="block truncate text-sm font-medium text-slate-900">{all ? t("Все аккаунты") : account?.account_name}</span>
-              <span className="block truncate text-[11px] text-slate-400">{all ? `${accounts.length} Instagram` : "Instagram"}</span>
-            </span>
-          </>
+    <Link
+      href={account ? "/accounts" : "/accounts?add=1"}
+      onClick={onNavigate}
+      className="mx-3 mb-2 flex items-center gap-2.5 rounded-xl border border-slate-200 px-2.5 py-2 text-left transition-colors hover:bg-slate-50"
+    >
+      <span
+        className={cn(
+          "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white",
+          account ? "bg-gradient-to-br from-[#feda75] via-[#d62976] to-[#4f5bd5]" : "border border-dashed border-slate-300 text-slate-400"
         )}
-        <ChevronsUpDown className="h-4 w-4 shrink-0 text-slate-400" />
-      </button>
-    </div>
+      >
+        <Instagram className="h-4 w-4" />
+      </span>
+      <span className="min-w-0 flex-1 leading-tight">
+        <span className="block truncate text-xs font-medium text-slate-800">{account ? account.account_name : t("Подключить Instagram")}</span>
+        <span className={cn("block truncate text-[11px]", !account ? "text-slate-400" : ok ? "text-emerald-600" : "text-red-500")}>
+          {!account ? t("ИИ начнёт отвечать клиентам") : ok ? t("Подключён") : t("Нужно переподключить")}
+        </span>
+      </span>
+      <ChevronRight className="h-4 w-4 shrink-0 text-slate-300" />
+    </Link>
   );
 }

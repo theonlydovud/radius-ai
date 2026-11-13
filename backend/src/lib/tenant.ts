@@ -66,9 +66,55 @@ export async function accountCompany(accountId: string | null | undefined): Prom
   return companyInfo(await accountCompanyId(accountId));
 }
 
-/** Бот отвечает клиентам только у платных компаний и на пробном периоде. */
-export function aiAllowed(company: AuthCompany | null) {
-  return !company || company.status !== "expired";
+/**
+ * Почему бот не отвечает клиентам этой компании (null — отвечает):
+ * кончился пробный период, оплаченный период или сообщения тарифа.
+ * Счётчик сообщений читается из базы заново: кэш компании живёт 30 секунд.
+ */
+export async function aiBlockReason(company: AuthCompany | null): Promise<"trial" | "period" | "limit" | null> {
+  if (!company || company.unlimited) return null;
+  if (company.status === "expired") return "trial";
+  if (company.ai_blocked === "period") return "period";
+  const limit = company.usage.messages_limit;
+  if (limit === null) return null;
+  const { data } = await createAdminClient().from("companies").select("messages_used").eq("id", company.id).maybeSingle();
+  return (Number(data?.messages_used) || 0) >= limit ? "limit" : null;
+}
+
+/**
+ * Один ответ бота = одно сообщение тарифа. Считаем у всех компаний (у наших — для статистики).
+ * Когда лимит выбран — один раз сообщаем владельцу DexaAI: компании пора продлеваться.
+ */
+export async function countBotReply(company: AuthCompany | null, notify: (text: string) => Promise<void>) {
+  if (!company) return;
+  const supabase = createAdminClient();
+  const { data, error } = await supabase.rpc("count_company_message", { p_company: company.id });
+  if (error) return console.error("[usage] счётчик сообщений:", error.message);
+  const used = Number(Array.isArray(data) ? data[0] : data) || 0;
+  const limit = company.usage.messages_limit;
+  if (limit === null || used < limit) return;
+  const { data: first } = await supabase
+    .from("companies")
+    .update({ limit_notified_at: new Date().toISOString() })
+    .eq("id", company.id)
+    .is("limit_notified_at", null)
+    .select("id");
+  if (first?.length) {
+    await notify(`📈 <b>Лимит сообщений исчерпан</b>
+Компания: <b>${company.name.replace(/[<>&]/g, "")}</b>
+Тариф ${company.plan?.name}: ${used} из ${limit}. Бот перестал отвечать клиентам — пора продлевать.`);
+  }
+}
+
+/** Сколько Instagram-аккаунтов можно подключить по тарифу. Текст ошибки или null. */
+export async function instagramLimitError(company: AuthCompany | null): Promise<string | null> {
+  const limit = company?.usage.instagram_accounts ?? null;
+  if (!company || limit === null) return null;
+  const connected = (await companyAccountIds(company.id)).length;
+  if (connected < limit) return null;
+  return limit === 1
+    ? "К компании уже подключён Instagram-аккаунт. Один аккаунт — одна компания: для второго зарегистрируйте отдельную компанию."
+    : `По тарифу можно подключить не больше ${limit} Instagram-аккаунтов.`;
 }
 
 export const forbidden = (error = "Нет доступа.") => Response.json({ error }, { status: 404 });

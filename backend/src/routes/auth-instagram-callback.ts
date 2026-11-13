@@ -3,6 +3,8 @@ import { connectInstagramAccount, exchangeCodeForToken, verifyState } from "../l
 import { validateKnowledgeSource } from "../lib/agents";
 import { invalidateAccountCache } from "../lib/gemini";
 import { frontendUrl } from "../lib/urls";
+import { companyInfo } from "../lib/auth";
+import { instagramLimitError } from "../lib/tenant";
 
 function back(params: Record<string, string>) {
   return Response.redirect(frontendUrl(`/accounts?${new URLSearchParams(params)}`));
@@ -44,6 +46,9 @@ export async function GET(req: Request) {
         .eq("id", existing.id);
       return back({ ig: "reconnected", name: profile.username });
     }
+
+    const limitError = await instagramLimitError(await companyInfo(companyId));
+    if (limitError) return back({ ig_error: limitError });
 
     const sourceId = (state.s as string | null) ?? null;
     const sourceError = await validateKnowledgeSource(supabase, null, sourceId, companyId);

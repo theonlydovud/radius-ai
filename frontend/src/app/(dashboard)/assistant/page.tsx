@@ -325,7 +325,7 @@ export default function AssistantPage() {
       <div className="thin-scroll min-h-0 flex-1 overflow-y-auto rounded-2xl border border-slate-200 bg-surface/60 p-4 sm:p-6">
         {empty ? (
           <div className="flex h-full flex-col items-center justify-center text-center">
-            <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-[#3D6BFF] via-[#5B4BFF] to-[#A445F5] shadow-[0_10px_40px_-10px_rgba(91,75,255,0.7)]">
+            <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-[#7A6CFF] via-[#5B4CED] to-[#8E5CF7] shadow-[0_10px_40px_-10px_rgba(91,76,237,0.7)]">
               <Sparkles className="h-8 w-8 text-white" />
             </span>
             <p className="mt-5 text-xl font-semibold text-slate-900">{t("Чем помочь?")}</p>
@@ -352,7 +352,7 @@ export default function AssistantPage() {
                 </div>
               ) : (
                 <div key={i} className="flex gap-3">
-                  <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#3D6BFF] to-[#A445F5]">
+                  <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#7A6CFF] to-[#8E5CF7]">
                     <Sparkles className="h-4 w-4 text-white" />
                   </span>
                   <div className="min-w-0 flex-1 space-y-3">
@@ -372,7 +372,7 @@ export default function AssistantPage() {
             )}
             {busy && (
               <div className="flex items-center gap-3 text-sm text-slate-500">
-                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#3D6BFF] to-[#A445F5]">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#7A6CFF] to-[#8E5CF7]">
                   <Sparkles className="h-4 w-4 animate-pulse text-white" />
                 </span>
                 {t("Думаю...")}

@@ -16,12 +16,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDate } from "@/lib/utils";
-import { BotSelector, useSelectedBot } from "@/components/bot-selector";
+import { useSelectedBot } from "@/components/bot-selector";
 import type { KnowledgeItem } from "@/types";
 import { t } from "@/lib/i18n";
 
 export default function KnowledgePage() {
-  const { bots, botId, setBotId, ready } = useSelectedBot();
+  const { bots, botId, ready } = useSelectedBot();
   const [items, setItems] = useState<KnowledgeItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -112,10 +112,9 @@ export default function KnowledgePage() {
         <div>
           <h1 className="text-lg font-semibold text-slate-900">{t("Знания ИИ")}</h1>
           <p className="mt-1 text-sm text-slate-500">
-            {t("Статьи, направления и регламенты доставки, которые ИИ использует как источник фактов (RAG).")}</p>
+            {t("Статьи о компании, товарах и услугах — ИИ отвечает клиентам только по этим фактам.")}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap sm:gap-3">
-        <BotSelector bots={bots} botId={botId} onChange={setBotId} />
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button size="sm" onClick={openCreateDialog} disabled={!botId}>

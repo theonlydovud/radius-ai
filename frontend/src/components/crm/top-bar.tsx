@@ -44,7 +44,7 @@ export function TopBar() {
             <span
               className={cn(
                 "flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br text-xs font-semibold text-white",
-                user.role === "admin" ? "from-[#5B4BFF] to-[#A445F5]" : "from-[#3D6BFF] to-[#22a2c8]"
+                user.role === "admin" ? "from-[#5B4CED] to-[#8E5CF7]" : "from-[#7A6CFF] to-[#22a2c8]"
               )}
             >
               {initials(user.name)}

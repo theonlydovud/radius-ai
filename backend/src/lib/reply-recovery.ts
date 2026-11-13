@@ -7,7 +7,7 @@ import { retryInstagramReply } from "./instagram";
  * диалоги, где последнее слово за клиентом, и отвечаем ещё раз.
  */
 
-const MIN_AGE_MS = 2 * 60_000; // дольше любой паузы склейки вместе с ответом Gemini
+const MIN_AGE_MS = 3 * 60_000; // дольше любой паузы склейки вместе с ответом Gemini
 const MAX_AGE_MS = 60 * 60_000; // на очень старое сообщение отвечать поздно
 const MAX_ATTEMPTS = 3;
 const INTERVAL_MS = 60_000;

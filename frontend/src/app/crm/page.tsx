@@ -16,7 +16,7 @@ import {
   Weight,
   X,
 } from "lucide-react";
-import { useCurrentUser } from "@/components/current-user";
+import { hasFeature, useCurrentUser } from "@/components/current-user";
 import { CloseLeadDialog, type CloseMode } from "@/components/close-lead-dialog";
 import { CreateLeadButton } from "@/components/create-lead-dialog";
 import { SERIES } from "@/components/crm/charts";
@@ -179,7 +179,7 @@ function LeadRow({
 // ---------------------------------------------------------------------
 
 export default function CrmPage() {
-  const { user } = useCurrentUser();
+  const { user, company } = useCurrentUser();
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [leadsError, setLeadsError] = useState("");
   const [tab, setTab] = useState<LeadTab>("active");
@@ -360,7 +360,7 @@ export default function CrmPage() {
           </div>
         </section>
 
-        <StatsSection title={tr("Мои показатели")} splitHint={tr("Где сейчас ваши заявки")} refreshKey={statsKey} />
+        {hasFeature(company, "stats") && <StatsSection title={tr("Мои показатели")} splitHint={tr("Где сейчас ваши заявки")} refreshKey={statsKey} />}
       </main>
 
       {closing && (

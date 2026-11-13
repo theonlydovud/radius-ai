@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { ManagersCard } from "@/components/managers-card";
-import { useCurrentUser } from "@/components/current-user";
+import { hasFeature, useCurrentUser } from "@/components/current-user";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
 
@@ -49,7 +49,11 @@ export default function SettingsPage() {
           </div>
         </CardHeader>
       </Card>
-      <ManagersCard />
+      {hasFeature(company, "lead_transfer") ? <ManagersCard /> : (
+        <p className="mt-6 max-w-2xl rounded-xl border border-dashed border-slate-200 px-4 py-3 text-sm text-slate-500">
+          {t("Менеджеры, очередь заявок и передача заявок открываются на тарифах Business и Pro.")}
+        </p>
+      )}
     </div>
   );
 }

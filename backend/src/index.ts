@@ -6,6 +6,7 @@ import { refreshInstagramTokens } from "./lib/instagram";
 import { startReplyRecovery } from "./lib/reply-recovery";
 import { ensureLeadsBotWebhook } from "./lib/lead-notify";
 import { sessionUser, type AuthUser } from "./lib/auth";
+import { FEATURE_LABEL, type Feature } from "./lib/plans";
 
 import * as accounts from "./routes/accounts";
 import * as assistant from "./routes/assistant";
@@ -26,6 +27,7 @@ import * as leadsStats from "./routes/leads-stats";
 import * as managers from "./routes/managers";
 import * as leadsId from "./routes/leads-id";
 import * as messages from "./routes/messages";
+import * as plans from "./routes/plans";
 import * as rules from "./routes/rules";
 import * as sessions from "./routes/sessions";
 import * as sessionsId from "./routes/sessions-id";
@@ -61,6 +63,7 @@ app.use(
 /** Без входа: вызывают Meta/Telegram/Render или это сами шаги входа. */
 const PUBLIC_PATHS = new Set([
   "/api/health",
+  "/api/plans",
   "/api/auth/me",
   "/api/auth/login",
   "/api/auth/select",
@@ -81,6 +84,19 @@ function leadsAllowed(method: string, path: string) {
   if (method === "GET" && (path === "/api/leads" || path === "/api/leads/stats" || path === "/api/messages")) return true;
   if (method === "POST" && path === "/api/leads") return true;
   return method === "PATCH" && /^\/api\/leads\/[^/]+$/.test(path) && path !== "/api/leads/stats";
+}
+
+/**
+ * Что из API закрыто тарифом. Смена ответственного (PATCH /api/leads/:id с manager_id)
+ * проверяется в самом хендлере — по телу запроса.
+ */
+function featureFor(method: string, path: string): Feature | null {
+  if (path.startsWith("/api/assistant")) return "assistant";
+  if (path === "/api/leads/stats") return "stats";
+  if (method === "POST" && path === "/api/leads") return "manual_leads";
+  if (path.startsWith("/api/sessions") || (method === "POST" && path === "/api/messages")) return "chat_history";
+  if (path === "/api/managers" && method !== "GET") return "lead_transfer";
+  return null;
 }
 
 function allowed(role: string, method: string, path: string) {
@@ -107,6 +123,10 @@ app.use("/api/*", async (c, next) => {
   // Бот заявок с Telegram-группой — отдельная услуга (пока только у Radius).
   if (path.startsWith("/api/settings/lead-notifications") && !user.company.telegram_leads) {
     return c.json({ error: "Уведомления о заявках в Telegram подключаются отдельно.", code: "not_available" }, 403);
+  }
+  const feature = featureFor(c.req.method, path);
+  if (feature && !user.company.features[feature]) {
+    return c.json({ error: `«${FEATURE_LABEL[feature]}» нет в тарифе ${user.company.plan?.name ?? ""}.`, code: "plan_required", feature }, 403);
   }
   if (!allowed(user.role, c.req.method, path)) {
     return c.json({ error: "Это доступно только руководителю.", code: "forbidden" }, 403);
@@ -151,6 +171,7 @@ mount("/api/leads/stats", leadsStats);
 mount("/api/managers", managers);
 mount("/api/leads/:id", leadsId);
 mount("/api/messages", messages);
+mount("/api/plans", plans);
 mount("/api/rules", rules);
 mount("/api/sessions", sessions);
 mount("/api/sessions/:id", sessionsId);

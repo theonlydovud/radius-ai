@@ -1,6 +1,7 @@
 import { createHash, createHmac, randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import { createAdminClient } from "./supabase/server";
+import { ALL_FEATURES, findPlan, getPlans, type Features, type Plan } from "./plans";
 
 /**
  * Вход в DexaAI. Два шага, оба запоминаются на устройстве на год (httpOnly-куки):
@@ -38,6 +39,24 @@ export type AuthCompany = {
   lead_kind: LeadKind;
   /** Уведомления о заявках в свою Telegram-группу (бот заявок). */
   telegram_leads: boolean;
+  /** Наша компания (Radius): без тарифных ограничений, лимита сообщений и правила «одно устройство». */
+  unlimited: boolean;
+  /** Тариф; у unlimited-компаний — null. */
+  plan: { code: string; name: string; price: number } | null;
+  /** Что открыто тарифом. Проверяется в index.ts и в хендлерах, меню строится по этим же флагам. */
+  features: Features;
+  usage: {
+    messages_used: number;
+    /** null — без лимита. */
+    messages_limit: number | null;
+    /** Конец пробного или оплаченного периода. */
+    period_end: string | null;
+    /** Сколько человек может работать (владелец + менеджеры); null — без лимита. */
+    users_limit: number | null;
+    instagram_accounts: number | null;
+  };
+  /** Почему бот не отвечает клиентам: кончились сообщения или оплаченный период. */
+  ai_blocked: "limit" | "period" | null;
 };
 export const TRIAL_DAYS = 14;
 export type AuthUser = { id: string; name: string; role: Role; manager_id: string | null; company: AuthCompany };
@@ -109,8 +128,8 @@ export function companyToken(company: { id: string; password_hash?: string | nul
   return sign({ t: "c", id: company.id, v: companyStamp(company), exp: Math.floor(Date.now() / 1000) + YEAR_S });
 }
 
-export function userToken(user: { id: string; password_hash?: string | null; telegram_id?: number | string | null }) {
-  return sign({ t: "u", id: user.id, v: userStamp(user), exp: Math.floor(Date.now() / 1000) + YEAR_S });
+export function userToken(user: { id: string; password_hash?: string | null; telegram_id?: number | string | null }, sessionId?: string) {
+  return sign({ t: "u", id: user.id, v: userStamp(user), ...(sessionId ? { s: sessionId } : {}), exp: Math.floor(Date.now() / 1000) + YEAR_S });
 }
 
 // ---------------------------------------------------------------------
@@ -184,8 +203,15 @@ type CompanyRow = {
   subdomain?: string | null;
   lead_kind?: string | null;
   telegram_leads?: boolean | null;
+  unlimited?: boolean | null;
+  plan?: string | null;
+  period_end?: string | null;
+  messages_used?: number | null;
+  extra_users?: number | null;
 };
 type UserRow = {
+  /** id текущего входа: у обычных компаний действует только последний вход (одно устройство). */
+  session_id?: string | null;
   id: string;
   company_id: string;
   name: string;
@@ -239,26 +265,45 @@ export async function sessionCompany(req: Request): Promise<AuthCompany | null> 
   const c = unsign(cookies[COMPANY_COOKIE]);
   if (c?.t === "c") {
     const company = await companyById(c.id);
-    if (company && companyStamp(company) === c.v) return publicCompany(company);
+    if (company && companyStamp(company) === c.v) return describeCompany(company);
   }
   const user = await sessionUser(req);
   return user?.company ?? null;
 }
 
-export async function sessionUser(req: Request): Promise<AuthUser | null> {
+/**
+ * Кто вошёл. replaced = кука настоящая, но в этот аккаунт позже вошли с другого
+ * устройства (один аккаунт — одно устройство; у unlimited-компаний не действует).
+ */
+export async function sessionState(req: Request): Promise<{ user: AuthUser | null; replaced: boolean }> {
+  const none = { user: null, replaced: false };
   const u = unsign(readCookies(req)[USER_COOKIE]);
-  if (u?.t !== "u") return null;
+  if (u?.t !== "u") return none;
   const user = await userById(u.id);
-  if (!user || !user.is_active || userStamp(user) !== u.v) return null;
-  const company = await companyById(user.company_id);
-  if (!company) return null;
-  return {
-    id: user.id,
-    name: user.name,
-    role: user.role,
-    manager_id: user.manager_id,
-    company: publicCompany(company),
-  };
+  if (!user || !user.is_active || userStamp(user) !== u.v) return none;
+  const row = await companyById(user.company_id);
+  if (!row) return none;
+  const company = await describeCompany(row);
+  if (!company.unlimited && (u.s ?? null) !== (user.session_id ?? null)) return { user: null, replaced: true };
+  return { user: { id: user.id, name: user.name, role: user.role, manager_id: user.manager_id, company }, replaced: false };
+}
+
+export async function sessionUser(req: Request): Promise<AuthUser | null> {
+  return (await sessionState(req)).user;
+}
+
+/**
+ * Новый вход человека: возвращает токен для куки. У обычных компаний каждый вход
+ * получает свой id и записывается в app_users.session_id — прежнее устройство выходит.
+ */
+export async function startSession(user: UserRow, company: CompanyRow): Promise<string> {
+  if (company.unlimited === true) return userToken(user);
+  const sessionId = randomBytes(12).toString("base64url");
+  const { error } = await createAdminClient().from("app_users").update({ session_id: sessionId }).eq("id", user.id);
+  // Колонки ещё нет (migration-plans.sql не выполнена) — входим по-старому, без привязки к устройству.
+  if (error) return userToken(user);
+  invalidateAuthCache();
+  return userToken(user, sessionId);
 }
 
 /** Конец пробного периода: из базы, а у старых записей без даты — от регистрации. */
@@ -268,10 +313,16 @@ function trialEnd(c: CompanyRow) {
   return new Date(start + TRIAL_DAYS * 86_400_000).toISOString();
 }
 
-export function publicCompany(c: CompanyRow): AuthCompany {
+export function publicCompany(c: CompanyRow, plans: Plan[]): AuthCompany {
+  const unlimited = c.unlimited === true;
   // До migration-multitenant.sql статуса trial нет: самостоятельная регистрация — pending.
-  const trial = c.status === "trial" || c.status === "pending";
+  const trial = !unlimited && (c.status === "trial" || c.status === "pending");
   const ends = trial ? trialEnd(c) : null;
+  const plan = unlimited ? null : findPlan(plans, c.plan);
+  const used = Number(c.messages_used) || 0;
+  const periodEnd = trial ? ends : unlimited ? null : c.period_end ?? null;
+  const ai_blocked =
+    plan && used >= plan.messages_limit ? "limit" : !trial && periodEnd && Date.parse(periodEnd) <= Date.now() ? "period" : null;
   return {
     id: c.id,
     name: c.name,
@@ -280,7 +331,23 @@ export function publicCompany(c: CompanyRow): AuthCompany {
     subdomain: c.subdomain ?? null,
     lead_kind: c.lead_kind === "cargo" ? "cargo" : "generic",
     telegram_leads: c.telegram_leads === true,
+    unlimited,
+    plan: plan ? { code: plan.code, name: plan.name, price: plan.price } : null,
+    features: plan ? plan.features : ALL_FEATURES,
+    usage: {
+      messages_used: used,
+      messages_limit: plan ? plan.messages_limit : null,
+      period_end: periodEnd,
+      users_limit: plan ? plan.users_included + (Number(c.extra_users) || 0) : null,
+      instagram_accounts: plan ? plan.instagram_accounts : null,
+    },
+    ai_blocked,
   };
+}
+
+/** Компания для ответа API: статус, тариф, лимиты (тарифы — из таблицы plans, кэш 1 мин). */
+export async function describeCompany(c: CompanyRow): Promise<AuthCompany> {
+  return publicCompany(c, await getPlans());
 }
 
 /** Люди компании для экрана «Выберите менеджера». */
@@ -358,5 +425,5 @@ export function clearFailures(key: string) {
 export async function companyInfo(id: string | null | undefined): Promise<AuthCompany | null> {
   if (!id) return null;
   const c = await companyById(id);
-  return c ? publicCompany(c) : null;
+  return c ? describeCompany(c) : null;
 }

@@ -1,54 +1,53 @@
-import { useId } from "react";
+import { Montserrat_Alternates } from "next/font/google";
 import { cn } from "@/lib/utils";
 
 /**
- * Знак DexaAI: буква «D» с ядром внутри (ИИ, который держит разговор) и искрой.
- * Градиент синий → индиго → фиолетовый; тот же рисунок лежит в app/icon.svg.
+ * Логотип DexaAI (исходники — brand/ в корне проекта): фиолетовая буква «D» в форме
+ * облачка сообщения с искрой ИИ внутри. Тот же рисунок — в app/icon.svg и brand/dexaai-mark.svg.
  */
-export function DexaMark({ size = 32, className }: { size?: number; className?: string }) {
-  const id = useId().replace(/:/g, "");
+
+// Надпись «DexaAI» — широким геометрическим шрифтом с однобуквенной «a», как в логотипе.
+// Только начертание 700 и только для логотипа: остальной сайт на Geist.
+const wordmark = Montserrat_Alternates({ subsets: ["latin"], weight: "700", display: "swap" });
+
+export const BRAND_PURPLE = "#5B4CED";
+const BODY = "M18 15H52A30 30 0 0 1 52 75H32L18 85Z";
+const SPARK = "M46 30.5C47.3 40.2 49.6 43.5 62 45C49.6 46.5 47.3 49.8 46 59.5C44.7 49.8 42.4 46.5 30 45C42.4 43.5 44.7 40.2 46 30.5Z";
+
+/** Знак. tile — на тёмной плитке со скруглёнными углами (как иконка приложения). */
+export function DexaMark({ size = 32, tile = false, className }: { size?: number; tile?: boolean; className?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 40 40" className={cn("shrink-0", className)} aria-hidden="true">
-      <defs>
-        <linearGradient id={`dx-${id}`} x1="4" y1="2" x2="38" y2="40" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#3D6BFF" />
-          <stop offset="0.55" stopColor="#5B4BFF" />
-          <stop offset="1" stopColor="#A445F5" />
-        </linearGradient>
-        <radialGradient id={`dg-${id}`} cx="0.3" cy="0.2" r="0.9">
-          <stop offset="0" stopColor="#fff" stopOpacity="0.28" />
-          <stop offset="1" stopColor="#fff" stopOpacity="0" />
-        </radialGradient>
-      </defs>
-      <rect width="40" height="40" rx="11" fill={`url(#dx-${id})`} />
-      <rect width="40" height="40" rx="11" fill={`url(#dg-${id})`} />
-      <path d="M12.5 10.5h6.8a9.5 9.5 0 0 1 0 19h-6.8z" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinejoin="round" />
-      <circle cx="19.3" cy="20" r="3.1" fill="#fff" />
-      <path d="M31 7.2l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z" fill="#fff" opacity="0.9" />
+    // Без плитки рамка обрезана по самому знаку (x 18–82, y 15–85), чтобы он занимал весь размер.
+    <svg width={size} height={size} viewBox={tile ? "0 0 100 100" : "15 13 70 74"} className={cn("shrink-0", className)} aria-hidden="true">
+      {tile && <rect width="100" height="100" rx="22" fill="#121318" />}
+      <g transform={tile ? "translate(15 15) scale(0.7)" : undefined}>
+        <path d={BODY} fill={BRAND_PURPLE} />
+        <path d={SPARK} fill="#fff" />
+      </g>
     </svg>
   );
 }
 
-/** Знак + надпись «DexaAI». tone="light" — для тёмного фона лендинга. */
-export function DexaLogo({
-  size = 32,
-  tone = "dark",
-  className,
-}: {
-  size?: number;
-  tone?: "dark" | "light";
-  className?: string;
-}) {
+/** Знак + надпись «DexaAI». tone="light" — белая надпись для тёмного фона; по умолчанию — цвет текста темы. */
+export function DexaLogo({ size = 32, tone, className }: { size?: number; tone?: "dark" | "light"; className?: string }) {
   return (
-    <span className={cn("inline-flex items-center gap-2", className)}>
+    <span className={cn("inline-flex items-center", className)} style={{ gap: Math.round(size * 0.3) }}>
       <DexaMark size={size} />
       <span
-        className={cn("font-semibold tracking-tight", tone === "light" ? "text-white" : "text-slate-900")}
-        style={{ fontSize: Math.round(size * 0.56) }}
+        className={cn(wordmark.className, "leading-none tracking-[-0.01em]", tone === "light" ? "text-white" : tone === "dark" ? "text-[#121318]" : "text-slate-900")}
+        style={{ fontSize: Math.round(size * 0.62) }}
       >
-        Dexa
-        <span className="bg-gradient-to-r from-[#3D6BFF] via-[#5B4BFF] to-[#A445F5] bg-clip-text text-transparent">AI</span>
+        Dexa<span style={{ color: tone === "light" ? "#8D82FF" : undefined }} className={tone === "light" ? undefined : "text-brand"}>AI</span>
       </span>
+    </span>
+  );
+}
+
+/** Только надпись «DexaAI» тем же шрифтом — для мест, где знак уже стоит рядом. */
+export function DexaWordmark({ className }: { className?: string }) {
+  return (
+    <span className={cn(wordmark.className, "tracking-[-0.01em]", className)}>
+      Dexa<span className="text-brand">AI</span>
     </span>
   );
 }

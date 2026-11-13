@@ -3,6 +3,7 @@ import { createAdminClient } from "./supabase/server";
 import { tgCall } from "./lead-notify";
 import { backendUrl } from "./urls";
 import { invalidateAuthCache, TRIAL_DAYS } from "./auth";
+import { DEFAULT_PLAN, findPlan, getPlans } from "./plans";
 
 /**
  * Бот DexaAI: регистрация и вход в один клик + база подписчиков для рассылок.
@@ -50,13 +51,13 @@ export async function ensureDexaBotWebhook() {
 // Коды входа
 // ---------------------------------------------------------------------
 
-export async function createSignup(meta: { lang?: string; ip?: string; userAgent?: string }) {
+export async function createSignup(meta: { lang?: string; plan?: string; ip?: string; userAgent?: string }) {
   const username = await dexaBotUsername();
   if (!username) throw new Error("Бот DexaAI не настроен (DEXA_BOT_TOKEN).");
   const nonce = randomBytes(18).toString("base64url"); // 24 символа A-Za-z0-9_- — подходит для ?start=
   const { error } = await createAdminClient()
     .from("dexa_signups")
-    .insert({ nonce, lang: meta.lang ?? null, ip: meta.ip ?? null, user_agent: meta.userAgent?.slice(0, 300) ?? null });
+    .insert({ nonce, lang: meta.lang ?? null, ip: meta.ip ?? null, user_agent: meta.userAgent?.slice(0, 300) ?? null, ...(meta.plan ? { plan: meta.plan } : {}) });
   if (error) throw new Error(error.message);
   return { nonce, url: `https://t.me/${username}?start=${nonce}` };
 }
@@ -100,9 +101,9 @@ const langOf = (code?: string | null): Lang => (code?.startsWith("uz") ? "uz" : 
 
 const TEXT: Record<string, Record<Lang, string>> = {
   welcomeNew: {
-    ru: "🎉 Добро пожаловать в DexaAI!\n\nАккаунт создан: 14 дней — бесплатно и без ограничений. Вернитесь во вкладку браузера — вход выполнится автоматически.",
-    uz: "🎉 DexaAI’ga xush kelibsiz!\n\nAkkaunt yaratildi: 14 kun — bepul va cheklovsiz. Brauzerdagi sahifaga qayting — kirish avtomatik bajariladi.",
-    en: "🎉 Welcome to DexaAI!\n\nYour account is ready: 14 days free, no limits. Go back to the browser tab — you'll be signed in automatically.",
+    ru: "🎉 Добро пожаловать в DexaAI!\n\nАккаунт создан: 14 дней бесплатно. Вернитесь во вкладку браузера — вход выполнится автоматически.",
+    uz: "🎉 DexaAI’ga xush kelibsiz!\n\nAkkaunt yaratildi: 14 kun bepul. Brauzerdagi sahifaga qayting — kirish avtomatik bajariladi.",
+    en: "🎉 Welcome to DexaAI!\n\nYour account is ready: 14 days free. Go back to the browser tab — you'll be signed in automatically.",
   },
   welcomeBack: {
     ru: "✅ Вход подтверждён. Вернитесь во вкладку браузера.",
@@ -162,18 +163,24 @@ async function rememberBotUser(from: any) {
 }
 
 /** Аккаунт по Telegram ID; нет — новая компания в статусе pending и её владелец. */
-async function accountFor(from: any) {
+async function accountFor(from: any, planCode?: string | null) {
   const supabase = createAdminClient();
   const { data: existing } = await supabase.from("app_users").select("id").eq("telegram_id", from.id).maybeSingle();
-  if (existing) return { userId: existing.id as string, isNew: false };
+  if (existing) return { userId: existing.id as string, isNew: false, plan: null };
 
   const person = [from.first_name, from.last_name].filter(Boolean).join(" ") || (from.username ? `@${from.username}` : "Владелец");
+  const plan = findPlan(await getPlans(), planCode ?? DEFAULT_PLAN);
+  const trialEnd = new Date(Date.now() + TRIAL_DAYS * 86_400_000).toISOString();
   const { data: company, error: ce } = await supabase
     .from("companies")
     .insert({
       name: "Моя компания",
       status: "trial",
-      trial_ends_at: new Date(Date.now() + TRIAL_DAYS * 86_400_000).toISOString(),
+      // Пробный период идёт на тарифе, выбранном при регистрации: его функции и его лимит сообщений.
+      plan: plan.code,
+      period_start: new Date().toISOString(),
+      period_end: trialEnd,
+      trial_ends_at: trialEnd,
       profile: { contact_name: person, telegram: from.username ? `@${from.username}` : null } })
     .select("id")
     .single();
@@ -185,7 +192,7 @@ async function accountFor(from: any) {
     .single();
   if (ue) throw new Error(ue.message);
   invalidateAuthCache();
-  return { userId: user.id as string, isNew: true };
+  return { userId: user.id as string, isNew: true, plan: plan.name };
 }
 
 export async function handleDexaBotUpdate(update: any) {
@@ -236,13 +243,13 @@ export async function handleDexaBotUpdate(update: any) {
     return;
   }
 
-  const { data: signup } = await supabase.from("dexa_signups").select("id, created_at, confirmed_at").eq("nonce", nonce).maybeSingle();
+  const { data: signup } = await supabase.from("dexa_signups").select("*").eq("nonce", nonce).maybeSingle();
   if (!signup || signup.confirmed_at || Date.now() - Date.parse(signup.created_at) > CODE_TTL_MS) {
     await send(from.id, TEXT.expired[lang]);
     return;
   }
 
-  const { userId, isNew } = await accountFor(from);
+  const { userId, isNew, plan } = await accountFor(from, signup.plan);
   await supabase
     .from("dexa_signups")
     .update({ confirmed_at: new Date().toISOString(), telegram_id: from.id, user_id: userId, is_new: isNew })
@@ -255,7 +262,7 @@ export async function handleDexaBotUpdate(update: any) {
       reply_markup: { keyboard: [[{ text: TEXT.phoneButton[lang], request_contact: true }]], resize_keyboard: true, one_time_keyboard: true },
     });
     await notifyDexaAdmins(
-      `🆕 <b>Новая регистрация в DexaAI</b> — пробный период ${TRIAL_DAYS} дней\n${esc([from.first_name, from.last_name].filter(Boolean).join(" "))}` +
+      `🆕 <b>Новая регистрация в DexaAI</b> — тариф ${plan}, пробный период ${TRIAL_DAYS} дней\n${esc([from.first_name, from.last_name].filter(Boolean).join(" "))}` +
         `${from.username ? ` · @${esc(from.username)}` : ""}\nTelegram ID: <code>${from.id}</code>\nЯзык: ${esc(from.language_code ?? "—")}`
     );
   } else {

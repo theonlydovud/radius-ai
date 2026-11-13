@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Instagram, Trash2, Plug, Eye, EyeOff, Link2, Copy, Check, RefreshCw, Loader2, Bot, LogIn } from "lucide-react";
+import { Plus, Instagram, Trash2, Plug, Eye, EyeOff, Link2, Copy, Check, RefreshCw, Loader2, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -31,7 +31,6 @@ function webhookUrl() {
   return base ? `${base}/api/webhooks/instagram` : "";
 }
 
-const OWN_KNOWLEDGE = "__own__";
 
 export default function AccountsPage() {
   const accountCtx = useAccountFilter();
@@ -45,7 +44,6 @@ export default function AccountsPage() {
   const [showToken, setShowToken] = useState(false);
   const [saving, setSaving] = useState(false);
   const [igMode, setIgMode] = useState<"login" | "token">("login");
-  const [knowledgeSourceId, setKnowledgeSourceId] = useState(OWN_KNOWLEDGE);
   const [formError, setFormError] = useState("");
   // Результат входа через Instagram (backend возвращает на /accounts?ig=…).
   const [banner, setBanner] = useState<{ ok: boolean; text: string } | null>(null);
@@ -87,16 +85,14 @@ export default function AccountsPage() {
     }
   }, []);
 
-  // Агенты — аккаунты со своими знаниями; к ним можно подключать другие аккаунты.
-  const agents = accounts.filter((a) => !a.knowledge_source_id);
-  const sourceForApi = knowledgeSourceId === OWN_KNOWLEDGE ? null : knowledgeSourceId;
+  // Один Instagram — одна компания: когда аккаунт уже есть, второй не подключить (сервер проверяет то же).
+  const canAdd = accounts.length === 0;
 
   function resetForm() {
     setAccountName("");
     setToken("");
     setShowToken(false);
     setIgMode("login");
-    setKnowledgeSourceId(OWN_KNOWLEDGE);
     setFormError("");
   }
 
@@ -104,8 +100,7 @@ export default function AccountsPage() {
     setFormError("");
     if (igMode === "login") {
       // Уходим на окно входа Instagram; backend вернёт обратно на /accounts.
-      const qs = sourceForApi ? `?knowledge_source_id=${encodeURIComponent(sourceForApi)}` : "";
-      window.location.href = `/api/auth/instagram${qs}`;
+      window.location.href = "/api/auth/instagram";
       return;
     }
     if (!token.trim()) return;
@@ -113,7 +108,7 @@ export default function AccountsPage() {
     const res = await fetch("/api/accounts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ platform: "instagram", account_name: accountName, access_token: token, knowledge_source_id: sourceForApi }),
+      body: JSON.stringify({ platform: "instagram", account_name: accountName, access_token: token }),
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
@@ -124,20 +119,6 @@ export default function AccountsPage() {
     resetForm();
     setSaving(false);
     setOpen(false);
-    load();
-  }
-
-  async function handleChangeSource(acc: AccountPublic, value: string) {
-    const res = await fetch("/api/accounts", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: acc.id, knowledge_source_id: value === OWN_KNOWLEDGE ? null : value }),
-    });
-    const data = await res.json().catch(() => ({}));
-    setTestResult((prev) => ({
-      ...prev,
-      [acc.id]: res.ok ? { ok: true, message: t("Источник знаний обновлён.") } : { ok: false, message: data.error ?? t("Не удалось сохранить.") },
-    }));
     load();
   }
 
@@ -179,7 +160,7 @@ export default function AccountsPage() {
         <div>
           <h1 className="text-lg font-semibold text-slate-900">{t("Аккаунты")}</h1>
           <p className="mt-1 text-sm text-slate-500">
-            {t("Подключённые аккаунты Instagram Direct. Токены хранятся только на сервере, в браузер не передаются.")}</p>
+            {t("Instagram-аккаунт вашей компании. Один аккаунт — одна компания: для другого Instagram зарегистрируйте отдельную компанию.")}</p>
         </div>
         <Dialog
           open={open}
@@ -189,7 +170,7 @@ export default function AccountsPage() {
           }}
         >
           <DialogTrigger asChild>
-            <Button size="sm">
+            <Button size="sm" className={canAdd ? undefined : "hidden"}>
               <Plus className="h-3.5 w-3.5" />
               {t("Подключить Instagram")}</Button>
           </DialogTrigger>
@@ -200,27 +181,6 @@ export default function AccountsPage() {
             </DialogHeader>
 
             <div className="space-y-3">
-              {agents.length > 0 && (
-                <div className="space-y-1.5">
-                  <Label>{t("Знания и правила")}</Label>
-                  <Select value={knowledgeSourceId} onValueChange={setKnowledgeSourceId}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={OWN_KNOWLEDGE}>{t("Новый агент — свои знания и правила")}</SelectItem>
-                      {agents.map((a) => (
-                        <SelectItem key={a.id} value={a.id}>
-                          {t("Как у")}{" "}{a.account_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-slate-400">
-                    {t("Подключите к существующему агенту, чтобы бот отвечал по тем же знаниям без их дублирования.")}</p>
-                </div>
-              )}
-
               <div className="space-y-1.5">
                 <Label>{t("Способ подключения")}</Label>
                 <Select value={igMode} onValueChange={(v) => setIgMode(v as "login" | "token")}>
@@ -308,7 +268,6 @@ export default function AccountsPage() {
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {accounts.map((acc) => {
             const result = testResult[acc.id];
-            const dependents = accounts.filter((a) => a.knowledge_source_id === acc.id);
 
             return (
               <Card key={acc.id}>
@@ -339,29 +298,6 @@ export default function AccountsPage() {
                       {acc.status === "connected" ? t("Подключён") : acc.status === "error" ? t("Ошибка соединения") : t("Отключён")}
                     </Badge>
                     <p className="text-xs text-slate-400">{t("с")}{" "}{formatDate(acc.created_at)}</p>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Bot className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                    {dependents.length > 0 ? (
-                      <p className="text-xs text-slate-500">{t("Агент. Те же знания использует:")}{" "}{dependents.map((d) => d.account_name).join(", ")}</p>
-                    ) : (
-                      <Select value={acc.knowledge_source_id ?? OWN_KNOWLEDGE} onValueChange={(v) => handleChangeSource(acc, v)}>
-                        <SelectTrigger className="h-8 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={OWN_KNOWLEDGE}>{t("Свои знания и правила")}</SelectItem>
-                          {agents
-                            .filter((a) => a.id !== acc.id)
-                            .map((a) => (
-                              <SelectItem key={a.id} value={a.id}>
-                                {t("Знания и правила как у")}{" "}{a.account_name}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
-                    )}
                   </div>
 
                   <div className="flex items-center gap-1.5 rounded-lg border border-slate-100 bg-slate-50 px-2.5 py-2">

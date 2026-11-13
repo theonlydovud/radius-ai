@@ -38,6 +38,8 @@ export async function createManualLead(
   if (auth.role === "manager") {
     if (!auth.manager_id) return { error: "Вы не привязаны к очереди менеджеров.", status: 403 };
     manager_id = auth.manager_id;
+  } else if (!auth.company.features.lead_transfer) {
+    manager_id = null; // на тарифе без менеджеров заявка остаётся у владельца
   } else if (body.manager_id === "auto") {
     manager_id = (await assignNextManager(supabase, company))?.id ?? null;
   } else if (body.manager_id) {

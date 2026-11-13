@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Loader2, Plus } from "lucide-react";
-import { useCurrentUser } from "@/components/current-user";
+import { hasFeature, useCurrentUser } from "@/components/current-user";
 import { useAccountId } from "@/components/account-switcher";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -33,6 +33,7 @@ export function CreateLeadButton({ onCreated, className }: { onCreated: () => vo
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  const allowed = hasFeature(company, "manual_leads");
   const set = (key: keyof typeof EMPTY) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [key]: e.target.value }));
 
@@ -63,6 +64,8 @@ export function CreateLeadButton({ onCreated, className }: { onCreated: () => vo
     }
   }
 
+  // Ручные заявки — по тарифу (сервер тоже отвечает 403).
+  if (!allowed) return null;
   return (
     <>
       <Button size="sm" onClick={() => setOpen(true)} className={className}>
