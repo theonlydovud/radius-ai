@@ -89,6 +89,10 @@ declare
 begin
   select id into rid from companies where login = 'radius_logistics';
   select id into aid from companies where name = 'Radius Academy';
+  -- Academy уже вынесена (или удалена и заведена заново обычной регистрацией) — ничего не делаем.
+  if aid is null and not exists (select 1 from accounts where company_id = rid and account_name ilike '%radius_academy%') then
+    return;
+  end if;
   if aid is null then
     insert into companies (name, status, lead_kind, unlimited, plan, telegram_leads, profile)
     values ('Radius Academy', 'active', 'generic', true, 'pro', false, '{}'::jsonb)
