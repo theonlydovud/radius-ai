@@ -3,7 +3,7 @@ import { createAdminClient } from "./supabase/server";
 import { getOrCreateSession } from "./conversation";
 import { scheduleReply } from "./burst";
 import { enqueueChat, replyToPending } from "./auto-reply";
-import { backendUrl } from "./urls";
+import { backendUrl, frontendUrl } from "./urls";
 
 /**
  * Instagram Direct через «Instagram API with Instagram Login» (graph.instagram.com).
@@ -56,8 +56,14 @@ async function graph(url: string, init?: RequestInit) {
 // OAuth
 // ---------------------------------------------------------------------
 
+/**
+ * Куда Instagram возвращает после входа — на наш домен (FRONTEND_URL, https://dexa.uz),
+ * Vercel проксирует /api/* на backend. Раньше был адрес Render (*.onrender.com), и Chrome
+ * показывал «Опасный сайт»: страница входа Instagram с возвратом на чужой поддомен похожа на фишинг.
+ * Этот адрес должен быть в Meta for Developers → Instagram → Business login settings → OAuth redirect URIs.
+ */
 export function instagramRedirectUri() {
-  return backendUrl("/api/auth/instagram/callback");
+  return process.env.INSTAGRAM_REDIRECT_URI || frontendUrl("/api/auth/instagram/callback");
 }
 
 /** state подписываем секретом приложения: в нём едет выбранный агент, подделать нельзя. */
