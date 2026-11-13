@@ -41,6 +41,8 @@ export type AuthCompany = {
   telegram_leads: boolean;
   /** Наша компания (Radius): без тарифных ограничений, лимита сообщений и правила «одно устройство». */
   unlimited: boolean;
+  /** Сколько угодно устройств на один аккаунт (правило «одно устройство» не действует). Radius — на тарифе, но с этим исключением. */
+  multi_device: boolean;
   /** Тариф; у unlimited-компаний — null. */
   plan: { code: string; name: string; price: number } | null;
   /** Что открыто тарифом. Проверяется в index.ts и в хендлерах, меню строится по этим же флагам. */
@@ -204,6 +206,7 @@ type CompanyRow = {
   lead_kind?: string | null;
   telegram_leads?: boolean | null;
   unlimited?: boolean | null;
+  multi_device?: boolean | null;
   plan?: string | null;
   period_end?: string | null;
   messages_used?: number | null;
@@ -273,7 +276,7 @@ export async function sessionCompany(req: Request): Promise<AuthCompany | null> 
 
 /**
  * Кто вошёл. replaced = кука настоящая, но в этот аккаунт позже вошли с другого
- * устройства (один аккаунт — одно устройство; у unlimited-компаний не действует).
+ * устройства (один аккаунт — одно устройство; не действует у unlimited и multi_device компаний).
  */
 export async function sessionState(req: Request): Promise<{ user: AuthUser | null; replaced: boolean }> {
   const none = { user: null, replaced: false };
@@ -284,7 +287,7 @@ export async function sessionState(req: Request): Promise<{ user: AuthUser | nul
   const row = await companyById(user.company_id);
   if (!row) return none;
   const company = await describeCompany(row);
-  if (!company.unlimited && (u.s ?? null) !== (user.session_id ?? null)) return { user: null, replaced: true };
+  if (!company.unlimited && !company.multi_device && (u.s ?? null) !== (user.session_id ?? null)) return { user: null, replaced: true };
   return { user: { id: user.id, name: user.name, role: user.role, manager_id: user.manager_id, company }, replaced: false };
 }
 
@@ -297,7 +300,7 @@ export async function sessionUser(req: Request): Promise<AuthUser | null> {
  * получает свой id и записывается в app_users.session_id — прежнее устройство выходит.
  */
 export async function startSession(user: UserRow, company: CompanyRow): Promise<string> {
-  if (company.unlimited === true) return userToken(user);
+  if (company.unlimited === true || company.multi_device === true) return userToken(user);
   const sessionId = randomBytes(12).toString("base64url");
   const { error } = await createAdminClient().from("app_users").update({ session_id: sessionId }).eq("id", user.id);
   // Колонки ещё нет (migration-plans.sql не выполнена) — входим по-старому, без привязки к устройству.
@@ -332,6 +335,7 @@ export function publicCompany(c: CompanyRow, plans: Plan[]): AuthCompany {
     lead_kind: c.lead_kind === "cargo" ? "cargo" : "generic",
     telegram_leads: c.telegram_leads === true,
     unlimited,
+    multi_device: unlimited || c.multi_device === true,
     plan: plan ? { code: plan.code, name: plan.name, price: plan.price } : null,
     features: plan ? plan.features : ALL_FEATURES,
     usage: {
