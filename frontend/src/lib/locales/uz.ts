@@ -641,4 +641,6 @@ export const uz: Record<string, string> = {
   "Instagram, менеджеры и очередь заявок.": "Instagram, menejerlar va arizalar navbati.",
   "Instagram-аккаунты вашей компании. Можно подключить несколько — у каждого свои знания и правила.": "Kompaniyangizning Instagram akkauntlari. Bir nechtasini ulash mumkin — har birining o‘z bilimlari va qoidalari bor.",
   "Instagram-аккаунты, уведомления о новых заявках и менеджеры.": "Instagram akkauntlar, yangi arizalar haqida bildirishnomalar va menejerlar.",
+  "Проверка ответов бота {0}: его знания и правила, как в Instagram Direct.": "{0} botining javoblarini tekshirish: uning bilimlari va qoidalari, Instagram Direct’dagidek.",
+  "Сначала подключите Instagram в «Настройках» — песочница отвечает знаниями и правилами аккаунта.": "Avval «Sozlamalar»da Instagram’ni ulang — sinov oynasi akkaunt bilimlari va qoidalari bilan javob beradi.",
 };

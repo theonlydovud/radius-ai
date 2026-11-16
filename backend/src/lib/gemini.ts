@@ -78,21 +78,24 @@ async function resolveKnowledgeOwner(accountId?: string | null) {
   });
 }
 
+// Без аккаунта — ничего: раньше запрос без фильтра собирал правила и знания ВСЕХ компаний в один промпт.
 async function loadRules(accountId?: string | null): Promise<SystemRule[]> {
+  if (!accountId) return [];
   const run = async () => {
     const supabase = createAdminClient();
     let q = supabase
       .from("system_rules")
       .select("id, rule_type, title, rule_text, is_active")
       .eq("is_active", true);
-    if (accountId) q = q.eq("account_id", accountId);
+    q = q.eq("account_id", accountId);
     const { data } = await q;
     return (data ?? []) as SystemRule[];
   };
-  return accountId ? cached(`rules:${accountId}`, run) : run();
+  return cached(`rules:${accountId}`, run);
 }
 
 async function loadKnowledge(accountId?: string | null): Promise<KnowledgeItem[]> {
+  if (!accountId) return [];
   const run = async () => {
     const supabase = createAdminClient();
     let q = supabase
@@ -100,11 +103,11 @@ async function loadKnowledge(accountId?: string | null): Promise<KnowledgeItem[]
       .select("id, title, content, created_at")
       .order("created_at", { ascending: false })
       .limit(200);
-    if (accountId) q = q.eq("account_id", accountId);
+    q = q.eq("account_id", accountId);
     const { data } = await q;
     return (data ?? []) as KnowledgeItem[];
   };
-  return accountId ? cached(`kb:${accountId}`, run) : run();
+  return cached(`kb:${accountId}`, run);
 }
 
 /**
@@ -114,12 +117,13 @@ async function loadKnowledge(accountId?: string | null): Promise<KnowledgeItem[]
  * Если передан accountId — берутся ТОЛЬКО правила и знания этого аккаунта
  * (или его агента, если аккаунт к нему подключён).
  */
-/** Имя Instagram-аккаунта, от которого отвечает бот: чтобы модель знала, чей она консультант. */
-async function accountName(accountId?: string | null) {
+/** Instagram-аккаунт и его компания: чтобы модель знала, чей она консультант. */
+async function accountIdentity(accountId?: string | null) {
   if (!accountId) return null;
   return cached(`name:${accountId}`, async () => {
-    const { data } = await createAdminClient().from("accounts").select("account_name").eq("id", accountId).maybeSingle();
-    return (data?.account_name as string | null) ?? null;
+    const { data } = await createAdminClient().from("accounts").select("account_name, companies(name)").eq("id", accountId).maybeSingle();
+    if (!data) return null;
+    return { account: data.account_name as string, company: ((data as any).companies?.name as string | undefined) ?? null };
   });
 }
 
@@ -128,8 +132,9 @@ export async function buildSystemInstruction(userMessage: string, sourceAccountI
   const [rules, knowledgeSnippets, name] = await Promise.all([
     loadRules(accountId),
     retrieveRelevantKnowledge(userMessage, accountId),
-    accountName(sourceAccountId),
+    accountIdentity(sourceAccountId),
   ]);
+  if (!sourceAccountId) throw new Error("Не выбран Instagram-аккаунт: инструкцию без аккаунта не собираем.");
 
   const toneRules = rules.filter((r) => r.rule_type === "tone");
   const qualificationRules = rules.filter((r) => r.rule_type === "qualification_requirements");
@@ -138,7 +143,15 @@ export async function buildSystemInstruction(userMessage: string, sourceAccountI
   const sections: string[] = [];
 
   sections.push(BASE_SYSTEM_INSTRUCTION);
-  if (name) sections.push(`Ты отвечаешь клиентам в Instagram-аккаунте ${name}.`);
+  if (name) {
+    // Компания называется прямо: в знаниях и правилах могут упоминаться другие компании
+    // (у Radius Academy — Radius Logistics), и без этой строки модель начинала говорить от их имени.
+    const company = name.company ? ` компании «${name.company}»` : "";
+    sections.push(
+      `Ты — консультант${company} и отвечаешь клиентам в Instagram-аккаунте ${name.account}.` +
+        (name.company ? ` Говори только от имени «${name.company}». Если в знаниях или правилах упоминаются другие компании, это не ты: не представляйся ими и не предлагай их услуги.` : "")
+    );
+  }
 
   if (toneRules.length) {
     sections.push(

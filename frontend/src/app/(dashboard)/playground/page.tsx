@@ -8,6 +8,7 @@ import type { SandboxChatMessage } from "@/types";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
 import { AccountPicker } from "@/components/bot-selector";
+import { useAccountFilter } from "@/components/account-switcher";
 
 interface DisplayMessage extends SandboxChatMessage {
   id: string;
@@ -25,6 +26,15 @@ export default function PlaygroundPage() {
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Тестируется аккаунт, выбранный на этой странице (не значение из памяти браузера:
+  // в одном браузере могли работать разные компании).
+  const accountCtx = useAccountFilter();
+  const account = accountCtx?.account ?? null;
+
+  // Другой аккаунт — другая переписка: старые ответы не должны тянуть модель за собой.
+  useEffect(() => {
+    setMessages([{ id: "welcome", role: "model", text: t("Здравствуйте! Это тестовая песочница ИИ-консультанта. Напишите сообщение так, как это сделал бы клиент в Instagram Direct.") }]);
+  }, [account?.id]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -32,7 +42,7 @@ export default function PlaygroundPage() {
 
   async function handleSend() {
     const text = input.trim();
-    if (!text || isTyping) return;
+    if (!text || isTyping || !account) return;
 
     const userMsg: DisplayMessage = { id: crypto.randomUUID(), role: "user", text };
     // История отправляется БЕЗ текущего сообщения — оно уже передаётся
@@ -55,8 +65,7 @@ export default function PlaygroundPage() {
         body: JSON.stringify({
           message: text,
           history: historyForRequest,
-          // Тестируем поведение выбранного бота (см. components/bot-selector.tsx).
-          account_id: typeof window !== "undefined" ? window.localStorage.getItem("radius.botId") : null,
+          account_id: account?.id ?? null,
         }),
       });
 
@@ -102,7 +111,12 @@ export default function PlaygroundPage() {
         <div>
           <h1 className="text-lg font-semibold text-slate-900">{t("Диалог с ИИ")}</h1>
           <p className="mt-1 text-sm text-slate-500">
-            {t("Песочница для проверки поведения консультанта Gemini 2.5 Flash-Lite перед публикацией правил.")}</p>
+            {account
+              ? t("Проверка ответов бота {0}: его знания и правила, как в Instagram Direct.", account.account_name)
+              : accountCtx?.ready
+                ? t("Сначала подключите Instagram в «Настройках» — песочница отвечает знаниями и правилами аккаунта.")
+                : t("Загрузка...")}
+          </p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <AccountPicker />

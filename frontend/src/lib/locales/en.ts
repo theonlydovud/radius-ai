@@ -641,4 +641,6 @@ export const en: Record<string, string> = {
   "Instagram, менеджеры и очередь заявок.": "Instagram, managers and the lead queue.",
   "Instagram-аккаунты вашей компании. Можно подключить несколько — у каждого свои знания и правила.": "Your company Instagram accounts. You can connect several — each has its own knowledge and rules.",
   "Instagram-аккаунты, уведомления о новых заявках и менеджеры.": "Instagram accounts, new-lead alerts and managers.",
+  "Проверка ответов бота {0}: его знания и правила, как в Instagram Direct.": "Test how {0} replies: its knowledge and rules, just like in Instagram Direct.",
+  "Сначала подключите Instagram в «Настройках» — песочница отвечает знаниями и правилами аккаунта.": "Connect Instagram in Settings first — the sandbox answers with the account’s knowledge and rules.",
 };
