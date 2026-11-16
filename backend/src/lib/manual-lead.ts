@@ -68,6 +68,8 @@ export async function createManualLead(
     .insert({
       session_id: null,
       company_id: company,
+      assigned_at: manager_id ? new Date().toISOString() : null,
+      taken_at: auth.role === "manager" ? new Date().toISOString() : null,
       client_name,
       client_phone,
       collected_data,

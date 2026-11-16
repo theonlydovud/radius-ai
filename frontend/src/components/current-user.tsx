@@ -7,6 +7,7 @@ import { DexaMark } from "@/components/brand/dexa-logo";
 import type { Manager } from "@/types";
 import { t } from "@/lib/i18n";
 import { workspaceUrl } from "@/lib/workspace";
+import { setDealLabels, type CompanySettings } from "@/lib/lead-meta";
 
 /**
  * Кто вошёл. Вход проверяет backend (куки dexa_c — компания, dexa_u — человек),
@@ -40,9 +41,11 @@ export type SessionCompany = {
     instagram_accounts: number | null;
   };
   ai_blocked?: "limit" | "period" | null;
+  /** Блок сделки, сроки, рабочее время. */
+  settings?: CompanySettings;
 };
 
-export type Feature = "manual_leads" | "chat_history" | "stats" | "lead_transfer" | "assistant";
+export type Feature = "manual_leads" | "chat_history" | "stats" | "lead_transfer" | "assistant" | "deal";
 
 /** Открыта ли функция тарифом. Сервер проверяет то же самое и отвечает 403 plan_required. */
 export function hasFeature(company: SessionCompany | null | undefined, feature: Feature) {
@@ -50,7 +53,7 @@ export function hasFeature(company: SessionCompany | null | undefined, feature: 
 }
 export type Session = {
   company: SessionCompany | null;
-  user: { id: string; name: string; role: Role; manager_id: string | null } | null;
+  user: { id: string; name: string; role: Role; manager_id: string | null; telegram_linked?: boolean } | null;
   users: { id: string; name: string; role: Role }[];
   /** В этот аккаунт вошли с другого устройства — здесь вход закончился. */
   replaced?: boolean;
@@ -94,7 +97,7 @@ export function safeNext(next: string | null) {
   return next && next.startsWith("/") && !next.startsWith("//") ? next : null;
 }
 
-export type CurrentUser = { id: string; name: string; role: Role; roleLabel: string; managerId: string | null };
+export type CurrentUser = { id: string; name: string; role: Role; roleLabel: string; managerId: string | null; telegramLinked: boolean };
 
 type CurrentUserContextValue = {
   user: CurrentUser;
@@ -159,6 +162,7 @@ export function CurrentUserProvider({ role, children }: { role: Role | "cabinet"
         if (isExpired(s.company) && role !== "cabinet") return router.replace("/cabinet");
         if (s.company.status === "active" && role === "cabinet") return router.replace(homeFor(s.user.role));
         if (role !== "cabinet" && s.user.role !== role) return router.replace(`${homeFor(s.user.role)}${window.location.search}`);
+        setDealLabels(s.company.settings?.deal);
         setSession(s);
       })
       .catch((e) => !cancelled && setError(e?.message ?? t("Сервер недоступен.")));
@@ -175,7 +179,7 @@ export function CurrentUserProvider({ role, children }: { role: Role | "cabinet"
     if (!session?.user || !session.company) return null;
     const u = session.user;
     return {
-      user: { id: u.id, name: u.name, role: u.role, roleLabel: ROLE_LABEL[u.role], managerId: u.manager_id },
+      user: { id: u.id, name: u.name, role: u.role, roleLabel: ROLE_LABEL[u.role], managerId: u.manager_id, telegramLinked: Boolean(u.telegram_linked) },
       company: session.company,
       managers,
       ready: managersReady,

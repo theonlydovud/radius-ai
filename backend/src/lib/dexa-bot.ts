@@ -242,6 +242,10 @@ export async function handleDexaBotUpdate(update: any) {
     await send(from.id, TEXT.plain[lang]);
     return;
   }
+  if (nonce.startsWith("link_")) {
+    await linkEmployee(from, nonce.slice(5), lang);
+    return;
+  }
 
   const { data: signup } = await supabase.from("dexa_signups").select("*").eq("nonce", nonce).maybeSingle();
   if (!signup || signup.confirmed_at || Date.now() - Date.parse(signup.created_at) > CODE_TTL_MS) {
@@ -270,3 +274,64 @@ export async function handleDexaBotUpdate(update: any) {
   }
 }
 
+
+// ---------------------------------------------------------------------
+// Привязка личного Telegram сотрудника (напоминания по заявкам)
+// ---------------------------------------------------------------------
+
+const LINK_TEXT: Record<string, Record<Lang, string>> = {
+  ok: {
+    ru: "✅ Telegram подключён. Сюда будут приходить напоминания по вашим заявкам — только в рабочее время.",
+    uz: "✅ Telegram ulandi. Arizalaringiz bo‘yicha eslatmalar shu yerga keladi — faqat ish vaqtida.",
+    en: "✅ Telegram connected. Reminders about your leads will arrive here — during working hours only.",
+  },
+  taken: {
+    ru: "Этот Telegram уже привязан к другому сотруднику DexaAI. Отвяжите его там или войдите с другого Telegram.",
+    uz: "Bu Telegram boshqa DexaAI xodimiga ulangan. U yerda uzing yoki boshqa Telegram’dan kiring.",
+    en: "This Telegram is already linked to another DexaAI user. Unlink it there or use another Telegram account.",
+  },
+};
+
+async function linkEmployee(from: any, code: string, lang: Lang) {
+  const supabase = createAdminClient();
+  const { data: link } = await supabase.from("telegram_links").select("nonce, user_id, created_at, used_at").eq("nonce", code).maybeSingle();
+  if (!link || link.used_at || Date.now() - Date.parse(link.created_at) > CODE_TTL_MS) {
+    await send(from.id, TEXT.expired[lang]);
+    return;
+  }
+  const { data: other } = await supabase.from("app_users").select("id").eq("telegram_id", from.id).maybeSingle();
+  if (other && other.id !== link.user_id) {
+    await send(from.id, LINK_TEXT.taken[lang]);
+    return;
+  }
+  const { data: user, error } = await supabase.from("app_users").update({ telegram_id: from.id }).eq("id", link.user_id).select("manager_id").maybeSingle();
+  if (error || !user) {
+    console.error(`[dexa-bot] привязка Telegram не удалась: ${error?.message ?? "нет пользователя"}`);
+    await send(from.id, TEXT.expired[lang]);
+    return;
+  }
+  await supabase.from("telegram_links").update({ used_at: new Date().toISOString() }).eq("nonce", code);
+  // У менеджера — тот же ID в очереди: упоминание в группе заявок и запасной адрес напоминаний.
+  if (user.manager_id) await supabase.from("managers").update({ telegram_id: from.id }).eq("id", user.manager_id);
+  invalidateAuthCache();
+  await send(from.id, LINK_TEXT.ok[lang]);
+}
+
+/** Сообщение сотруднику от бота DexaAI. Кнопка — ссылка на карточку заявки. false — не дошло. */
+export async function sendToEmployee(chatId: number | string, html: string, button?: { text: string; url: string }) {
+  const token = dexaBotToken();
+  if (!token) return false;
+  try {
+    await tgCall(token, "sendMessage", {
+      chat_id: chatId,
+      text: html,
+      parse_mode: "HTML",
+      disable_web_page_preview: true,
+      ...(button ? { reply_markup: { inline_keyboard: [[button]] } } : {}),
+    });
+    return true;
+  } catch (e: any) {
+    console.warn(`[dexa-bot] сотруднику ${chatId} не отправлено: ${e?.message}`);
+    return false;
+  }
+}

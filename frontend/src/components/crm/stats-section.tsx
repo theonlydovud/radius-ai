@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { lostReasonLabel } from "@/lib/lead-meta";
+import { WorkStats } from "@/components/crm/work-stats";
 import { cn, dayEndISO, dayStartISO, toDateInput } from "@/lib/utils";
 import type { LeadStats } from "@/types";
 import { t } from "@/lib/i18n";
@@ -214,6 +215,8 @@ export function StatsSection({
               </CardContent>
             </Card>
           )}
+
+          {stats.work && <WorkStats logists={stats.work.logists} routes={stats.work.routes} />}
 
           <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
             <Card>

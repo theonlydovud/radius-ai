@@ -62,15 +62,21 @@ export interface Message {
   created_at: string;
 }
 
-export type LeadStatus = "new" | "in_progress" | "sold" | "not_sold";
+export type LeadStatus = "new" | "in_progress" | "offered" | "sold" | "not_sold";
 
 export type LostReason =
   | "too_expensive"
-  | "closed_themselves"
-  | "nothing_to_offer"
-  | "not_relevant"
   | "no_response"
+  | "just_asking"
+  | "nothing_to_offer"
+  | "bad_timing"
+  | "chose_other"
+  | "other"
+  | "closed_themselves"
+  | "not_relevant"
   | "duplicate_spam";
+
+export type Currency = "USD" | "UZS" | "EUR" | "RUB";
 
 export interface Manager {
   id: string;
@@ -113,17 +119,62 @@ export interface Lead {
   /** Кто нажал «✅ Ishga oldim» в Telegram и когда. */
   taken_by?: string | null;
   taken_at?: string | null;
+  assigned_at?: string | null;
+  offered_at?: string | null;
+  status_changed_at?: string | null;
+  /** Блок сделки: вид, ставка клиенту (сумма сделки), ставка перевозчика (себестоимость), валюта. */
+  deal_type?: string | null;
+  deal_price?: number | null;
+  deal_cost?: number | null;
+  deal_currency?: Currency | null;
+  /** Маржа — только у руководителя. */
+  margin?: number;
+  /** «Дорого»: цена, которую хотел клиент / цена конкурента. */
+  lost_price?: number | null;
+  lost_currency?: Currency | null;
+  next_contact_date?: string | null;
+  next_contact_note?: string | null;
+  /** Контроль сроков: нет ставки / зависла. */
+  overdue?: { no_offer: boolean; stuck: boolean };
 }
+
+export type WorkRow = {
+  id: string | null;
+  name: string;
+  leads: number;
+  taken: number;
+  avg_take_minutes: number | null;
+  avg_offer_minutes: number | null;
+  offer_percent: number | null;
+  funnel: { leads: number; offered: number; sold: number };
+  sold: number;
+  margin?: Record<string, { sum: number; avg: number; count: number }>;
+  lost: Partial<Record<LostReason, number>>;
+  overdue: { no_offer: number; stuck: number };
+};
+
+export type RouteWork = {
+  route: string;
+  leads: number;
+  offered: number;
+  sold: number;
+  conversion: number | null;
+  top_reason: LostReason | null;
+  too_expensive: { currency: string; our_avg: number | null; client_avg: number | null }[];
+};
 
 export interface LeadStats {
   totals: {
     total: number;
     new: number;
     in_progress: number;
+    offered?: number;
     sold: number;
     not_sold: number;
     conversion: number | null;
   };
+  /** Работа логистов и направления (ТЗ «контроль работы с заявками»). */
+  work?: { logists: WorkRow[]; routes: RouteWork[] };
   managers: {
     id: string | null;
     name: string;

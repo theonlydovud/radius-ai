@@ -27,6 +27,7 @@
   --series-blue: #2a78d6;
   --series-sold: #1baf7a;
   --series-lost: #eb6834;
+  --series-offered: #8b5cf6;
 }
 
 .dark {
@@ -53,6 +54,7 @@
   --series-blue: #3987e5;
   --series-sold: #199e70;
   --series-lost: #d95926;
+  --series-offered: #9b7cf8;
 }
 
 * {

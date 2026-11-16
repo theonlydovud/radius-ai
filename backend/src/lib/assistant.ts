@@ -225,9 +225,18 @@ async function runTool(name: string, args: Record<string, any>, ctx: Ctx): Promi
         if (!m) return { error: `Менеджер «${args.manager}» не найден.` };
         updates.manager_id = m.id;
       }
+      if (updates.manager_id !== lead.manager_id) updates.assigned_at = updates.manager_id ? new Date().toISOString() : null;
     }
     const closed = { closed_at: new Date().toISOString(), closed_by: ctx.auth.name };
-    if (args.status === "in_progress") Object.assign(updates, { status: "in_progress", closed_at: null, closed_by: null, lost_reason: null, lost_comment: null });
+    // Те же правила, что в карточке: «Продано» — только со ставками, «Дорого» и «Другое» — с подробностями.
+    if (args.status === "sold" && ctx.auth.company.settings.deal.enabled && (lead.deal_price == null || lead.deal_cost == null || !lead.deal_currency)) {
+      return { error: "Чтобы закрыть «Продано», сначала укажите ставки в карточке заявки." };
+    }
+    if (args.status === "not_sold" && (args.lost_reason === "too_expensive" || args.lost_reason === "other")) {
+      return { error: "Причины «Дорого» и «Другое» закрываются в карточке заявки: там нужны цена клиента или комментарий." };
+    }
+    if (args.status && args.status !== lead.status) updates.status_changed_at = new Date().toISOString();
+    if (args.status === "in_progress") Object.assign(updates, { status: "in_progress", taken_at: lead.taken_at ?? new Date().toISOString(), closed_at: null, closed_by: null, lost_reason: null, lost_comment: null });
     if (args.status === "sold") Object.assign(updates, { status: "sold", lost_reason: null, lost_comment: null }, closed);
     if (args.status === "not_sold") {
       if (!LOST_REASONS.includes(args.lost_reason)) return { error: "Для «не продано» нужна причина.", reasons: LOST_REASONS };

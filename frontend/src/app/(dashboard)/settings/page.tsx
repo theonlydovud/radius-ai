@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { ManagersCard } from "@/components/managers-card";
 import { InstagramAccountsCard } from "@/components/instagram-accounts-card";
+import { DealSettingsCard } from "@/components/deal-settings-card";
 import { hasFeature, useCurrentUser } from "@/components/current-user";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
@@ -40,6 +41,7 @@ export default function SettingsPage() {
         <p className="mt-1 text-sm text-slate-500">{t("Instagram, менеджеры и очередь заявок.")}</p>
       </div>
       <InstagramAccountsCard />
+      <DealSettingsCard />
       <Card className="max-w-2xl">
         <CardHeader className="flex-row items-center gap-3 space-y-0">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-soft">
@@ -169,6 +171,7 @@ function TelegramSettingsPage() {
       </div>
 
       <InstagramAccountsCard />
+      <DealSettingsCard />
       <Card className="max-w-2xl">
         <CardHeader className="flex-row items-center justify-between space-y-0">
           <div className="flex items-center gap-3">

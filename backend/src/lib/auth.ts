@@ -2,6 +2,7 @@ import { createHash, createHmac, randomBytes, scrypt as scryptCb, timingSafeEqua
 import { promisify } from "node:util";
 import { createAdminClient } from "./supabase/server";
 import { ALL_FEATURES, findPlan, getPlans, type Features, type Plan } from "./plans";
+import { normalizeSettings, type CompanySettings } from "./company-settings";
 
 /**
  * Вход в DexaAI. Два шага, оба запоминаются на устройстве на год (httpOnly-куки):
@@ -59,9 +60,19 @@ export type AuthCompany = {
   };
   /** Почему бот не отвечает клиентам: кончились сообщения или оплаченный период. */
   ai_blocked: "limit" | "period" | null;
+  /** Блок сделки, сроки, рабочее время (companies.settings). Блок сделки выключен, если его нет в тарифе. */
+  settings: CompanySettings;
 };
 export const TRIAL_DAYS = 14;
-export type AuthUser = { id: string; name: string; role: Role; manager_id: string | null; company: AuthCompany };
+export type AuthUser = {
+  id: string;
+  name: string;
+  role: Role;
+  manager_id: string | null;
+  company: AuthCompany;
+  /** Личный Telegram привязан: туда приходят напоминания по заявкам. */
+  telegram_linked: boolean;
+};
 
 // ---------------------------------------------------------------------
 // Пароли: scrypt$N$r$p$salt$hash (base64)
@@ -207,6 +218,7 @@ type CompanyRow = {
   telegram_leads?: boolean | null;
   unlimited?: boolean | null;
   multi_device?: boolean | null;
+  settings?: unknown;
   plan?: string | null;
   period_end?: string | null;
   messages_used?: number | null;
@@ -288,7 +300,10 @@ export async function sessionState(req: Request): Promise<{ user: AuthUser | nul
   if (!row) return none;
   const company = await describeCompany(row);
   if (!company.unlimited && !company.multi_device && (u.s ?? null) !== (user.session_id ?? null)) return { user: null, replaced: true };
-  return { user: { id: user.id, name: user.name, role: user.role, manager_id: user.manager_id, company }, replaced: false };
+  return {
+    user: { id: user.id, name: user.name, role: user.role, manager_id: user.manager_id, company, telegram_linked: Boolean(user.telegram_id) },
+    replaced: false,
+  };
 }
 
 export async function sessionUser(req: Request): Promise<AuthUser | null> {
@@ -346,6 +361,11 @@ export function publicCompany(c: CompanyRow, plans: Plan[]): AuthCompany {
       instagram_accounts: plan ? plan.instagram_accounts : null,
     },
     ai_blocked,
+    settings: (() => {
+      const s = normalizeSettings(c.settings);
+      if (plan && !plan.features.deal) s.deal.enabled = false;
+      return s;
+    })(),
   };
 }
 

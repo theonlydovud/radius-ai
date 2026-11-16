@@ -14,13 +14,17 @@ import { CloseLeadDialog, type CloseMode } from "@/components/close-lead-dialog"
 import { LeadChatSheet } from "@/components/crm/lead-chat-sheet";
 import { useAccountId } from "@/components/account-switcher";
 import { hasFeature, useCurrentUser } from "@/components/current-user";
-import { lostReasonLabel, STATUS_LABEL, STATUS_VARIANT } from "@/lib/lead-meta";
+import { lostReasonLabel, money, offerButtonLabel, STATUS_LABEL, STATUS_VARIANT } from "@/lib/lead-meta";
+import { DealDialog, isOverdue, LeadControlInfo, NextContactDialog, OverdueBadges } from "@/components/lead-control";
+import { HandCoins } from "lucide-react";
 import { cn, dayEndISO, dayStartISO, formatDate } from "@/lib/utils";
 import type { Lead } from "@/types";
 import { t as tr } from "@/lib/i18n";
 
 const TABS = [
   { value: "active", get label() { return tr("Активные"); } },
+  { value: "offered", get label() { return STATUS_LABEL.offered; } },
+  { value: "overdue", get label() { return tr("Просроченные"); } },
   { value: "sold", get label() { return tr("Продано"); } },
   { value: "not_sold", get label() { return tr("Не продано"); } },
   { value: "all", get label() { return tr("Все"); } },
@@ -66,6 +70,8 @@ export function LeadsBoard({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [closing, setClosing] = useState<{ lead: Lead; mode: CloseMode } | null>(null);
   const [chatLead, setChatLead] = useState<Lead | null>(null);
+  const [dealFor, setDealFor] = useState<{ lead: Lead; mode: "offer" | "edit" } | null>(null);
+  const [contactFor, setContactFor] = useState<Lead | null>(null);
 
   // Ссылка из Telegram: /leads?lead=<id> — показываем все заявки и подсвечиваем эту.
   const [focusId, setFocusId] = useState<string | null>(null);
@@ -245,7 +251,7 @@ export function LeadsBoard({
             const options = managers.filter((m) => m.is_active || m.id === lead.manager_id);
             const d = lead.collected_data;
             return (
-              <Card key={lead.id} id={`lead-${lead.id}`} className={cn("p-3 sm:p-4", focusId === lead.id && "ring-2 ring-brand", freshIds.has(lead.id) && "lead-arrive")}>
+              <Card key={lead.id} id={`lead-${lead.id}`} className={cn("p-3 sm:p-4", isOverdue(lead) && "border-red-300 bg-red-50/40 dark:bg-red-500/5", focusId === lead.id && "ring-2 ring-brand", freshIds.has(lead.id) && "lead-arrive")}>
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
                   <div className="min-w-0 lg:w-52">
                     <div className="flex items-center gap-2">
@@ -254,6 +260,7 @@ export function LeadsBoard({
                         {STATUS_LABEL[lead.status]}
                       </Badge>
                     </div>
+                    <OverdueBadges lead={lead} />
                     <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
                       <Phone className="h-3 w-3" /> {lead.client_phone || "—"}
                     </p>
@@ -311,6 +318,11 @@ export function LeadsBoard({
                             <Play className="h-3.5 w-3.5" />
                             {tr("Взять")}</Button>
                         )}
+                        {lead.status === "in_progress" && (
+                          <Button variant="outline" size="sm" disabled={busy} onClick={() => setDealFor({ lead, mode: "offer" })}>
+                            <HandCoins className="h-3.5 w-3.5" />
+                            {offerButtonLabel()}</Button>
+                        )}
                         <Button size="sm" disabled={busy} onClick={() => setClosing({ lead, mode: "sold" })}>
                           <Check className="h-3.5 w-3.5" />
                           {tr("Продано")}</Button>
@@ -323,6 +335,7 @@ export function LeadsBoard({
                 </div>
 
                 {d?.note && <p className="mt-2 whitespace-pre-wrap break-words rounded-lg bg-amber-50/60 px-3 py-1.5 text-xs text-slate-700">💬 {d.note}</p>}
+                <LeadControlInfo lead={lead} closed={isClosed(lead)} onEditDeal={() => setDealFor({ lead, mode: "edit" })} onNextContact={() => setContactFor(lead)} />
                 {(isClosed(lead) || (lead.taken_by && lead.taken_at)) && (
                   <p className="mt-2 rounded-lg bg-slate-50 px-3 py-1.5 text-xs text-slate-600">
                     {isClosed(lead) &&
@@ -344,7 +357,7 @@ export function LeadsBoard({
               <Card
                 key={lead.id}
                 id={`lead-${lead.id}`}
-                className={cn("flex flex-col", focusId === lead.id && "ring-2 ring-brand", freshIds.has(lead.id) && "lead-arrive")}
+                className={cn("flex flex-col", isOverdue(lead) && "border-red-300 bg-red-50/40 dark:bg-red-500/5", focusId === lead.id && "ring-2 ring-brand", freshIds.has(lead.id) && "lead-arrive")}
               >
                 <CardHeader className="flex-row items-start justify-between gap-2 space-y-0">
                   <div className="min-w-0">
@@ -352,6 +365,7 @@ export function LeadsBoard({
                     <p className="flex items-center gap-1 text-xs text-slate-400">
                       <Phone className="h-3 w-3" /> {lead.client_phone || "—"}
                     </p>
+                    <OverdueBadges lead={lead} />
                   </div>
                   <Badge variant={STATUS_VARIANT[lead.status]} className="shrink-0">
                     {STATUS_LABEL[lead.status]}
@@ -380,6 +394,7 @@ export function LeadsBoard({
                     {lead.collected_data?.note && (
                       <p className="whitespace-pre-wrap break-words rounded-lg bg-amber-50/60 px-2.5 py-1.5 text-xs text-slate-700">💬 {lead.collected_data.note}</p>
                     )}
+                    <LeadControlInfo lead={lead} closed={isClosed(lead)} onEditDeal={() => setDealFor({ lead, mode: "edit" })} onNextContact={() => setContactFor(lead)} />
                   </div>
 
                   <div className={transfer ? "space-y-1" : "hidden"}>
@@ -416,6 +431,7 @@ export function LeadsBoard({
                         {lead.closed_at ? ` · ${formatDate(lead.closed_at)}` : ""}
                       </p>
                       {lead.status === "not_sold" && <p>{tr("Причина:")}{" "}{lostReasonLabel(lead.lost_reason)}</p>}
+                      {lead.lost_reason === "too_expensive" && lead.lost_price != null && <p>{tr("Цена клиента / конкурента:")}{" "}{money(lead.lost_price, lead.lost_currency)}</p>}
                       {lead.lost_comment && <p className="whitespace-pre-wrap break-words">{lead.lost_comment}</p>}
                     </div>
                   )}
@@ -443,6 +459,11 @@ export function LeadsBoard({
                           >
                             <Play className="h-3.5 w-3.5" />
                             {tr("Взять в работу")}</Button>
+                        )}
+                        {lead.status === "in_progress" && (
+                          <Button variant="outline" size="sm" className="w-full" disabled={busy} onClick={() => setDealFor({ lead, mode: "offer" })}>
+                            <HandCoins className="h-3.5 w-3.5" />
+                            {offerButtonLabel()}</Button>
                         )}
                         <Button size="sm" className="flex-1" disabled={busy} onClick={() => setClosing({ lead, mode: "sold" })}>
                           <Check className="h-3.5 w-3.5" />
@@ -492,6 +513,28 @@ export function LeadsBoard({
             setClosing(null);
             load();
             onChanged?.();
+          }}
+        />
+      )}
+      {dealFor && (
+        <DealDialog
+          lead={dealFor.lead}
+          mode={dealFor.mode}
+          onClose={() => setDealFor(null)}
+          onSaved={() => {
+            setDealFor(null);
+            load();
+            onChanged?.();
+          }}
+        />
+      )}
+      {contactFor && (
+        <NextContactDialog
+          lead={contactFor}
+          onClose={() => setContactFor(null)}
+          onSaved={() => {
+            setContactFor(null);
+            load();
           }}
         />
       )}

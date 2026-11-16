@@ -28,16 +28,20 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { lostReasonLabel, STATUS_LABEL, STATUS_VARIANT } from "@/lib/lead-meta";
+import { lostReasonLabel, money, offerButtonLabel, STATUS_LABEL, STATUS_VARIANT } from "@/lib/lead-meta";
+import { DealDialog, isOverdue, LeadControlInfo, NextContactDialog, OverdueBadges } from "@/components/lead-control";
+import { HandCoins } from "lucide-react";
 import { cn, formatDate } from "@/lib/utils";
 import type { Lead } from "@/types";
 import { t as tr } from "@/lib/i18n";
 
 const REFRESH_MS = 30_000;
 
-type LeadTab = "active" | "sold" | "not_sold" | "all";
+type LeadTab = "active" | "offered" | "overdue" | "sold" | "not_sold" | "all";
 const LEAD_TABS: { value: LeadTab; label: string }[] = [
   { value: "active", get label() { return tr("Активные"); } },
+  { value: "offered", get label() { return STATUS_LABEL.offered; } },
+  { value: "overdue", get label() { return tr("Просроченные"); } },
   { value: "sold", get label() { return tr("Продано"); } },
   { value: "not_sold", get label() { return tr("Не продано"); } },
   { value: "all", get label() { return tr("Все"); } },
@@ -45,7 +49,8 @@ const LEAD_TABS: { value: LeadTab; label: string }[] = [
 
 function inTab(lead: Lead, tab: LeadTab) {
   if (tab === "all") return true;
-  if (tab === "active") return lead.status === "new" || lead.status === "in_progress";
+  if (tab === "active") return lead.status === "new" || lead.status === "in_progress" || lead.status === "offered";
+  if (tab === "overdue") return isOverdue(lead);
   return lead.status === tab;
 }
 
@@ -71,6 +76,9 @@ function LeadRow({
   onPatch,
   onClose,
   onChat,
+  onOffer,
+  onEditDeal,
+  onNextContact,
 }: {
   lead: Lead;
   focused: boolean;
@@ -78,6 +86,9 @@ function LeadRow({
   onPatch: (body: Record<string, unknown>) => void;
   onClose: (mode: CloseMode) => void;
   onChat: () => void;
+  onOffer: () => void;
+  onEditDeal: () => void;
+  onNextContact: () => void;
 }) {
   const d = lead.collected_data;
   return (
@@ -86,7 +97,8 @@ function LeadRow({
       className={cn(
         "relative overflow-hidden p-4 transition-shadow hover:shadow-md",
         focused && "ring-2 ring-brand",
-        lead.status === "new" && "border-[#eda100]/40"
+        lead.status === "new" && "border-[#eda100]/40",
+        isOverdue(lead) && "border-red-300 bg-red-50/40 dark:bg-red-500/5"
       )}
     >
       <span
@@ -106,6 +118,7 @@ function LeadRow({
             <Phone className="h-3.5 w-3.5" />
             {lead.client_phone}
           </a>
+          <OverdueBadges lead={lead} />
           <p className="mt-0.5 text-xs text-slate-400">
             {ago(lead.created_at)}
             {d?.created_by ? tr(" · вручную, {0}", d.created_by) : ""}
@@ -152,6 +165,11 @@ function LeadRow({
                   <Play className="h-3.5 w-3.5" />
                   {tr("Взять")}</Button>
               )}
+              {lead.status === "in_progress" && (
+                <Button variant="outline" size="sm" disabled={busy} onClick={onOffer}>
+                  <HandCoins className="h-3.5 w-3.5" />
+                  {offerButtonLabel()}</Button>
+              )}
               <Button size="sm" disabled={busy} onClick={() => onClose("sold")}>
                 <Check className="h-3.5 w-3.5" />
                 {tr("Продано")}</Button>
@@ -164,11 +182,13 @@ function LeadRow({
       </div>
 
       {d?.note && <p className="mt-3 whitespace-pre-wrap break-words rounded-lg bg-amber-50/60 px-3 py-2 text-xs text-slate-700">💬 {d.note}</p>}
+      <LeadControlInfo lead={lead} closed={isClosed(lead)} onEditDeal={onEditDeal} onNextContact={onNextContact} />
 
       {isClosed(lead) && (
         <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
           {lead.status === "sold" ? tr("Продано") : tr("Не продано · {0}", lostReasonLabel(lead.lost_reason))}
           {lead.closed_at ? ` · ${formatDate(lead.closed_at)}` : ""}
+          {lead.lost_reason === "too_expensive" && lead.lost_price != null ? ` · ${tr("Цена клиента / конкурента:")} ${money(lead.lost_price, lead.lost_currency)}` : ""}
           {lead.lost_comment ? ` · ${lead.lost_comment}` : ""}
         </p>
       )}
@@ -188,6 +208,8 @@ export default function CrmPage() {
   const [closing, setClosing] = useState<{ lead: Lead; mode: CloseMode } | null>(null);
   const [chatLead, setChatLead] = useState<Lead | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
+  const [dealFor, setDealFor] = useState<{ lead: Lead; mode: "offer" | "edit" } | null>(null);
+  const [contactFor, setContactFor] = useState<Lead | null>(null);
 
   const [statsKey, setStatsKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
@@ -240,6 +262,8 @@ export default function CrmPage() {
     const all = leads ?? [];
     return {
       active: all.filter((l) => inTab(l, "active")).length,
+      offered: all.filter((l) => l.status === "offered").length,
+      overdue: all.filter((l) => isOverdue(l)).length,
       sold: all.filter((l) => l.status === "sold").length,
       not_sold: all.filter((l) => l.status === "not_sold").length,
       all: all.length,
@@ -354,6 +378,9 @@ export default function CrmPage() {
                   onPatch={(body) => patchLead(lead, body)}
                   onClose={(mode) => setClosing({ lead, mode })}
                   onChat={() => setChatLead(lead)}
+                  onOffer={() => setDealFor({ lead, mode: "offer" })}
+                  onEditDeal={() => setDealFor({ lead, mode: "edit" })}
+                  onNextContact={() => setContactFor(lead)}
                 />
               ))
             )}
@@ -371,6 +398,27 @@ export default function CrmPage() {
           onClosed={() => {
             setClosing(null);
             refresh();
+          }}
+        />
+      )}
+      {dealFor && (
+        <DealDialog
+          lead={dealFor.lead}
+          mode={dealFor.mode}
+          onClose={() => setDealFor(null)}
+          onSaved={() => {
+            setDealFor(null);
+            refresh();
+          }}
+        />
+      )}
+      {contactFor && (
+        <NextContactDialog
+          lead={contactFor}
+          onClose={() => setContactFor(null)}
+          onSaved={() => {
+            setContactFor(null);
+            loadLeads();
           }}
         />
       )}

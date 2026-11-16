@@ -8,6 +8,7 @@ import { LangSwitcher, ThemeToggle } from "@/components/prefs";
 import { logout, useCurrentUser } from "@/components/current-user";
 import { cn, initials } from "@/lib/utils";
 import { t } from "@/lib/i18n";
+import { TelegramLinkButton } from "@/components/telegram-link-button";
 
 /** Шапка одностраничных рабочих мест (менеджер, супер-админ): логотип, компания, меню пользователя. */
 export function TopBar() {
@@ -30,6 +31,7 @@ export function TopBar() {
           <span className="hidden truncate rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600 sm:inline">{company.name}</span>
         </div>
         <div className="flex items-center gap-1">
+        <TelegramLinkButton className="mr-1 hidden sm:inline-flex" />
         <LangSwitcher className="hidden sm:block" />
         <ThemeToggle />
         <FullscreenButton />
@@ -61,6 +63,9 @@ export function TopBar() {
                 </p>
               </div>
               <div className="my-1 h-px bg-slate-100" />
+              <div className="px-2 pb-1 sm:hidden">
+                <TelegramLinkButton />
+              </div>
               <div className="px-1 sm:hidden">
                 <LangSwitcher />
               </div>

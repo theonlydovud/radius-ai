@@ -4,6 +4,7 @@ import { cors } from "hono/cors";
 import { frontendUrl } from "./lib/urls";
 import { refreshInstagramTokens } from "./lib/instagram";
 import { startReplyRecovery } from "./lib/reply-recovery";
+import { startReminders } from "./lib/reminders";
 import { ensureLeadsBotWebhook } from "./lib/lead-notify";
 import { sessionUser, type AuthUser } from "./lib/auth";
 import { FEATURE_LABEL, type Feature } from "./lib/plans";
@@ -28,6 +29,8 @@ import * as managers from "./routes/managers";
 import * as leadsId from "./routes/leads-id";
 import * as messages from "./routes/messages";
 import * as plans from "./routes/plans";
+import * as companySettings from "./routes/company-settings";
+import * as profileTelegram from "./routes/profile-telegram";
 import * as rules from "./routes/rules";
 import * as sessions from "./routes/sessions";
 import * as sessionsId from "./routes/sessions-id";
@@ -101,6 +104,8 @@ function featureFor(method: string, path: string): Feature | null {
 
 function allowed(role: string, method: string, path: string) {
   if (role === "owner") return true;
+  // Привязать свой Telegram для напоминаний может каждый.
+  if (path === "/api/profile/telegram") return true;
   // Супер-админу нужен список менеджеров для фильтра и смены ответственного — только чтение.
   if (role === "admin" && method === "GET" && path === "/api/managers") return true;
   return leadsAllowed(method, path);
@@ -172,6 +177,8 @@ mount("/api/managers", managers);
 mount("/api/leads/:id", leadsId);
 mount("/api/messages", messages);
 mount("/api/plans", plans);
+mount("/api/settings/company", companySettings);
+mount("/api/profile/telegram", profileTelegram);
 mount("/api/rules", rules);
 mount("/api/sessions", sessions);
 mount("/api/sessions/:id", sessionsId);
@@ -197,6 +204,8 @@ serve({ fetch: app.fetch, port }, () => {
   setInterval(refreshIg, 24 * 60 * 60 * 1000).unref();
 
   startReplyRecovery();
+  // Напоминания логистам по заявкам (рабочее время компании).
+  startReminders();
 
   // Нажатия «✅ Ishga oldim» приходят на вебхук бота заявок.
   ensureLeadsBotWebhook().catch((e) => console.error("[leads-bot] вебхук не настроен:", e?.message ?? e));

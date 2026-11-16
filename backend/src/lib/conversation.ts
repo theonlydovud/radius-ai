@@ -194,6 +194,7 @@ export async function maybeCreateOrUpdateLead(
           collected_data: fields.data,
           status: "new",
           manager_id: manager?.id ?? null,
+          assigned_at: manager ? new Date().toISOString() : null,
         })
         .select("id, client_name, client_phone, collected_data")
         .single();

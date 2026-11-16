@@ -12,6 +12,7 @@ import { lostReasonLabel } from "@/lib/lead-meta";
 import { dayEndISO, dayStartISO, toDateInput } from "@/lib/utils";
 import type { LeadStats } from "@/types";
 import { t } from "@/lib/i18n";
+import { WorkStats } from "@/components/crm/work-stats";
 
 type Period = "today" | "week" | "month" | "custom";
 
@@ -265,6 +266,7 @@ export default function StatsPage() {
               </CardContent>
             </Card>
           </div>
+          {stats.work && <WorkStats logists={stats.work.logists} routes={stats.work.routes} />}
         </div>
       )}
     </div>

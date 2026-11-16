@@ -1,5 +1,6 @@
 import { createAdminClient } from "./supabase/server";
 import { getLeadNotifySettings, rememberChat, renderLeadMessage, resolveTarget, TAKE_PREFIX, tgCall } from "./lead-notify";
+import { logStatus } from "./lead-status";
 
 /**
  * Обновления бота заявок (вебхук /api/telegram/leads-bot): нажатие «✅ Ishga oldim».
@@ -107,7 +108,13 @@ async function handleTake(cb: any): Promise<string> {
   }
 
   // Новая заявка переходит «В работу», как кнопка «Взять в работу» на сайте.
-  await supabase.from("leads").update({ status: "in_progress" }).eq("id", leadId).eq("status", "new");
+  const { data: moved } = await supabase
+    .from("leads")
+    .update({ status: "in_progress", status_changed_at: new Date().toISOString() })
+    .eq("id", leadId)
+    .eq("status", "new")
+    .select("id, company_id");
+  if (moved?.length) await logStatus(supabase, moved[0], "in_progress", taker);
   await answer(token, cb.id, "✅ Ariza sizga biriktirildi");
   console.log(`[leads-bot] заявку ${leadId.slice(0, 8)} взял ${taker}`);
 

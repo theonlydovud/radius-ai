@@ -5,7 +5,7 @@ import type { RouteContext } from "../index";
 
 /**
  * Список заявок. Фильтры:
- *   status  = active (по умолчанию) | sold | not_sold | all
+ *   status  = active (по умолчанию: новые, в работе, ставка предложена) | offered | overdue (просроченные) | sold | not_sold | all
  *   manager = id менеджера | none (без ответственного)
  *   from, to — период по дате создания (ISO)
  *   account — id Instagram-аккаунта
@@ -25,14 +25,16 @@ export async function GET(req: Request, ctx?: RouteContext) {
   }
 
   try {
+    const auth = ctx!.auth!;
     const data = await fetchLeads(createAdminClient(), {
-      company: ctx!.auth!.company.id,
+      company: auth.company.id,
       group: status === "all" ? undefined : status,
+      overdue: status === "overdue",
       manager: ownManagerFilter(ctx?.auth) ?? searchParams.get("manager") ?? undefined,
       account: searchParams.get("account") || undefined,
       from,
       to,
-    });
+    }, { deadlines: auth.company.settings.deadlines, showMargin: auth.role === "owner" });
     return Response.json({ data });
   } catch (e: any) {
     return Response.json({ error: e?.message ?? "Не удалось загрузить заявки." }, { status: 500 });

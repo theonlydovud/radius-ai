@@ -1,5 +1,5 @@
 import { createAdminClient } from "../lib/supabase/server";
-import { buildLeadStats, fetchLeads, ownManagerFilter } from "../lib/leads";
+import { buildLeadStats, buildWorkStats, fetchLeads, ownManagerFilter } from "../lib/leads";
 import type { RouteContext } from "../index";
 
 function validTimeZone(tz: string | null) {
@@ -33,8 +33,13 @@ export async function GET(req: Request, ctx?: RouteContext) {
     const [leads, managers] = await Promise.all([fetchLeads(supabase, { company, from, to, manager: own, account: searchParams.get("account") || undefined }), managersQuery]);
     if (managers.error) throw new Error(managers.error.message);
 
+    const auth = ctx!.auth!;
     return Response.json({
-      data: buildLeadStats(leads, managers.data ?? [], { from, to, timeZone: validTimeZone(searchParams.get("tz")) }),
+      data: {
+        ...buildLeadStats(leads, managers.data ?? [], { from, to, timeZone: validTimeZone(searchParams.get("tz")) }),
+        // Работа логистов и направления. Менеджер видит только себя и без маржи; маржа — руководителю.
+        work: buildWorkStats(leads, managers.data ?? [], { deadlines: auth.company.settings.deadlines, showMargin: auth.role === "owner" }),
+      },
     });
   } catch (e: any) {
     return Response.json({ error: e?.message ?? "Не удалось посчитать статистику." }, { status: 500 });

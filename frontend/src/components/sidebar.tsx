@@ -21,6 +21,7 @@ import { DexaMark, DexaWordmark } from "@/components/brand/dexa-logo";
 import { FullscreenButton } from "@/components/fullscreen-button";
 import { LangSwitcher, ThemeToggle } from "@/components/prefs";
 import { PlanCard } from "@/components/plan-card";
+import { TelegramLinkButton } from "@/components/telegram-link-button";
 import { hasFeature, logout, useCurrentUser, type Feature } from "@/components/current-user";
 import { cn, initials } from "@/lib/utils";
 import { t } from "@/lib/i18n";
@@ -65,6 +66,9 @@ function UserMenu() {
           <span className="block truncate text-xs font-medium text-slate-800">{user.name}</span>
           <span className="block truncate text-[11px] text-slate-400">{user.roleLabel}</span>
         </span>
+      </div>
+      <div className="px-2 pb-1">
+        <TelegramLinkButton compact />
       </div>
       <div className="mt-1 grid grid-cols-2 gap-1">
         <button

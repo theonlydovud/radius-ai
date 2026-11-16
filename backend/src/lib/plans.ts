@@ -5,7 +5,7 @@ import { createAdminClient } from "./supabase/server";
  * меняются там, без деплоя. Здесь — те же значения на случай, если таблицы ещё нет.
  */
 
-export const FEATURES = ["manual_leads", "chat_history", "stats", "lead_transfer", "assistant"] as const;
+export const FEATURES = ["manual_leads", "chat_history", "stats", "lead_transfer", "assistant", "deal"] as const;
 export type Feature = (typeof FEATURES)[number];
 export type Features = Record<Feature, boolean>;
 
@@ -21,15 +21,16 @@ export type Plan = {
   sort_order: number;
 };
 
-const f = (manual_leads: boolean, chat_history: boolean, stats: boolean, lead_transfer: boolean, assistant: boolean): Features => ({
+const f = (manual_leads: boolean, chat_history: boolean, stats: boolean, lead_transfer: boolean, assistant: boolean, deal = lead_transfer): Features => ({
   manual_leads,
   chat_history,
   stats,
   lead_transfer,
   assistant,
+  deal,
 });
 
-export const ALL_FEATURES = f(true, true, true, true, true);
+export const ALL_FEATURES = f(true, true, true, true, true, true);
 export const DEFAULT_PLAN = "business";
 
 const FALLBACK: Plan[] = [
@@ -55,7 +56,8 @@ export async function getPlans(): Promise<Plan[]> {
         users_included: Number(p.users_included) || 1,
         extra_user_price: p.extra_user_price == null ? null : Number(p.extra_user_price),
         messages_limit: Number(p.messages_limit) || 0,
-        features: Object.fromEntries(FEATURES.map((k) => [k, p.features?.[k] === true])) as Features,
+        // Флага ещё нет в таблице (до migration-deals.sql) — блок сделки как у менеджеров: Business и Pro.
+        features: Object.fromEntries(FEATURES.map((k) => [k, k === "deal" && p.features?.deal === undefined ? p.features?.lead_transfer === true : p.features?.[k] === true])) as Features,
         sort_order: Number(p.sort_order) || 0,
       }));
     }
@@ -76,4 +78,5 @@ export const FEATURE_LABEL: Record<Feature, string> = {
   stats: "Статистика",
   lead_transfer: "Менеджеры и передача заявок",
   assistant: "ИИ-ассистент",
+  deal: "Блок сделки",
 };
