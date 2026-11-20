@@ -6,7 +6,8 @@ import { frontendUrl } from "../lib/urls";
  * Колбэки из «Business login settings» приложения Meta. Meta шлёт POST с
  * полем signed_request (подпись HMAC-SHA256 секретом Instagram-приложения).
  *   /api/instagram/deauthorize   — владелец аккаунта отозвал доступ
- *   /api/instagram/data-deletion — запрос на удаление данных
+ *   /api/instagram/data-deletion — запрос на удаление данных: удаляем токен, переписку и диалоги
+ *                                  этого Instagram и возвращаем ссылку на статус и код подтверждения
  */
 
 function parseSignedRequest(signed: string | null): { user_id?: string } | null {
@@ -48,8 +49,25 @@ export async function POST(req: Request) {
     return Response.json({ ok: true });
   }
 
+  // Удаляем данные этого Instagram: токен, переписку и диалоги. Заявки остаются в CRM компании,
+  // но отвязываются от удалённой переписки.
+  const { data: accounts } = await supabase.from("accounts").select("id").eq("platform", "instagram").eq("platform_account_id", String(data.user_id));
+  let sessions = 0;
+  for (const acc of accounts ?? []) {
+    const { data: rows } = await supabase.from("chat_sessions").select("id").eq("account_id", acc.id);
+    const ids = (rows ?? []).map((r: { id: string }) => r.id);
+    for (let i = 0; i < ids.length; i += 100) {
+      const chunk = ids.slice(i, i + 100);
+      await supabase.from("leads").update({ session_id: null }).in("session_id", chunk);
+      await supabase.from("messages").delete().in("session_id", chunk);
+      await supabase.from("chat_sessions").delete().in("id", chunk);
+    }
+    sessions += ids.length;
+    await supabase.from("accounts").update({ access_token: "", status: "disconnected" }).eq("id", acc.id);
+  }
+
   const code = randomBytes(6).toString("hex");
-  console.log(`[ig] data deletion request: аккаунт ${data.user_id}, код ${code}`);
+  console.log(`[ig] data deletion: аккаунт ${data.user_id}, удалено диалогов ${sessions}, код ${code}`);
   // Формат ответа, который ожидает Meta.
   return Response.json({ url: frontendUrl(`/privacy?deletion=${code}#data-deletion`), confirmation_code: code });
 }
