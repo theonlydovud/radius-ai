@@ -4,6 +4,7 @@ import { tgCall } from "./lead-notify";
 import { backendUrl } from "./urls";
 import { invalidateAuthCache, TRIAL_DAYS } from "./auth";
 import { DEFAULT_PLAN, findPlan, getPlans } from "./plans";
+import { isPlatformAdmin } from "./platform";
 
 /**
  * Бот DexaAI: регистрация и вход в один клик + база подписчиков для рассылок.
@@ -73,8 +74,10 @@ export async function signupStatus(nonce: string) {
 /** Сайт входит по подтверждённому коду. Код одноразовый. */
 export async function consumeSignup(nonce: string) {
   const supabase = createAdminClient();
-  const { data } = await supabase.from("dexa_signups").select("id, created_at, confirmed_at, consumed_at, user_id, is_new").eq("nonce", nonce).maybeSingle();
-  if (!data || !data.confirmed_at || data.consumed_at || !data.user_id) return null;
+  const { data } = await supabase.from("dexa_signups").select("id, created_at, confirmed_at, consumed_at, user_id, is_new, telegram_id").eq("nonce", nonce).maybeSingle();
+  if (!data || !data.confirmed_at || data.consumed_at) return null;
+  const platform = !data.user_id && (await isPlatformAdmin(data.telegram_id));
+  if (!data.user_id && !platform) return null;
   if (Date.now() - Date.parse(data.created_at) > CODE_TTL_MS) return null;
   // Условие consumed_at IS NULL: два одновременных запроса не войдут оба.
   const { data: used } = await supabase
@@ -85,6 +88,7 @@ export async function consumeSignup(nonce: string) {
     .select("id")
     .maybeSingle();
   if (!used) return null;
+  if (platform) return { platform: String(data.telegram_id) } as const;
   const { data: user } = await supabase.from("app_users").select("*").eq("id", data.user_id).maybeSingle();
   if (!user) return null;
   const { data: company } = await supabase.from("companies").select("*").eq("id", user.company_id).maybeSingle();
@@ -250,6 +254,17 @@ export async function handleDexaBotUpdate(update: any) {
   const { data: signup } = await supabase.from("dexa_signups").select("*").eq("nonce", nonce).maybeSingle();
   if (!signup || signup.confirmed_at || Date.now() - Date.parse(signup.created_at) > CODE_TTL_MS) {
     await send(from.id, TEXT.expired[lang]);
+    return;
+  }
+
+  // Владелец платформы входит без своей компании: дальше на сайте он выберет любую.
+  if (await isPlatformAdmin(from.id)) {
+    await supabase
+      .from("dexa_signups")
+      .update({ confirmed_at: new Date().toISOString(), telegram_id: from.id, user_id: null, is_new: false })
+      .eq("id", signup.id)
+      .is("confirmed_at", null);
+    await send(from.id, "🔑 Вход владельца DexaAI подтверждён. Вернитесь во вкладку браузера и выберите компанию.");
     return;
   }
 

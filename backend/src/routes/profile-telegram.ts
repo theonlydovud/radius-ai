@@ -10,6 +10,7 @@ import type { RouteContext } from "../index";
  *   DELETE /api/profile/telegram             отвязать
  */
 export async function POST(_req: Request, ctx: RouteContext) {
+  if (ctx.auth!.platform) return Response.json({ error: "Владелец платформы входит через Telegram — привязка не нужна." }, { status: 400 });
   const username = await dexaBotUsername().catch(() => null);
   if (!username) return Response.json({ error: "Бот DexaAI не настроен." }, { status: 503 });
   const nonce = randomBytes(15).toString("base64url");

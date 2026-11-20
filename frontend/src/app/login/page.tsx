@@ -30,6 +30,7 @@ function LoginForm() {
     fetchSession()
       .then((s) => {
         if (s.replaced) return;
+        if (!s.company && s.platform) return router.replace("/platform");
         // Уже вошли — сразу в рабочее место (на сайте продукта это другой адрес).
         if (s.user && isExpired(s.company)) goToWorkspace("/cabinet", router, s.company, true);
         else if (s.user) goToWorkspace(next ?? homeFor(s.user.role), router, s.company, true);

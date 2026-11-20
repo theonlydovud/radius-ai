@@ -13,6 +13,7 @@ import {
   recordFailure,
   sessionCompany,
   sessionState,
+  platformSession,
   setCookie,
   startSession,
   USER_COOKIE,
@@ -39,15 +40,18 @@ async function readBody(req: Request) {
 /** Кто вошёл на этом устройстве: компания, человек и список людей для выбора. */
 export const me = {
   async GET(req: Request) {
-    const [company, { user, replaced }] = await Promise.all([sessionCompany(req), sessionState(req)]);
+    const [company, { user, replaced }, platformSess] = await Promise.all([sessionCompany(req), sessionState(req), platformSession(req)]);
+    // platform — вошёл владелец платформы DexaAI (без компании сайт откроет выбор компании).
+    const platform = Boolean(platformSess);
     // replaced — в этот аккаунт вошли с другого устройства: сайт покажет это и попросит войти заново.
-    if (!company) return json({ data: { company: null, user: null, users: [], replaced } });
+    if (!company) return json({ data: { company: null, user: null, users: [], replaced, platform } });
     return json({
       data: {
         company,
         user: user && user.company.id === company.id ? user : null,
         users: await companyUsers(company.id),
         replaced,
+        platform,
       },
     });
   },

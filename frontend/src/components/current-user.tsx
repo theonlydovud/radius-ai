@@ -53,10 +53,12 @@ export function hasFeature(company: SessionCompany | null | undefined, feature: 
 }
 export type Session = {
   company: SessionCompany | null;
-  user: { id: string; name: string; role: Role; manager_id: string | null; telegram_linked?: boolean } | null;
+  user: { id: string; name: string; role: Role; manager_id: string | null; telegram_linked?: boolean; platform?: boolean } | null;
   users: { id: string; name: string; role: Role }[];
   /** В этот аккаунт вошли с другого устройства — здесь вход закончился. */
   replaced?: boolean;
+  /** Вошёл владелец платформы DexaAI. */
+  platform?: boolean;
 };
 
 export const ROLE_LABEL: Record<Role, string> = { get owner() { return t("Руководитель"); }, get manager() { return t("Менеджер"); }, get admin() { return t("Супер-админ"); } };
@@ -97,7 +99,7 @@ export function safeNext(next: string | null) {
   return next && next.startsWith("/") && !next.startsWith("//") ? next : null;
 }
 
-export type CurrentUser = { id: string; name: string; role: Role; roleLabel: string; managerId: string | null; telegramLinked: boolean };
+export type CurrentUser = { id: string; name: string; role: Role; roleLabel: string; managerId: string | null; telegramLinked: boolean; platform: boolean };
 
 type CurrentUserContextValue = {
   user: CurrentUser;
@@ -153,6 +155,8 @@ export function CurrentUserProvider({ role, children }: { role: Role | "cabinet"
         const here = `${pathname}${window.location.search}`;
         // Один аккаунт — одно устройство: вошли с другого — здесь просим войти заново.
         if (s.replaced) return router.replace("/login?replaced=1");
+        // Владелец платформы ещё не выбрал компанию.
+        if (!s.company && s.platform) return router.replace("/platform");
         if (!s.company) return router.replace(`/login?next=${encodeURIComponent(here)}`);
         if (!s.user) return router.replace(`/select?next=${encodeURIComponent(here)}`);
         // Каждая компания работает на своём адресе: Radius — radius.dexa.uz, остальные — dexa.uz.
@@ -179,7 +183,7 @@ export function CurrentUserProvider({ role, children }: { role: Role | "cabinet"
     if (!session?.user || !session.company) return null;
     const u = session.user;
     return {
-      user: { id: u.id, name: u.name, role: u.role, roleLabel: ROLE_LABEL[u.role], managerId: u.manager_id, telegramLinked: Boolean(u.telegram_linked) },
+      user: { id: u.id, name: u.name, role: u.role, roleLabel: ROLE_LABEL[u.role], managerId: u.manager_id, telegramLinked: Boolean(u.telegram_linked), platform: Boolean(u.platform) },
       company: session.company,
       managers,
       ready: managersReady,

@@ -2,6 +2,7 @@ import { AccountProvider } from "@/components/account-switcher";
 import { CurrentUserProvider } from "@/components/current-user";
 import { MobileNav, Sidebar } from "@/components/sidebar";
 import { TrialBanner } from "@/components/trial-banner";
+import { PlatformBanner } from "@/components/platform-banner";
 
 export default function DashboardLayout({
   children,
@@ -14,6 +15,7 @@ export default function DashboardLayout({
       <div className="min-h-screen bg-background md:flex">
         <Sidebar />
         <div className="flex min-w-0 flex-1 flex-col">
+          <PlatformBanner />
           <MobileNav />
           <TrialBanner />
           <main className="flex-1">

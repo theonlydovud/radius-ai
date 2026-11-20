@@ -29,6 +29,7 @@ import * as managers from "./routes/managers";
 import * as leadsId from "./routes/leads-id";
 import * as messages from "./routes/messages";
 import * as plans from "./routes/plans";
+import * as platform from "./routes/platform";
 import * as companySettings from "./routes/company-settings";
 import * as profileTelegram from "./routes/profile-telegram";
 import * as rules from "./routes/rules";
@@ -67,6 +68,10 @@ app.use(
 const PUBLIC_PATHS = new Set([
   "/api/health",
   "/api/plans",
+  // Владелец платформы: проверка — внутри (кука владельца, иначе 404).
+  "/api/platform/companies",
+  "/api/platform/enter",
+  "/api/platform/exit",
   "/api/auth/me",
   "/api/auth/login",
   "/api/auth/select",
@@ -177,6 +182,9 @@ mount("/api/managers", managers);
 mount("/api/leads/:id", leadsId);
 mount("/api/messages", messages);
 mount("/api/plans", plans);
+mount("/api/platform/companies", platform.companies);
+mount("/api/platform/enter", platform.enter);
+mount("/api/platform/exit", platform.exit);
 mount("/api/settings/company", companySettings);
 mount("/api/profile/telegram", profileTelegram);
 mount("/api/rules", rules);

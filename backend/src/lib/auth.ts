@@ -3,6 +3,7 @@ import { promisify } from "node:util";
 import { createAdminClient } from "./supabase/server";
 import { ALL_FEATURES, findPlan, getPlans, type Features, type Plan } from "./plans";
 import { normalizeSettings, type CompanySettings } from "./company-settings";
+import { isPlatformAdmin, PLATFORM_NAME } from "./platform";
 
 /**
  * Вход в DexaAI. Два шага, оба запоминаются на устройстве на год (httpOnly-куки):
@@ -72,6 +73,8 @@ export type AuthUser = {
   company: AuthCompany;
   /** Личный Telegram привязан: туда приходят напоминания по заявкам. */
   telegram_linked: boolean;
+  /** Владелец платформы DexaAI в чужой компании («невидимка», см. lib/platform.ts). */
+  platform?: boolean;
 };
 
 // ---------------------------------------------------------------------
@@ -139,6 +142,18 @@ const userStamp = (u: { id: string; password_hash?: string | null; telegram_id?:
 
 export function companyToken(company: { id: string; password_hash?: string | null }) {
   return sign({ t: "c", id: company.id, v: companyStamp(company), exp: Math.floor(Date.now() / 1000) + YEAR_S });
+}
+
+/** Вход владельца платформы: его Telegram ID и выбранная компания (null — ещё не выбрал). */
+export function platformToken(telegramId: string, companyId: string | null) {
+  return sign({ t: "p", tg: telegramId, c: companyId, exp: Math.floor(Date.now() / 1000) + YEAR_S });
+}
+
+/** Владелец платформы по куке: Telegram ID и выбранная компания, или null. */
+export async function platformSession(req: Request): Promise<{ telegramId: string; companyId: string | null } | null> {
+  const p = unsign(readCookies(req)[USER_COOKIE]);
+  if (p?.t !== "p" || !(await isPlatformAdmin(p.tg))) return null;
+  return { telegramId: String(p.tg), companyId: p.c ?? null };
 }
 
 export function userToken(user: { id: string; password_hash?: string | null; telegram_id?: number | string | null }, sessionId?: string) {
@@ -293,6 +308,17 @@ export async function sessionCompany(req: Request): Promise<AuthCompany | null> 
 export async function sessionState(req: Request): Promise<{ user: AuthUser | null; replaced: boolean }> {
   const none = { user: null, replaced: false };
   const u = unsign(readCookies(req)[USER_COOKIE]);
+  if (u?.t === "p") {
+    // Владелец платформы: руководитель выбранной компании, без записи в app_users и без лимитов.
+    if (!u.c || !(await isPlatformAdmin(u.tg))) return none;
+    const row = await companyById(u.c);
+    if (!row) return none;
+    const company = await describeCompany(row);
+    return {
+      user: { id: `platform:${u.tg}`, name: PLATFORM_NAME, role: "owner", manager_id: null, company, telegram_linked: true, platform: true },
+      replaced: false,
+    };
+  }
   if (u?.t !== "u") return none;
   const user = await userById(u.id);
   if (!user || !user.is_active || userStamp(user) !== u.v) return none;

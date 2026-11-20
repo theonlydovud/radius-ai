@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
-import { clientIp, COMPANY_COOKIE, companyToken, describeCompany, setCookie, startSession, USER_COOKIE } from "../lib/auth";
+import { clearCookie, clientIp, COMPANY_COOKIE, companyToken, describeCompany, platformToken, setCookie, startSession, USER_COOKIE } from "../lib/auth";
 import { getPlans } from "../lib/plans";
 import { consumeSignup, createSignup, dexaBotSecret, dexaBotToken, handleDexaBotUpdate, signupStatus } from "../lib/dexa-bot";
 
@@ -61,7 +61,14 @@ export const complete = {
     if (!validNonce(body?.nonce)) return json({ error: "Неверный код." }, 400);
     const result = await consumeSignup(body.nonce);
     if (!result) return json({ error: "Ссылка устарела. Попробуйте ещё раз." }, 410);
-    const { user, company, isNew } = result;
+    // Владелец платформы: без своей компании — на сайте выберет любую (/platform).
+    if ("platform" in result && result.platform) {
+      return json({ data: { next: "/platform", is_new: false, company: null, platform: true } }, 200, [
+        ...clearCookie(COMPANY_COOKIE, req),
+        setCookie(USER_COOKIE, platformToken(String(result.platform), null), req),
+      ]);
+    }
+    const { user, company, isNew } = result as { user: any; company: any; isNew: boolean };
     const info = await describeCompany(company);
     const next = info.status === "expired" ? "/cabinet" : user.role === "owner" ? "/leads" : user.role === "admin" ? "/admin" : "/crm";
     return json({ data: { next, is_new: isNew, company: info } }, 200, [
