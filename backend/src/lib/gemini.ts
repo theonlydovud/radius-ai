@@ -2,6 +2,7 @@ import { GoogleGenerativeAI, SchemaType, type ResponseSchema } from "@google/gen
 import { createAdminClient } from "./supabase/server";
 import type { KnowledgeItem, SandboxChatMessage, SystemRule } from "../types";
 import { replyLanguageRule, withLanguageHint } from "./language";
+import type { CompanyAi } from "./ai-key";
 
 export const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
 
@@ -324,13 +325,15 @@ export async function withRetry<T>(call: () => Promise<T>): Promise<T> {
 export async function sendToGemini(
   systemInstruction: string,
   history: SandboxChatMessage[],
-  message: string
+  message: string,
+  /** Свой ключ и модель компании; нет — общие. */
+  ai?: CompanyAi | null
 ) {
   // Язык ответа = язык клиента: правило в самом конце, чтобы перекрыть правила аккаунта.
   const instruction = `${systemInstruction}
 
 ${replyLanguageRule(message, history)}`;
-  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL, systemInstruction: instruction }, { timeout: REQUEST_TIMEOUT_MS });
+  const model = (ai?.client ?? genAI).getGenerativeModel({ model: ai?.model ?? GEMINI_MODEL, systemInstruction: instruction }, { timeout: REQUEST_TIMEOUT_MS });
   const chatHistory = normalizeHistory(history).map((m) => ({
     role: m.role,
     parts: [{ text: m.text }],
@@ -370,10 +373,10 @@ const LEAD_SCHEMA: ResponseSchema = {
  * Результат дополнительно проверяется в sanitizeLeadFields (lead-extraction.ts).
  * null — модель не ответила: вызывающий код сам решает, когда попробовать снова.
  */
-export async function extractLeadFieldsWithGemini(conversation: string): Promise<Record<string, unknown> | null> {
-  const model = genAI.getGenerativeModel(
+export async function extractLeadFieldsWithGemini(conversation: string, ai?: CompanyAi | null): Promise<Record<string, unknown> | null> {
+  const model = (ai?.client ?? genAI).getGenerativeModel(
     {
-      model: GEMINI_MODEL,
+      model: ai?.model ?? GEMINI_MODEL,
       generationConfig: { responseMimeType: "application/json", responseSchema: LEAD_SCHEMA, temperature: 0 },
     },
     { timeout: REQUEST_TIMEOUT_MS }
@@ -435,10 +438,10 @@ const GENERIC_LEAD_SCHEMA: ResponseSchema = {
  * Заявка для компании не из логистики (companies.lead_kind = generic): что хочет клиент и телефон.
  * Отрасль любая — магазин, школа, клиника, услуги. null — модель не ответила.
  */
-export async function extractGenericLeadWithGemini(conversation: string, companyName: string): Promise<Record<string, unknown> | null> {
-  const model = genAI.getGenerativeModel(
+export async function extractGenericLeadWithGemini(conversation: string, companyName: string, ai?: CompanyAi | null): Promise<Record<string, unknown> | null> {
+  const model = (ai?.client ?? genAI).getGenerativeModel(
     {
-      model: GEMINI_MODEL,
+      model: ai?.model ?? GEMINI_MODEL,
       generationConfig: { responseMimeType: "application/json", responseSchema: GENERIC_LEAD_SCHEMA, temperature: 0 },
     },
     { timeout: REQUEST_TIMEOUT_MS }

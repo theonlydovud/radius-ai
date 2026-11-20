@@ -34,14 +34,14 @@ const AUDIO_TYPES = /^audio\/(webm|ogg|mp4|mpeg|wav|x-wav|aac|mp3)(;.*)?$/;
 const MAX_AUDIO_BYTES = 3_000_000; // ~3 МБ — несколько минут речи в opus
 
 export const transcribe = {
-  async POST(req: Request) {
+  async POST(req: Request, ctx: RouteContext) {
     const body = await req.json().catch(() => ({}));
     const audio = String(body.audio ?? "");
     const mime = String(body.mime ?? "audio/webm");
     if (!audio || !AUDIO_TYPES.test(mime)) return Response.json({ error: "Нет записи." }, { status: 400 });
     if ((audio.length * 3) / 4 > MAX_AUDIO_BYTES) return Response.json({ error: "Запись слишком длинная." }, { status: 413 });
     try {
-      return Response.json({ data: { text: await transcribeAudio(audio, mime.split(";")[0]) } });
+      return Response.json({ data: { text: await transcribeAudio(audio, mime.split(";")[0], ctx.auth!.company.id) } });
     } catch (e: any) {
       console.error("[assistant] расшифровка:", e?.message ?? e);
       return Response.json({ error: e instanceof GeminiRateLimitError ? BUSY : "Не удалось распознать голос." }, { status: 502 });

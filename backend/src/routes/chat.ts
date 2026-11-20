@@ -2,6 +2,7 @@ import { buildSystemInstruction, GeminiRateLimitError, sendToGemini } from "../l
 import { createAdminClient } from "../lib/supabase/server";
 import type { SandboxChatMessage } from "../types";
 import { ownsAccount } from "../lib/tenant";
+import { companyAi } from "../lib/ai-key";
 import type { RouteContext } from "../index";
 
 // Задержка перед ответом ИИ, чтобы поведение в песочнице совпадало с
@@ -41,7 +42,7 @@ export async function POST(req: Request, ctx: RouteContext) {
     const systemInstruction = await buildSystemInstruction(message, accountId);
 
     const [replyText] = await Promise.all([
-      sendToGemini(systemInstruction, history, message),
+      sendToGemini(systemInstruction, history, message, await companyAi(company)),
       randomDelay(),
     ]);
 

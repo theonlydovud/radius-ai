@@ -8,6 +8,7 @@ import {
 } from "./lead-extraction";
 import { extractGenericLeadWithGemini, extractLeadFieldsWithGemini } from "./gemini";
 import type { AuthCompany } from "./auth";
+import { companyAi, type CompanyAi } from "./ai-key";
 import { notifyNewLead } from "./lead-notify";
 import { assignNextManager } from "./managers";
 
@@ -87,12 +88,12 @@ function speaker(roleOrSender: string): Line["who"] {
 }
 
 /** Поля заявки: извлекает Gemini, телефон подстраховывается регуляркой по словам клиента. */
-async function extractFields(lines: Line[]): Promise<ExtractedLeadFields | null> {
+async function extractFields(lines: Line[], ai?: CompanyAi | null): Promise<ExtractedLeadFields | null> {
   const conversation = lines.map((l) => `${l.who}: ${l.text}`).join("\n");
   const clientText = lines.filter((l) => l.who === "Клиент").map((l) => l.text).join("\n");
-  const ai = await extractLeadFieldsWithGemini(conversation);
-  if (!ai) return null;
-  return sanitizeLeadFields({ ...ai, phone: ai.phone ?? extractPhone(clientText) });
+  const raw = await extractLeadFieldsWithGemini(conversation, ai);
+  if (!raw) return null;
+  return sanitizeLeadFields({ ...raw, phone: raw.phone ?? extractPhone(clientText) });
 }
 
 /**
@@ -103,8 +104,9 @@ async function extractFields(lines: Line[]): Promise<ExtractedLeadFields | null>
 type Extracted = { complete: boolean; phone?: string; data: Record<string, string | undefined> };
 
 async function extract(lines: Line[], company: AuthCompany): Promise<Extracted | null> {
+  const own = await companyAi(company.id);
   if (company.lead_kind === "cargo") {
-    const f = await extractFields(lines);
+    const f = await extractFields(lines, own);
     if (!f) return null;
     return {
       complete: isLeadComplete(f),
@@ -114,9 +116,9 @@ async function extract(lines: Line[], company: AuthCompany): Promise<Extracted |
   }
   const conversation = lines.map((l) => `${l.who}: ${l.text}`).join("\n");
   const clientText = lines.filter((l) => l.who === "Клиент").map((l) => l.text).join("\n");
-  const ai = await extractGenericLeadWithGemini(conversation, company.name);
-  if (!ai) return null;
-  const f = sanitizeGenericLead({ ...ai, phone: ai.phone ?? extractPhone(clientText) });
+  const raw = await extractGenericLeadWithGemini(conversation, company.name, own);
+  if (!raw) return null;
+  const f = sanitizeGenericLead({ ...raw, phone: raw.phone ?? extractPhone(clientText) });
   return { complete: isGenericLeadComplete(f), phone: f.phone, data: { request: f.request } };
 }
 

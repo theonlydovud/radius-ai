@@ -3,6 +3,7 @@ import { buildSystemInstruction, GeminiRateLimitError, sendToGemini } from "./ge
 import { getHistory, getOrCreateSession, maybeCreateOrUpdateLead } from "./conversation";
 import { splitPending } from "./burst";
 import { accountCompany, aiBlockReason, countBotReply } from "./tenant";
+import { companyAi } from "./ai-key";
 import { notifyDexaAdmins } from "./dexa-bot";
 
 /**
@@ -56,7 +57,7 @@ export async function replyToPending(options: {
   let reply: string;
   try {
     const systemInstruction = await buildSystemInstruction(pending, accountId);
-    reply = await sendToGemini(systemInstruction, before, pending);
+    reply = await sendToGemini(systemInstruction, before, pending, await companyAi(company?.id));
   } catch (err: any) {
     const reason = err instanceof GeminiRateLimitError ? "лимит Gemini (429)" : err?.message ?? err;
     console.error(`${tag} ИИ не ответил, отправляю просьбу написать позже: ${reason}`);

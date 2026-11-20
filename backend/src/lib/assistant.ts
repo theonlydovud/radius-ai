@@ -1,5 +1,6 @@
 import { FunctionCallingMode, SchemaType, type Content, type FunctionDeclaration, type Part } from "@google/generative-ai";
 import { genAI, GEMINI_MODEL, withRetry } from "./gemini";
+import { companyAi } from "./ai-key";
 import { createAdminClient } from "./supabase/server";
 import { buildLeadStats, fetchLead, fetchLeads, LOST_REASONS, STATUS_GROUPS } from "./leads";
 import { createManualLead } from "./manual-lead";
@@ -283,8 +284,9 @@ export async function runAssistant(auth: AuthUser, history: AssistantMessage[], 
 - Для «не продано» нужна причина; если её нет — спроси.
 - Отвечай коротко, по делу, на языке пользователя (русский, узбекский или английский). Карточки с заявками и цифрами интерфейс покажет сам — не пересказывай их целиком, дай вывод в 1–3 предложениях.`;
 
-  const model = genAI.getGenerativeModel(
-    { model: GEMINI_MODEL, systemInstruction, tools: [{ functionDeclarations: TOOLS }], toolConfig: { functionCallingConfig: { mode: FunctionCallingMode.AUTO } } },
+  const own = await companyAi(auth.company.id);
+  const model = (own?.client ?? genAI).getGenerativeModel(
+    { model: own?.model ?? GEMINI_MODEL, systemInstruction, tools: [{ functionDeclarations: TOOLS }], toolConfig: { functionCallingConfig: { mode: FunctionCallingMode.AUTO } } },
     { timeout: 30_000 }
   );
   // Диалог собираем сами, без ChatSession: SDK 0.21 шлёт ответы инструментов с ролью "function",
@@ -331,8 +333,9 @@ export async function runAssistant(auth: AuthUser, history: AssistantMessage[], 
 }
 
 /** Голос → текст: запись из браузера (webm/ogg/mp4) расшифровывает Gemini. */
-export async function transcribeAudio(base64: string, mimeType: string) {
-  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL }, { timeout: 30_000 });
+export async function transcribeAudio(base64: string, mimeType: string, companyId?: string) {
+  const own = await companyAi(companyId);
+  const model = (own?.client ?? genAI).getGenerativeModel({ model: own?.model ?? GEMINI_MODEL }, { timeout: 30_000 });
   const res = await withRetry(() =>
     model.generateContent([
       { inlineData: { mimeType, data: base64 } },
