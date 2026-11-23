@@ -1,5 +1,6 @@
 "use client";
 
+import { newLeadLabel } from "@/lib/lead-meta";
 import { useState } from "react";
 import { Loader2, Plus } from "lucide-react";
 import { hasFeature, useCurrentUser } from "@/components/current-user";
@@ -70,7 +71,7 @@ export function CreateLeadButton({ onCreated, className }: { onCreated: () => vo
     <>
       <Button size="sm" onClick={() => setOpen(true)} className={className}>
         <Plus className="h-3.5 w-3.5" />
-        {t("Новая заявка")}</Button>
+        {newLeadLabel()}</Button>
       <Dialog
         open={open}
         onOpenChange={(v) => {
@@ -80,7 +81,7 @@ export function CreateLeadButton({ onCreated, className }: { onCreated: () => vo
       >
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>{t("Новая заявка")}</DialogTitle>
+            <DialogTitle>{newLeadLabel()}</DialogTitle>
             <DialogDescription>
               {canAssign ? t("Клиент обратился напрямую — заведите заявку и назначьте менеджера.") : t("Клиент обратился напрямую — заявка будет ваша и сразу «В работе».")}
             </DialogDescription>

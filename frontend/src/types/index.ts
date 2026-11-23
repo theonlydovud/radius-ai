@@ -74,7 +74,9 @@ export type LostReason =
   | "other"
   | "closed_themselves"
   | "not_relevant"
-  | "duplicate_spam";
+  | "duplicate_spam"
+  // причины шаблонов и свои причины компании («custom:Текст»)
+  | (string & {});
 
 export type Currency = "USD" | "UZS" | "EUR" | "RUB";
 

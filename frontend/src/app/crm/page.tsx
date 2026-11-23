@@ -28,7 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { lostReasonLabel, money, offerButtonLabel, STATUS_LABEL, STATUS_VARIANT } from "@/lib/lead-meta";
+import { hasStage, leadFlow, lostReasonLabel, money, offerButtonLabel, STATUS_LABEL, STATUS_VARIANT } from "@/lib/lead-meta";
 import { DealDialog, isOverdue, LeadControlInfo, NextContactDialog, OverdueBadges } from "@/components/lead-control";
 import { HandCoins } from "lucide-react";
 import { cn, formatDate } from "@/lib/utils";
@@ -42,8 +42,8 @@ const LEAD_TABS: { value: LeadTab; label: string }[] = [
   { value: "active", get label() { return tr("Активные"); } },
   { value: "offered", get label() { return STATUS_LABEL.offered; } },
   { value: "overdue", get label() { return tr("Просроченные"); } },
-  { value: "sold", get label() { return tr("Продано"); } },
-  { value: "not_sold", get label() { return tr("Не продано"); } },
+  { value: "sold", get label() { return STATUS_LABEL.sold; } },
+  { value: "not_sold", get label() { return STATUS_LABEL.not_sold; } },
   { value: "all", get label() { return tr("Все"); } },
 ];
 
@@ -91,6 +91,8 @@ function LeadRow({
   onNextContact: () => void;
 }) {
   const d = lead.collected_data;
+  // Экран менеджера: в компании 2+ сотрудника, поэтому «Взять в работу» есть.
+  const flow = leadFlow(lead.status, false);
   return (
     <Card
       id={`lead-${lead.id}`}
@@ -155,27 +157,27 @@ function LeadRow({
               {tr("Переписка")}</Button>
           )}
           {isClosed(lead) ? (
-            <Button variant="outline" size="sm" disabled={busy} onClick={() => onPatch({ status: "in_progress" })}>
+            <Button variant="outline" size="sm" disabled={busy} onClick={() => onPatch({ status: flow.reopenTo })}>
               <RotateCcw className="h-3.5 w-3.5" />
-              {tr("Вернуть в работу")}</Button>
+              {flow.reopenLabel}</Button>
           ) : (
             <>
-              {lead.status === "new" && (
+              {flow.take && (
                 <Button variant="outline" size="sm" disabled={busy} onClick={() => onPatch({ status: "in_progress" })}>
                   <Play className="h-3.5 w-3.5" />
-                  {tr("Взять")}</Button>
+                  {flow.takeLabel}</Button>
               )}
-              {lead.status === "in_progress" && (
+              {flow.offer && (
                 <Button variant="outline" size="sm" disabled={busy} onClick={onOffer}>
                   <HandCoins className="h-3.5 w-3.5" />
                   {offerButtonLabel()}</Button>
               )}
               <Button size="sm" disabled={busy} onClick={() => onClose("sold")}>
                 <Check className="h-3.5 w-3.5" />
-                {tr("Продано")}</Button>
+                {STATUS_LABEL.sold}</Button>
               <Button variant="outline" size="sm" disabled={busy} onClick={() => onClose("not_sold")}>
                 <X className="h-3.5 w-3.5" />
-                {tr("Не продано")}</Button>
+                {STATUS_LABEL.not_sold}</Button>
             </>
           )}
         </div>
@@ -186,7 +188,7 @@ function LeadRow({
 
       {isClosed(lead) && (
         <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
-          {lead.status === "sold" ? tr("Продано") : tr("Не продано · {0}", lostReasonLabel(lead.lost_reason))}
+          {lead.status === "sold" ? STATUS_LABEL.sold : `${STATUS_LABEL.not_sold} · ${lostReasonLabel(lead.lost_reason)}`}
           {lead.closed_at ? ` · ${formatDate(lead.closed_at)}` : ""}
           {lead.lost_reason === "too_expensive" && lead.lost_price != null ? ` · ${tr("Цена клиента / конкурента:")} ${money(lead.lost_price, lead.lost_currency)}` : ""}
           {lead.lost_comment ? ` · ${lead.lost_comment}` : ""}
@@ -342,7 +344,7 @@ export default function CrmPage() {
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <Tabs value={tab} onValueChange={(v) => setTab(v as LeadTab)} className="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">
               <TabsList className="inline-flex w-max md:w-auto">
-                {LEAD_TABS.map((t) => (
+                {LEAD_TABS.filter((t) => (t.value !== "offered" || hasStage("offered")) && (t.value !== "overdue" || company?.settings?.modules?.deadlines !== false)).map((t) => (
                   <TabsTrigger key={t.value} value={t.value} className="flex-none gap-1.5 whitespace-nowrap px-3">
                     {t.label}
                     <span className="rounded-full bg-slate-200/70 px-1.5 text-[10px] tabular-nums text-slate-600">{counts[t.value]}</span>

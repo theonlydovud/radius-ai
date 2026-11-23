@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import type { CompanySettings } from "@/lib/lead-meta";
-import { setDealLabels } from "@/lib/lead-meta";
+import { companyTerms, setCompanySettings } from "@/lib/lead-meta";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
 
@@ -29,6 +29,7 @@ const DAYS = [
 export function DealSettingsCard() {
   const [s, setS] = useState<CompanySettings | null>(null);
   const [available, setAvailable] = useState(true);
+  const [deadlinesAvailable, setDeadlinesAvailable] = useState(false);
   const [types, setTypes] = useState("");
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
@@ -40,6 +41,7 @@ export function DealSettingsCard() {
         if (!j.data) throw new Error(j.error);
         setS(j.data.settings);
         setAvailable(j.data.deal_available);
+        setDeadlinesAvailable(Boolean(j.data.deadlines_available));
         setTypes(j.data.settings.deal.types.join(", "));
       })
       .catch((e) => setNotice({ ok: false, text: e?.message || t("Не удалось загрузить настройки.") }));
@@ -60,13 +62,19 @@ export function DealSettingsCard() {
     setSaving(true);
     setNotice(null);
     try {
-      const body = { ...s, deal: { ...s.deal, types: types.split(",").map((x) => x.trim()).filter(Boolean) } };
+      // Этапы, причины и термины сохраняет карточка «Воронка» — здесь только своё.
+      const body = {
+        deal: { ...s.deal, types: types.split(",").map((x) => x.trim()).filter(Boolean) },
+        deadlines: s.deadlines,
+        work: s.work,
+        modules: s.modules,
+      };
       const res = await fetch("/api/settings/company", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j.error ?? t("Не удалось сохранить."));
       setS(j.data.settings);
       setTypes(j.data.settings.deal.types.join(", "));
-      setDealLabels(j.data.settings.deal);
+      setCompanySettings(j.data.settings);
       setNotice({ ok: true, text: t("Сохранено") });
     } catch (e: any) {
       setNotice({ ok: false, text: e?.message ?? t("Не удалось сохранить.") });
@@ -84,7 +92,7 @@ export function DealSettingsCard() {
           </div>
           <div>
             <CardTitle>{t("Блок сделки")}</CardTitle>
-            <p className="text-xs text-slate-400">{t("Ставки в карточке заявки: без них нельзя предложить и закрыть «Продано».")}</p>
+            <p className="text-xs text-slate-400">{companyTerms().amount === "rate" ? t("Ставки в карточке заявки: без них нельзя предложить и закрыть «Продано».") : t("Суммы в карточке заявки: без них нельзя отправить предложение и закрыть «Продано».")}</p>
           </div>
         </div>
         <Switch checked={s.deal.enabled} onCheckedChange={(v) => setDeal({ enabled: v })} disabled={!available} />
@@ -114,25 +122,38 @@ export function DealSettingsCard() {
             <Label>{t("Список видов (через запятую)")}</Label>
             <Input value={types} onChange={(e) => setTypes(e.target.value)} placeholder="FTL, LTL, FCL" disabled={!s.deal.enabled} />
           </div>
-          <div className="space-y-1.5">
-            <Label>{t("Название этапа")}</Label>
-            <Input value={s.deal.stage_label} onChange={(e) => setDeal({ stage_label: e.target.value })} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>{t("Кнопка в карточке")}</Label>
-            <Input value={s.deal.offer_button} onChange={(e) => setDeal({ offer_button: e.target.value })} />
-          </div>
+          {/* Название самого этапа — в карточке «Воронка»; здесь только текст кнопки. */}
+          {s.stages?.offered !== null && (
+            <div className="space-y-1.5">
+              <Label>{t("Кнопка в карточке")}</Label>
+              <Input value={s.deal.offer_button} onChange={(e) => setDeal({ offer_button: e.target.value })} />
+            </div>
+          )}
         </div>
 
         <div className="border-t border-slate-100 pt-4">
-          <p className="text-sm font-semibold text-slate-900">{t("Сроки и напоминания")}</p>
-          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">{t("Контроль сроков и напоминания")}</p>
+              <p className="text-xs text-slate-400">
+                {deadlinesAvailable
+                  ? t("Метки «Не взята», «Зависла» и напоминания сотрудникам в Telegram.")
+                  : t("Нужен, когда в кабинете 2 и больше сотрудников. Доступно в тарифе Бизнес.")}
+              </p>
+            </div>
+            <Switch
+              checked={Boolean(s.modules?.deadlines)}
+              onCheckedChange={(v) => setS({ ...s, modules: { deadlines: v, partners: s.modules?.partners ?? false } })}
+              disabled={!deadlinesAvailable}
+            />
+          </div>
+          <div className={cn("mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3", !s.modules?.deadlines && "hidden")}>
             <div className="space-y-1.5">
               <Label>{t("Не взята в работу, мин")}</Label>
               <Input type="number" min={5} value={s.deadlines.not_taken_minutes} onChange={(e) => setDl("not_taken_minutes", e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label>{t("Нет ставки, часов")}</Label>
+              <Label>{companyTerms().amount === "rate" ? t("Нет ставки, часов") : t("Нет предложения, часов")}</Label>
               <Input type="number" min={1} value={s.deadlines.no_offer_hours} onChange={(e) => setDl("no_offer_hours", e.target.value)} />
             </div>
             <div className="space-y-1.5">

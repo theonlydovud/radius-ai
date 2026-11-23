@@ -1,5 +1,6 @@
 "use client";
 
+import { managerOne, managersTitle } from "@/lib/lead-meta";
 import { useEffect, useState } from "react";
 import { Plus, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -81,7 +82,7 @@ export function ManagersCard() {
           <Users className="h-4 w-4 text-brand" />
         </div>
         <div>
-          <CardTitle>{t("Менеджеры")}</CardTitle>
+          <CardTitle>{managersTitle()}</CardTitle>
           <p className="text-xs text-slate-400">{t("Новые заявки назначаются включённым менеджерам по очереди.")}</p>
         </div>
       </CardHeader>

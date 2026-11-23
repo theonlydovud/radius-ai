@@ -63,6 +63,8 @@ export type AuthCompany = {
   ai_blocked: "limit" | "period" | null;
   /** Блок сделки, сроки, рабочее время (companies.settings). Блок сделки выключен, если его нет в тарифе. */
   settings: CompanySettings;
+  /** Активные сотрудники (руководитель + менеджеры). 1 — «один сотрудник»: без ответственных, «Взять в работу» и эскалаций. */
+  staff_count: number;
 };
 export const TRIAL_DAYS = 14;
 export type AuthUser = {
@@ -238,6 +240,8 @@ type CompanyRow = {
   period_end?: string | null;
   messages_used?: number | null;
   extra_users?: number | null;
+  /** Сколько активных сотрудников (руководитель + менеджеры); считается при загрузке компании. */
+  staff_count?: number;
 };
 type UserRow = {
   /** id текущего входа: у обычных компаний действует только последний вход (одно устройство). */
@@ -273,8 +277,12 @@ export function invalidateAuthCache() {
 
 async function companyById(id: string) {
   return cached(`c:${id}`, async () => {
-    const { data } = await createAdminClient().from("companies").select("*").eq("id", id).maybeSingle();
-    return (data as CompanyRow | null) ?? null;
+    const supabase = createAdminClient();
+    const { data } = await supabase.from("companies").select("*").eq("id", id).maybeSingle();
+    if (!data) return null;
+    // Сотрудники — руководитель и менеджеры (супер-админ и владелец платформы не считаются).
+    const { data: staff } = await supabase.from("app_users").select("id").eq("company_id", id).eq("is_active", true).in("role", ["owner", "manager"]);
+    return { ...(data as CompanyRow), staff_count: Math.max(1, staff?.length ?? 1) };
   });
 }
 
@@ -390,8 +398,11 @@ export function publicCompany(c: CompanyRow, plans: Plan[]): AuthCompany {
     settings: (() => {
       const s = normalizeSettings(c.settings);
       if (plan && !plan.features.deal) s.deal.enabled = false;
+      // Контроль сроков — только при 2+ сотрудниках и в тарифе с ответственными.
+      if ((plan && !plan.features.lead_transfer) || (c.staff_count ?? 1) < 2) s.modules.deadlines = false;
       return s;
     })(),
+    staff_count: c.staff_count ?? 1,
   };
 }
 

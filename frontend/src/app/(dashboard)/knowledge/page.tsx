@@ -132,7 +132,7 @@ export default function KnowledgePage() {
                 <Input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder={t("Например: Доставка из Ташкента в Москву")}
+                  placeholder={t("Например: Доставка и оплата")}
                 />
               </div>
               <div className="space-y-1.5">

@@ -1,5 +1,6 @@
 "use client";
 
+import { newLeadLabel } from "@/lib/lead-meta";
 import { isGenericLead, LeadRequest } from "@/components/lead-request";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BellRing, MapPin, Package, UserRound, Volume2, VolumeX } from "lucide-react";
@@ -131,7 +132,7 @@ export function NewLeadAlert({ lead, onDone }: { lead: Lead | null; onDone: () =
       >
         <div className="flex items-center gap-2 bg-gradient-to-r from-[#eda100] to-[#eb6834] px-5 py-2.5 text-sm font-semibold text-white">
           <BellRing className="h-4 w-4 animate-[wiggle_0.6s_ease-in-out_3]" />
-          {t("Новая заявка")}
+          {newLeadLabel()}
         </div>
         <div className="space-y-2 px-5 py-4">
           <p className="text-xl font-semibold text-slate-900">{lead.client_name}</p>

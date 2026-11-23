@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useCurrentUser } from "@/components/current-user";
-import { CURRENCIES, dealLabels, LOST_REASONS } from "@/lib/lead-meta";
+import { companyTerms, CURRENCIES, dealLabels, lostReasonOptions, STATUS_LABEL } from "@/lib/lead-meta";
 import { Input } from "@/components/ui/input";
 import { DealFields, dealComplete, dealFromLead, type DealValue } from "@/components/lead-control";
 import { cn } from "@/lib/utils";
@@ -53,7 +53,7 @@ export function CloseLeadDialog({
   const soldReady = !dealOn || dealComplete(deal);
   const lostReady =
     Boolean(reason) &&
-    (reason !== "too_expensive" || (lostPrice.trim() !== "" && lostPriceNum > 0 && Boolean(lostCurrency))) &&
+    (reason !== "too_expensive" || !dealOn || (lostPrice.trim() !== "" && lostPriceNum > 0 && Boolean(lostCurrency))) &&
     (reason !== "other" || comment.trim().length > 0);
   const canSubmit = Boolean(closedBy) && (mode === "sold" ? soldReady : lostReady) && !saving;
   const toNum = (v: string) => Number(v.replace(/\s+/g, "").replace(",", "."));
@@ -78,7 +78,7 @@ export function CloseLeadDialog({
                 closed_by: closedBy,
                 lost_reason: reason,
                 lost_comment: comment,
-                ...(reason === "too_expensive" ? { lost_price: lostPriceNum, lost_currency: lostCurrency } : {}),
+                ...(reason === "too_expensive" && dealOn ? { lost_price: lostPriceNum, lost_currency: lostCurrency } : {}),
               }
         ),
       });
@@ -99,7 +99,7 @@ export function CloseLeadDialog({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{mode === "sold" ? t("Продано") : t("Не продано")}</DialogTitle>
+          <DialogTitle>{mode === "sold" ? STATUS_LABEL.sold : STATUS_LABEL.not_sold}</DialogTitle>
           <DialogDescription>
             {lead.client_name} · {lead.collected_data?.request ?? `${lead.collected_data?.origin_city ?? "—"} → ${lead.collected_data?.destination_city ?? "—"}`}
           </DialogDescription>
@@ -126,7 +126,7 @@ export function CloseLeadDialog({
 
           {mode === "sold" && dealOn && (
             <div className="space-y-1.5">
-              <p className="text-xs font-medium text-slate-600">{t("Итоговые ставки")}</p>
+              <p className="text-xs font-medium text-slate-600">{companyTerms().amount === "rate" ? t("Итоговые ставки") : t("Итоговые суммы")}</p>
               <DealFields value={deal} onChange={setDeal} />
             </div>
           )}
@@ -136,7 +136,7 @@ export function CloseLeadDialog({
               <fieldset className="space-y-1.5">
                 <legend className="mb-1.5 text-xs font-medium text-slate-600">{t("Причина")}</legend>
                 <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-                  {LOST_REASONS.map((r) => (
+                  {lostReasonOptions().map((r) => (
                     <label
                       key={r.value}
                       className={cn(
@@ -158,7 +158,7 @@ export function CloseLeadDialog({
                 </div>
               </fieldset>
 
-              {reason === "too_expensive" && (
+              {reason === "too_expensive" && dealOn && (
                 <div className="grid grid-cols-[1fr_110px] gap-3">
                   <div className="space-y-1.5">
                     <Label>{t("Цена, которую хотел клиент / цена конкурента")} *</Label>

@@ -7,7 +7,7 @@ import { DexaMark } from "@/components/brand/dexa-logo";
 import type { Manager } from "@/types";
 import { t } from "@/lib/i18n";
 import { workspaceUrl } from "@/lib/workspace";
-import { setDealLabels, type CompanySettings } from "@/lib/lead-meta";
+import { setCompanySettings, type CompanySettings } from "@/lib/lead-meta";
 
 /**
  * Кто вошёл. Вход проверяет backend (куки dexa_c — компания, dexa_u — человек),
@@ -43,7 +43,17 @@ export type SessionCompany = {
   ai_blocked?: "limit" | "period" | null;
   /** Блок сделки, сроки, рабочее время. */
   settings?: CompanySettings;
+  /** Активные сотрудники (руководитель + менеджеры). 1 — работает один человек. */
+  staff_count?: number;
 };
+
+/**
+ * Правило одного сотрудника: в кабинете один человек — все заявки его, нет выбора
+ * ответственного, «Взять в работу» и напоминаний «не взята». Старый backend без поля — как раньше.
+ */
+export function isSolo(company: SessionCompany | null | undefined) {
+  return company?.staff_count !== undefined && company.staff_count < 2;
+}
 
 export type Feature = "manual_leads" | "chat_history" | "stats" | "lead_transfer" | "assistant" | "deal";
 
@@ -108,6 +118,8 @@ type CurrentUserContextValue = {
   managers: Manager[];
   ready: boolean;
   reloadManagers: () => Promise<void>;
+  /** Новые настройки компании (воронка, термины…) — сразу во всём интерфейсе. */
+  updateSettings: (settings: CompanySettings) => void;
 };
 
 const CurrentUserContext = createContext<CurrentUserContextValue | null>(null);
@@ -166,7 +178,7 @@ export function CurrentUserProvider({ role, children }: { role: Role | "cabinet"
         if (isExpired(s.company) && role !== "cabinet") return router.replace("/cabinet");
         if (s.company.status === "active" && role === "cabinet") return router.replace(homeFor(s.user.role));
         if (role !== "cabinet" && s.user.role !== role) return router.replace(`${homeFor(s.user.role)}${window.location.search}`);
-        setDealLabels(s.company.settings?.deal);
+        setCompanySettings(s.company.settings);
         setSession(s);
       })
       .catch((e) => !cancelled && setError(e?.message ?? t("Сервер недоступен.")));
@@ -174,6 +186,11 @@ export function CurrentUserProvider({ role, children }: { role: Role | "cabinet"
       cancelled = true;
     };
   }, [role, router, pathname]);
+
+  const updateSettings = useCallback((settings: CompanySettings) => {
+    setCompanySettings(settings);
+    setSession((prev) => (prev?.company ? { ...prev, company: { ...prev.company, settings } } : prev));
+  }, []);
 
   useEffect(() => {
     if (session?.user && session.user.role !== "manager") reloadManagers().finally(() => setManagersReady(true));
@@ -188,8 +205,9 @@ export function CurrentUserProvider({ role, children }: { role: Role | "cabinet"
       managers,
       ready: managersReady,
       reloadManagers,
+      updateSettings,
     };
-  }, [session, managers, managersReady, reloadManagers]);
+  }, [session, managers, managersReady, reloadManagers, updateSettings]);
 
   if (error) {
     return (

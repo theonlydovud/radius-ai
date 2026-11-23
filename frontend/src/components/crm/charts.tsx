@@ -1,5 +1,6 @@
 "use client";
 
+import { STATUS_LABEL } from "@/lib/lead-meta";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { t as tr } from "@/lib/i18n";
@@ -11,11 +12,11 @@ import { t as tr } from "@/lib/i18n";
  */
 export const SERIES = {
   new: { color: "var(--series-new)", get label() { return tr("Новые"); } },
-  in_progress: { color: "var(--series-blue)", get label() { return tr("В работе"); } },
-  offered: { color: "var(--series-offered)", get label() { return tr("Ставка предложена"); } },
+  in_progress: { color: "var(--series-blue)", get label() { return STATUS_LABEL.in_progress; } },
+  offered: { color: "var(--series-offered)", get label() { return STATUS_LABEL.offered; } },
   open: { color: "var(--series-blue)", get label() { return tr("Открытые"); } },
-  sold: { color: "var(--series-sold)", get label() { return tr("Продано"); } },
-  not_sold: { color: "var(--series-lost)", get label() { return tr("Не продано"); } },
+  sold: { color: "var(--series-sold)", get label() { return STATUS_LABEL.sold; } },
+  not_sold: { color: "var(--series-lost)", get label() { return STATUS_LABEL.not_sold; } },
 } as const;
 
 const GRID = "rgb(var(--slate-200))";

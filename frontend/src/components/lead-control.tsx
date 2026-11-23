@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCurrentUser } from "@/components/current-user";
-import { costLabel, CURRENCIES, dealLabels, money, offerButtonLabel, priceLabel, typeLabel } from "@/lib/lead-meta";
+import { companyTerms, costLabel, CURRENCIES, dealLabels, money, offerButtonLabel, priceLabel, typeLabel } from "@/lib/lead-meta";
 import { cn, formatDate } from "@/lib/utils";
 import type { Currency, Lead } from "@/types";
 import { t } from "@/lib/i18n";
@@ -148,7 +148,7 @@ export function DealDialog({ lead, mode, onClose, onSaved }: { lead: Lead; mode:
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{mode === "offer" ? offerButtonLabel() : t("Изменить ставку")}</DialogTitle>
+          <DialogTitle>{mode === "offer" ? offerButtonLabel() : companyTerms().amount === "rate" ? t("Изменить ставку") : t("Изменить сумму")}</DialogTitle>
           <DialogDescription>{lead.client_name}</DialogDescription>
         </DialogHeader>
         {dealOn ? (
@@ -204,7 +204,7 @@ export function NextContactDialog({ lead, onClose, onSaved }: { lead: Lead; onCl
           </div>
           <div className="space-y-1.5">
             <Label>{t("Что сделать")}</Label>
-            <Input value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} placeholder={t("Например, перезвонить по ставке")} />
+            <Input value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} placeholder={t("Например, перезвонить клиенту")} />
           </div>
         </div>
         {error && <p className="text-xs text-red-600">{error}</p>}
@@ -237,7 +237,7 @@ export function OverdueBadges({ lead }: { lead: Lead }) {
       {lead.overdue?.no_offer && (
         <span className="inline-flex items-center gap-1 rounded-md bg-red-100 px-1.5 py-0.5 text-[11px] font-semibold text-red-700 dark:bg-red-500/20 dark:text-red-300">
           <AlarmClock className="h-3 w-3" />
-          {t("Нет ставки")}
+          {companyTerms().amount === "rate" ? t("Нет ставки") : t("Нет предложения")}
         </span>
       )}
       {lead.overdue?.stuck && (

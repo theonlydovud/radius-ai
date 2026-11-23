@@ -1,5 +1,5 @@
 import { createAdminClient } from "../lib/supabase/server";
-import { buildLeadStats, buildWorkStats, fetchLeads, ownManagerFilter } from "../lib/leads";
+import { buildLeadStats, buildWorkStats, fetchLeads, leadControl, ownManagerFilter } from "../lib/leads";
 import type { RouteContext } from "../index";
 
 function validTimeZone(tz: string | null) {
@@ -38,7 +38,7 @@ export async function GET(req: Request, ctx?: RouteContext) {
       data: {
         ...buildLeadStats(leads, managers.data ?? [], { from, to, timeZone: validTimeZone(searchParams.get("tz")) }),
         // Работа логистов и направления. Менеджер видит только себя и без маржи; маржа — руководителю.
-        work: buildWorkStats(leads, managers.data ?? [], { deadlines: auth.company.settings.deadlines, showMargin: auth.role === "owner" }),
+        work: buildWorkStats(leads, managers.data ?? [], { control: leadControl(auth.company.settings), showMargin: auth.role === "owner" }),
       },
     });
   } catch (e: any) {

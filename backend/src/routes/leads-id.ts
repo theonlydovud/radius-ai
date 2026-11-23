@@ -1,5 +1,6 @@
 import { createAdminClient } from "../lib/supabase/server";
-import { fetchLead, LOST_REASONS } from "../lib/leads";
+import { fetchLead, leadControl } from "../lib/leads";
+import { hasStage, isValidLostReason } from "../lib/company-settings";
 import { logStatus, parseDeal, parseLostPrice } from "../lib/lead-status";
 import type { RouteContext } from "../index";
 
@@ -77,7 +78,14 @@ export async function PATCH(req: Request, { params, auth }: RouteContext) {
 
   if (body.status !== undefined && body.status !== lead.status) {
     const status = body.status;
-    if (status === "in_progress") {
+    // Только этапы, которые есть в воронке компании (у магазина, например, нет «В работе»).
+    // В «Новая» только возвращают закрытую заявку — там, где нет этапа «В работе».
+    if (!hasStage(settings, status) || (status === "new" && (!closed || settings.stages.in_progress !== null))) {
+      return bad("Такого этапа нет в вашей воронке.");
+    }
+    if (status === "new") {
+      Object.assign(updates, { status }, NOT_CLOSED);
+    } else if (status === "in_progress") {
       Object.assign(updates, { status, taken_at: lead.taken_at ?? now }, NOT_CLOSED);
     } else if (status === "offered") {
       if (lead.status !== "in_progress" && lead.status !== "new") return bad("Ставку предлагают по заявке в работе.");
@@ -100,11 +108,12 @@ export async function PATCH(req: Request, { params, auth }: RouteContext) {
         }
         Object.assign(updates, { status, lost_reason: null, lost_comment: null, lost_price: null, lost_currency: null }, closedFields);
       } else {
-        if (!LOST_REASONS.includes(body.lost_reason)) return bad("Выберите причину из списка.");
+        if (!isValidLostReason(body.lost_reason) || !settings.lost_reasons.includes(body.lost_reason)) return bad("Выберите причину из списка.");
         const comment = String(body.lost_comment ?? "").trim();
         if (body.lost_reason === "other" && !comment) return bad("Для причины «Другое» напишите комментарий.");
         let lost: { lost_price: number | null; lost_currency: string | null } = { lost_price: null, lost_currency: null };
-        if (body.lost_reason === "too_expensive") {
+        // «Дорого» с ценой клиента/конкурента — там, где есть блок сделки (у B2B-шаблона).
+        if (body.lost_reason === "too_expensive" && dealOn) {
           const r = parseLostPrice(body);
           if ("error" in r) return bad(r.error);
           lost = r;
@@ -121,11 +130,15 @@ export async function PATCH(req: Request, { params, auth }: RouteContext) {
 
   const { data: updated, error } = await supabase.from("leads").update(updates).eq("id", params.id).eq("company_id", company.id).select("id").maybeSingle();
   if (error) {
-    const hint = /column|status_check|lost_reason_check/.test(error.message) ? " Выполните migration-deals.sql в Supabase." : "";
+    const hint = /lost_reason_check/.test(error.message)
+      ? " Выполните migration-templates.sql в Supabase."
+      : /column|status_check/.test(error.message)
+        ? " Выполните migration-deals.sql в Supabase."
+        : "";
     return Response.json({ error: `${error.message}${hint}` }, { status: 500 });
   }
   if (!updated) return bad("Заявка не найдена.", 404);
   if (updates.status) await logStatus(supabase, lead, String(updates.status), auth?.name ?? null);
 
-  return Response.json({ data: await fetchLead(supabase, params.id, company.id, { deadlines: settings.deadlines, showMargin: auth?.role === "owner" }) });
+  return Response.json({ data: await fetchLead(supabase, params.id, company.id, { control: leadControl(settings), showMargin: auth?.role === "owner" }) });
 }

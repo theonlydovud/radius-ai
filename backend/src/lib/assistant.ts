@@ -2,7 +2,8 @@ import { FunctionCallingMode, SchemaType, type Content, type FunctionDeclaration
 import { genAI, GEMINI_MODEL, withRetry } from "./gemini";
 import { companyAi } from "./ai-key";
 import { createAdminClient } from "./supabase/server";
-import { buildLeadStats, fetchLead, fetchLeads, LOST_REASONS, STATUS_GROUPS } from "./leads";
+import { buildLeadStats, fetchLead, fetchLeads, STATUS_GROUPS } from "./leads";
+import { BUILTIN_LOST_REASONS } from "./company-settings";
 import { createManualLead } from "./manual-lead";
 import type { AuthUser } from "./auth";
 
@@ -83,7 +84,7 @@ const TOOLS: FunctionDeclaration[] = [
         lost_reason: {
           type: S.STRING,
           format: "enum",
-          enum: [...LOST_REASONS],
+          enum: [...BUILTIN_LOST_REASONS],
           description: "Причина для «не продано»: too_expensive — дорого, closed_themselves — сами закрыли, nothing_to_offer — нечего предложить, not_relevant — неактуальная, no_response — клиент не отвечает, duplicate_spam — дубль/спам",
         },
         manager: str("Новый ответственный: точное имя менеджера или «none»"),
@@ -240,7 +241,8 @@ async function runTool(name: string, args: Record<string, any>, ctx: Ctx): Promi
     if (args.status === "in_progress") Object.assign(updates, { status: "in_progress", taken_at: lead.taken_at ?? new Date().toISOString(), closed_at: null, closed_by: null, lost_reason: null, lost_comment: null });
     if (args.status === "sold") Object.assign(updates, { status: "sold", lost_reason: null, lost_comment: null }, closed);
     if (args.status === "not_sold") {
-      if (!LOST_REASONS.includes(args.lost_reason)) return { error: "Для «не продано» нужна причина.", reasons: LOST_REASONS };
+      const allowed = ctx.auth.company.settings.lost_reasons;
+      if (!allowed.includes(args.lost_reason)) return { error: "Для «не продано» нужна причина из списка компании.", reasons: allowed };
       Object.assign(updates, { status: "not_sold", lost_reason: args.lost_reason }, closed);
     }
     if (!Object.keys(updates).length) return { error: "Не понял, что изменить в заявке." };

@@ -1,7 +1,7 @@
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { lostReasonLabel, money } from "@/lib/lead-meta";
+import { companyTerms, lostReasonLabel, managerOne, money } from "@/lib/lead-meta";
 import type { LostReason, RouteWork, WorkRow } from "@/types";
 import { t } from "@/lib/i18n";
 
@@ -50,12 +50,15 @@ function LostList({ lost }: { lost: WorkRow["lost"] }) {
 
 export function WorkStats({ logists, routes }: { logists: WorkRow[]; routes: RouteWork[] }) {
   const showMargin = logists.some((l) => l.margin !== undefined);
+  // Сотрудник один — сравнивать некого; маршруты бывают только у грузовых заявок.
+  if (logists.length === 0 && routes.length === 0) return null;
+  const rate = companyTerms().amount === "rate";
   return (
     <>
       <Card className="mt-4">
         <CardHeader>
-          <CardTitle>{t("Работа логистов")}</CardTitle>
-          <CardDescription>{t("Как быстро берут заявки, предлагают ставку и закрывают сделки")}</CardDescription>
+          <CardTitle>{companyTerms().manager === "logist" ? t("Работа логистов") : t("Работа сотрудников")}</CardTitle>
+          <CardDescription>{rate ? t("Как быстро берут заявки, предлагают ставку и закрывают сделки") : t("Как быстро берут заявки, отправляют предложение и закрывают сделки")}</CardDescription>
         </CardHeader>
         <CardContent className="px-5 pb-5">
           {logists.length === 0 ? (
@@ -65,12 +68,12 @@ export function WorkStats({ logists, routes }: { logists: WorkRow[]; routes: Rou
               <table className="w-full min-w-[860px] text-sm">
                 <thead>
                   <tr className="text-right text-xs text-slate-500">
-                    <th className="pb-2 text-left font-medium">{t("Логист")}</th>
+                    <th className="pb-2 text-left font-medium">{managerOne()}</th>
                     <th className="pb-2 font-medium">{t("Взято")}</th>
                     <th className="pb-2 font-medium">{t("Назначение → взял")}</th>
-                    <th className="pb-2 font-medium">{t("Взял → ставка")}</th>
-                    <th className="pb-2 font-medium">{t("Со ставкой")}</th>
-                    <th className="pb-2 font-medium">{t("Заявки → ставка → продано")}</th>
+                    <th className="pb-2 font-medium">{rate ? t("Взял → ставка") : t("Взял → предложение")}</th>
+                    <th className="pb-2 font-medium">{rate ? t("Со ставкой") : t("С предложением")}</th>
+                    <th className="pb-2 font-medium">{rate ? t("Заявки → ставка → продано") : t("Заявки → предложение → продано")}</th>
                     <th className="pb-2 font-medium">{t("Продано")}</th>
                     {showMargin && <th className="pb-2 font-medium">{t("Маржа")}</th>}
                     <th className="pb-2 font-medium">{t("Не продано")}</th>
@@ -102,7 +105,7 @@ export function WorkStats({ logists, routes }: { logists: WorkRow[]; routes: Rou
                           "—"
                         ) : (
                           <span className="text-red-600">
-                            {t("нет ставки")}: {l.overdue.no_offer} · {t("зависли")}: {l.overdue.stuck}
+                            {rate ? t("нет ставки") : t("нет предложения")}: {l.overdue.no_offer} · {t("зависли")}: {l.overdue.stuck}
                           </span>
                         )}
                       </td>
@@ -128,7 +131,7 @@ export function WorkStats({ logists, routes }: { logists: WorkRow[]; routes: Rou
                   <tr className="text-right text-xs text-slate-500">
                     <th className="pb-2 text-left font-medium">{t("Направление")}</th>
                     <th className="pb-2 font-medium">{t("Заявок")}</th>
-                    <th className="pb-2 font-medium">{t("Со ставкой")}</th>
+                    <th className="pb-2 font-medium">{rate ? t("Со ставкой") : t("С предложением")}</th>
                     <th className="pb-2 font-medium">{t("Продано")}</th>
                     <th className="pb-2 font-medium">{t("Конверсия")}</th>
                     <th className="pb-2 font-medium">{t("Топ причина отказа")}</th>

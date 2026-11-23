@@ -13,20 +13,20 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CloseLeadDialog, type CloseMode } from "@/components/close-lead-dialog";
 import { LeadChatSheet } from "@/components/crm/lead-chat-sheet";
 import { useAccountId } from "@/components/account-switcher";
-import { hasFeature, useCurrentUser } from "@/components/current-user";
-import { lostReasonLabel, money, offerButtonLabel, STATUS_LABEL, STATUS_VARIANT } from "@/lib/lead-meta";
+import { hasFeature, isSolo, useCurrentUser } from "@/components/current-user";
+import { hasStage, leadFlow, lostReasonLabel, managerOne, money, offerButtonLabel, STATUS_LABEL, STATUS_VARIANT } from "@/lib/lead-meta";
 import { DealDialog, isOverdue, LeadControlInfo, NextContactDialog, OverdueBadges } from "@/components/lead-control";
 import { HandCoins } from "lucide-react";
 import { cn, dayEndISO, dayStartISO, formatDate } from "@/lib/utils";
 import type { Lead } from "@/types";
 import { t as tr } from "@/lib/i18n";
 
-const TABS = [
+const ALL_TABS = [
   { value: "active", get label() { return tr("Активные"); } },
   { value: "offered", get label() { return STATUS_LABEL.offered; } },
   { value: "overdue", get label() { return tr("Просроченные"); } },
-  { value: "sold", get label() { return tr("Продано"); } },
-  { value: "not_sold", get label() { return tr("Не продано"); } },
+  { value: "sold", get label() { return STATUS_LABEL.sold; } },
+  { value: "not_sold", get label() { return STATUS_LABEL.not_sold; } },
   { value: "all", get label() { return tr("Все"); } },
 ];
 
@@ -86,7 +86,12 @@ export function LeadsBoard({
   const accountId = useAccountId();
   // Менеджеры и передача заявок — по тарифу; без них заявки остаются у владельца.
   const { company } = useCurrentUser(); // тариф
-  const transfer = hasFeature(company, "lead_transfer");
+  // Ответственные — в тарифе с передачей заявок и только когда сотрудников 2+.
+  const solo = isSolo(company);
+  const transfer = hasFeature(company, "lead_transfer") && !solo;
+  // Вкладки: «предложение» — если такой этап есть, «Просроченные» — если включён контроль сроков.
+  const flow = (lead: Lead) => leadFlow(lead.status, solo);
+  const TABS = ALL_TABS.filter((t) => (t.value !== "offered" || hasStage("offered")) && (t.value !== "overdue" || company?.settings?.modules?.deadlines !== false));
 
   const load = useCallback(async () => {
     if (accountId === undefined) return;
@@ -195,7 +200,7 @@ export function LeadsBoard({
 
         <div className="grid grid-cols-2 items-end gap-2 sm:flex sm:flex-wrap">
           <div className={transfer ? "col-span-2 space-y-1 sm:w-48" : "hidden"}>
-            <Label className="text-xs text-slate-500">{tr("Менеджер")}</Label>
+            <Label className="text-xs text-slate-500">{managerOne()}</Label>
             <Select value={managerFilter} onValueChange={setManagerFilter}>
               <SelectTrigger className="h-9">
                 <SelectValue />
@@ -308,27 +313,27 @@ export function LeadsBoard({
                         {tr("Переписка")}</Button>
                     )}
                     {isClosed(lead) ? (
-                      <Button variant="outline" size="sm" disabled={busy} onClick={() => patchLead(lead, { status: "in_progress" })}>
+                      <Button variant="outline" size="sm" disabled={busy} onClick={() => patchLead(lead, { status: flow(lead).reopenTo })}>
                         <RotateCcw className="h-3.5 w-3.5" />
                         {tr("Вернуть")}</Button>
                     ) : (
                       <>
-                        {lead.status === "new" && (
+                        {flow(lead).take && (
                           <Button variant="outline" size="sm" disabled={busy} onClick={() => patchLead(lead, { status: "in_progress" })}>
                             <Play className="h-3.5 w-3.5" />
-                            {tr("Взять")}</Button>
+                            {flow(lead).takeLabel}</Button>
                         )}
-                        {lead.status === "in_progress" && (
+                        {flow(lead).offer && (
                           <Button variant="outline" size="sm" disabled={busy} onClick={() => setDealFor({ lead, mode: "offer" })}>
                             <HandCoins className="h-3.5 w-3.5" />
                             {offerButtonLabel()}</Button>
                         )}
                         <Button size="sm" disabled={busy} onClick={() => setClosing({ lead, mode: "sold" })}>
                           <Check className="h-3.5 w-3.5" />
-                          {tr("Продано")}</Button>
+                          {STATUS_LABEL.sold}</Button>
                         <Button variant="outline" size="sm" disabled={busy} onClick={() => setClosing({ lead, mode: "not_sold" })}>
                           <X className="h-3.5 w-3.5" />
-                          {tr("Не продано")}</Button>
+                          {STATUS_LABEL.not_sold}</Button>
                       </>
                     )}
                   </div>
@@ -443,13 +448,13 @@ export function LeadsBoard({
                         size="sm"
                         className="w-full"
                         disabled={busy}
-                        onClick={() => patchLead(lead, { status: "in_progress" })}
+                        onClick={() => patchLead(lead, { status: flow(lead).reopenTo })}
                       >
                         <RotateCcw className="h-3.5 w-3.5" />
-                        {tr("Вернуть в работу")}</Button>
+                        {flow(lead).reopenLabel}</Button>
                     ) : (
                       <div className="flex flex-wrap gap-2">
-                        {lead.status === "new" && (
+                        {flow(lead).take && (
                           <Button
                             variant="outline"
                             size="sm"
@@ -458,16 +463,16 @@ export function LeadsBoard({
                             onClick={() => patchLead(lead, { status: "in_progress" })}
                           >
                             <Play className="h-3.5 w-3.5" />
-                            {tr("Взять в работу")}</Button>
+                            {flow(lead).takeLabel}</Button>
                         )}
-                        {lead.status === "in_progress" && (
+                        {flow(lead).offer && (
                           <Button variant="outline" size="sm" className="w-full" disabled={busy} onClick={() => setDealFor({ lead, mode: "offer" })}>
                             <HandCoins className="h-3.5 w-3.5" />
                             {offerButtonLabel()}</Button>
                         )}
                         <Button size="sm" className="flex-1" disabled={busy} onClick={() => setClosing({ lead, mode: "sold" })}>
                           <Check className="h-3.5 w-3.5" />
-                          {tr("Продано")}</Button>
+                          {STATUS_LABEL.sold}</Button>
                         <Button
                           variant="outline"
                           size="sm"
@@ -476,7 +481,7 @@ export function LeadsBoard({
                           onClick={() => setClosing({ lead, mode: "not_sold" })}
                         >
                           <X className="h-3.5 w-3.5" />
-                          {tr("Не продано")}</Button>
+                          {STATUS_LABEL.not_sold}</Button>
                       </div>
                     )}
 

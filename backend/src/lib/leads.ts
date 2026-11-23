@@ -59,19 +59,30 @@ export type LeadFilters = {
   overdue?: boolean;
 };
 
-/** Как показывать заявки: сроки компании и видна ли маржа (только руководителю). */
-export type LeadView = { deadlines?: CompanySettings["deadlines"]; showMargin?: boolean };
+/**
+ * Контроль сроков компании: null — модуль выключен (меток и напоминаний о сроках нет).
+ * offer — в воронке есть этап «предложение» (только тогда бывает метка «Нет ставки/предложения»).
+ */
+export type LeadControl = { deadlines: CompanySettings["deadlines"]; offer: boolean } | null;
+export function leadControl(s: CompanySettings): LeadControl {
+  return s.modules.deadlines ? { deadlines: s.deadlines, offer: s.stages.offered !== null } : null;
+}
+
+/** Как показывать заявки: контроль сроков компании и видна ли маржа (только руководителю). */
+export type LeadView = { control?: LeadControl; showMargin?: boolean };
 
 /**
  * Метки контроля сроков:
- *   no_offer — «В работе» дольше no_offer_hours без ставки;
- *   stuck    — «В работе» или «Ставка предложена» без смены статуса дольше stuck_days.
+ *   no_offer — «В работе» дольше no_offer_hours без ставки (если в воронке есть этап предложения);
+ *   stuck    — открытая заявка в работе без смены статуса дольше stuck_days.
  */
-export function overdueOf(lead: any, deadlines = DEFAULT_SETTINGS.deadlines, now = Date.now()) {
+export function overdueOf(lead: any, control: LeadControl | undefined, now = Date.now()) {
+  if (!control) return { no_offer: false, stuck: false };
+  const { deadlines } = control;
   const since = (iso: string | null | undefined) => (iso ? now - Date.parse(iso) : 0);
   const changed = lead.status_changed_at ?? lead.taken_at ?? lead.created_at;
   return {
-    no_offer: lead.status === "in_progress" && since(lead.taken_at ?? changed) >= deadlines.no_offer_hours * 3_600_000,
+    no_offer: control.offer && lead.status === "in_progress" && since(lead.taken_at ?? changed) >= deadlines.no_offer_hours * 3_600_000,
     stuck: (lead.status === "in_progress" || lead.status === "offered") && since(changed) >= deadlines.stuck_days * 86_400_000,
   };
 }
@@ -90,7 +101,7 @@ function flatten(row: any, view: LeadView = {}) {
     lost_price: n(lead.lost_price),
     // Маржа = ставка клиенту − ставка перевозчика. Видит только руководитель.
     margin: view.showMargin && price !== null && cost !== null ? Math.round((price - cost) * 100) / 100 : undefined,
-    overdue: overdueOf(lead, view.deadlines),
+    overdue: overdueOf(lead, view.control),
     manager: managers ?? null,
     // Аккаунт заявки: из переписки, у ручной заявки — тот, что был выбран при создании.
     account_id: (chat_sessions?.account_id ?? lead.collected_data?.account_id ?? null) as string | null,
@@ -198,7 +209,9 @@ export function buildLeadStats(
     byManager.push({ id: null, name: "Без ответственного", is_active: true, received: unassigned.length, sold: s, not_sold: n, conversion: conversion(s, n) });
   }
 
-  const reasons = LOST_REASONS.map((reason) => {
+  // Причины: стандартные и все, что встречаются в заявках (свои причины компании).
+  const reasonCodes = [...new Set<string>([...LOST_REASONS, ...leads.filter((l) => l.status === "not_sold" && l.lost_reason).map((l) => l.lost_reason as string)])];
+  const reasons = reasonCodes.map((reason) => {
     const c = leads.filter((l) => l.status === "not_sold" && l.lost_reason === reason).length;
     return { reason, count: c, percent: percent(c, notSold) };
   }).sort((a, b) => b.count - a.count);
@@ -304,11 +317,11 @@ function reasonCounts(leads: WorkLead[]) {
   return out;
 }
 
-function workRow(leads: WorkLead[], deadlines: CompanySettings["deadlines"], showMargin: boolean) {
+function workRow(leads: WorkLead[], control: LeadControl, showMargin: boolean) {
   const taken = leads.filter((l) => l.taken_at);
   const offered = leads.filter((l) => l.offered_at);
   const sold = leads.filter((l) => l.status === "sold");
-  const overdue = leads.map((l) => overdueOf(l, deadlines));
+  const overdue = leads.map((l) => overdueOf(l, control));
   return {
     leads: leads.length,
     taken: taken.length,
@@ -327,11 +340,11 @@ function workRow(leads: WorkLead[], deadlines: CompanySettings["deadlines"], sho
 export function buildWorkStats(
   leads: WorkLead[],
   managers: { id: string; name: string; is_active: boolean }[],
-  options: { deadlines?: CompanySettings["deadlines"]; showMargin: boolean }
+  options: { control?: LeadControl; showMargin: boolean }
 ) {
-  const deadlines = options.deadlines ?? DEFAULT_SETTINGS.deadlines;
+  const control = options.control ?? null;
   const logists = managers
-    .map((m) => ({ id: m.id as string | null, name: m.name, ...workRow(leads.filter((l) => l.manager_id === m.id), deadlines, options.showMargin) }))
+    .map((m) => ({ id: m.id as string | null, name: m.name, ...workRow(leads.filter((l) => l.manager_id === m.id), control, options.showMargin) }))
     .filter((r) => r.leads > 0 || managers.find((m) => m.id === r.id)?.is_active);
 
   // Направления: «Ташкент» и «ташкент» — одно и то же.

@@ -5,7 +5,7 @@ import { DailyOutcomeChart, RankedBars, SERIES, StatusSplit } from "@/components
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { lostReasonLabel } from "@/lib/lead-meta";
+import { hasStage, lostReasonLabel, managerOne, managersTitle, STATUS_LABEL } from "@/lib/lead-meta";
 import { WorkStats } from "@/components/crm/work-stats";
 import { cn, dayEndISO, dayStartISO, toDateInput } from "@/lib/utils";
 import type { LeadStats } from "@/types";
@@ -154,9 +154,9 @@ export function StatsSection({
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <Tile label={t("Получено")} value={stats.totals.total} />
             <Tile label={t("Новые")} value={stats.totals.new} color={SERIES.new.color} accent={stats.totals.new > 0} />
-            <Tile label={t("В работе")} value={stats.totals.in_progress} color={SERIES.in_progress.color} />
-            <Tile label={t("Продано")} value={stats.totals.sold} color={SERIES.sold.color} />
-            <Tile label={t("Не продано")} value={stats.totals.not_sold} color={SERIES.not_sold.color} />
+            <Tile label={hasStage("in_progress") ? STATUS_LABEL.in_progress : t("В работе")} value={stats.totals.in_progress} color={SERIES.in_progress.color} />
+            <Tile label={STATUS_LABEL.sold} value={stats.totals.sold} color={SERIES.sold.color} />
+            <Tile label={STATUS_LABEL.not_sold} value={stats.totals.not_sold} color={SERIES.not_sold.color} />
             <Tile label={t("Конверсия")} value={conversion(stats.totals.conversion)} hint={t("продано / закрытые")} />
           </div>
 
@@ -184,7 +184,7 @@ export function StatsSection({
           {showManagers && (
             <Card className="mt-4">
               <CardHeader>
-                <CardTitle>{t("Менеджеры")}</CardTitle>
+                <CardTitle>{managersTitle()}</CardTitle>
                 <CardDescription>{t("Сколько заявок получил каждый и чем они закончились")}</CardDescription>
               </CardHeader>
               <CardContent className="px-5 pb-5">
@@ -192,7 +192,7 @@ export function StatsSection({
                   <table className="w-full min-w-[420px] text-sm">
                     <thead>
                       <tr className="text-left text-xs text-slate-500">
-                        <th className="pb-2 font-medium">{t("Менеджер")}</th>
+                        <th className="pb-2 font-medium">{managerOne()}</th>
                         <th className="pb-2 text-right font-medium">{t("Получил")}</th>
                         <th className="pb-2 text-right font-medium">{t("Продал")}</th>
                         <th className="pb-2 text-right font-medium">{t("Не продал")}</th>

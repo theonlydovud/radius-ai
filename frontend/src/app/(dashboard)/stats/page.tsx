@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DailyLeadsChart } from "@/components/daily-leads-chart";
 import { useAccountId } from "@/components/account-switcher";
-import { lostReasonLabel } from "@/lib/lead-meta";
+import { hasStage, lostReasonLabel, managerOne, managersTitle, STATUS_LABEL } from "@/lib/lead-meta";
 import { dayEndISO, dayStartISO, toDateInput } from "@/lib/utils";
 import type { LeadStats } from "@/types";
 import { t } from "@/lib/i18n";
@@ -159,9 +159,9 @@ export default function StatsPage() {
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <Tile label={t("Всего заявок")} value={stats.totals.total} />
             <Tile label={t("Новые")} value={stats.totals.new} dot="bg-orange-500" />
-            <Tile label={t("В работе")} value={stats.totals.in_progress} dot="bg-brand" />
-            <Tile label={t("Продано")} value={stats.totals.sold} dot="bg-emerald-500" />
-            <Tile label={t("Не продано")} value={stats.totals.not_sold} dot="bg-red-500" />
+            <Tile label={hasStage("in_progress") ? STATUS_LABEL.in_progress : t("В работе")} value={stats.totals.in_progress} dot="bg-brand" />
+            <Tile label={STATUS_LABEL.sold} value={stats.totals.sold} dot="bg-emerald-500" />
+            <Tile label={STATUS_LABEL.not_sold} value={stats.totals.not_sold} dot="bg-red-500" />
             <Tile label={t("Конверсия")} value={formatConversion(stats.totals.conversion)} hint={t("продано / закрытые")} />
           </div>
 
@@ -176,14 +176,14 @@ export default function StatsPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>{t("Менеджеры")}</CardTitle>
+              <CardTitle>{managersTitle()}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[320px] text-sm">
                   <thead>
                     <tr className="text-left text-xs text-slate-500">
-                      <th className="pb-2 font-medium">{t("Менеджер")}</th>
+                      <th className="pb-2 font-medium">{managerOne()}</th>
                       <th className="pb-2 text-right font-medium">{t("Получил")}</th>
                       <th className="pb-2 text-right font-medium">{t("Продал")}</th>
                       <th className="pb-2 text-right font-medium">{t("Не продал")}</th>

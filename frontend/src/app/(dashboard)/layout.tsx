@@ -3,6 +3,7 @@ import { CurrentUserProvider } from "@/components/current-user";
 import { MobileNav, Sidebar } from "@/components/sidebar";
 import { TrialBanner } from "@/components/trial-banner";
 import { PlatformBanner } from "@/components/platform-banner";
+import { OnboardingWizard } from "@/components/onboarding-wizard";
 
 export default function DashboardLayout({
   children,
@@ -18,6 +19,7 @@ export default function DashboardLayout({
           <PlatformBanner />
           <MobileNav />
           <TrialBanner />
+          <OnboardingWizard />
           <main className="flex-1">
             <div className="mx-auto max-w-6xl px-4 py-5 md:px-8 md:py-8">{children}</div>
           </main>

@@ -1,5 +1,6 @@
 "use client";
 
+import { leadsTitle } from "@/lib/lead-meta";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -34,7 +35,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/playground", get label() { return t("Диалог с ИИ"); }, icon: MessageSquareText },
   { href: "/knowledge", get label() { return t("Знания ИИ"); }, icon: BookOpen },
   { href: "/rules", get label() { return t("Правила общения"); }, icon: ShieldCheck },
-  { href: "/leads", get label() { return t("Заявки"); }, icon: ClipboardList },
+  { href: "/leads", get label() { return leadsTitle(); }, icon: ClipboardList },
   { href: "/stats", get label() { return t("Статистика"); }, icon: BarChart3, feature: "stats" },
   { href: "/inbox", get label() { return t("История чатов"); }, icon: Inbox, feature: "chat_history" },
   { href: "/settings", get label() { return t("Настройки"); }, icon: Settings },

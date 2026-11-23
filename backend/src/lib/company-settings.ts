@@ -19,11 +19,134 @@ export type DealSettings = {
   offer_button: string;
 };
 
+// ---------------------------------------------------------------------
+// Воронка: шаблоны бизнеса, этапы с типами, причины отказа, термины, модули
+// ---------------------------------------------------------------------
+
+/** Шаблоны бизнеса (мастер «Кто вы?»). null — шаблон ещё не выбран. */
+export const TEMPLATES = ["goods", "courses", "services", "b2b"] as const;
+export type Template = (typeof TEMPLATES)[number];
+
+/**
+ * Этапы — постоянные «слоты» (коды статусов в базе). Шаблон решает, какие из них есть у компании
+ * и как называются. Статистика и конверсия считаются по типу этапа, поэтому переименование ничего не ломает.
+ */
+export const STAGE_KEYS = ["new", "in_progress", "offered", "sold", "not_sold"] as const;
+export type StageKey = (typeof STAGE_KEYS)[number];
+export type StageType = "open" | "success" | "fail";
+export const STAGE_TYPE: Record<StageKey, StageType> = { new: "open", in_progress: "open", offered: "open", sold: "success", not_sold: "fail" };
+/** Названия этапов; null — этапа у компании нет. Новый, успех и отказ есть всегда. */
+export type Stages = { new: string; in_progress: string | null; offered: string | null; sold: string; not_sold: string };
+
+/** Причины отказа: встроенные коды (переводятся в интерфейсе) и свои — «custom:Текст». */
+export const BUILTIN_LOST_REASONS = [
+  "too_expensive", "no_response", "just_asking", "nothing_to_offer", "bad_timing", "chose_other",
+  "out_of_stock", "changed_mind", "inconvenient_time", "no_show", "cancelled", "other",
+  // прежние — остаются у старых заявок
+  "closed_themselves", "not_relevant", "duplicate_spam",
+] as const;
+export const CUSTOM_REASON_PREFIX = "custom:";
+
+/** Термины интерфейса: как называть заявку, сотрудника и сумму. */
+export const TERM_OPTIONS = {
+  lead: ["request", "lead", "booking", "order"],
+  manager: ["manager", "logist", "master"],
+  amount: ["amount", "rate"],
+} as const;
+export type Terms = { lead: (typeof TERM_OPTIONS.lead)[number]; manager: (typeof TERM_OPTIONS.manager)[number]; amount: (typeof TERM_OPTIONS.amount)[number] };
+
+/** Модули, которые включает руководитель. «Ответственные» включаются сами при 2+ сотрудниках, уведомления есть всегда. */
+export type Modules = { deadlines: boolean; partners: boolean };
+
+type TemplatePreset = { stages: Stages; lost_reasons: string[]; terms: Terms; deal: boolean };
+
+export const TEMPLATE_PRESETS: Record<Template, TemplatePreset> = {
+  goods: {
+    stages: { new: "Новый", in_progress: null, offered: null, sold: "Продано", not_sold: "Не продано" },
+    lost_reasons: ["too_expensive", "out_of_stock", "no_response", "changed_mind", "other"],
+    terms: { lead: "order", manager: "manager", amount: "amount" },
+    deal: false,
+  },
+  courses: {
+    stages: { new: "Новый", in_progress: "Консультация", offered: null, sold: "Продано", not_sold: "Не продано" },
+    lost_reasons: ["too_expensive", "inconvenient_time", "no_response", "changed_mind", "other"],
+    terms: { lead: "request", manager: "manager", amount: "amount" },
+    deal: false,
+  },
+  services: {
+    stages: { new: "Новый", in_progress: "Записан", offered: null, sold: "Пришёл", not_sold: "Не пришёл" },
+    lost_reasons: ["no_show", "cancelled", "too_expensive", "no_response", "other"],
+    terms: { lead: "booking", manager: "master", amount: "amount" },
+    deal: false,
+  },
+  b2b: {
+    stages: { new: "Новая", in_progress: "В работе", offered: "Ставка предложена", sold: "Продано", not_sold: "Не продано" },
+    lost_reasons: ["too_expensive", "no_response", "just_asking", "nothing_to_offer", "bad_timing", "chose_other", "other"],
+    terms: { lead: "request", manager: "logist", amount: "rate" },
+    deal: true,
+  },
+};
+
+/** Без шаблона — нейтральная воронка, как была до шаблонов. */
+const DEFAULT_STAGES: Stages = { new: "Новая", in_progress: "В работе", offered: "Предложение отправлено", sold: "Продано", not_sold: "Не продано" };
+const DEFAULT_LOST_REASONS = ["too_expensive", "no_response", "just_asking", "bad_timing", "chose_other", "other"];
+const DEFAULT_TERMS: Terms = { lead: "request", manager: "manager", amount: "amount" };
+
 export type CompanySettings = {
   deal: DealSettings;
   deadlines: { not_taken_minutes: number; no_offer_hours: number; stuck_days: number };
   work: { days: number[]; start: string; end: string; tz: string };
+  template: Template | null;
+  stages: Stages;
+  lost_reasons: string[];
+  terms: Terms;
+  modules: Modules;
 };
+
+/**
+ * Слово «заявка» по терминам компании — для Telegram-сообщений на русском:
+ * one «заявка», acc «заявку», dat «заявке», New «Новая заявка», a — окончание прошедшего времени («взята»).
+ */
+export function leadWordsRu(terms: Terms) {
+  const [one, acc, dat, fem] = ({
+    request: ["заявка", "заявку", "заявке", true],
+    lead: ["лид", "лид", "лиду", false],
+    booking: ["запись", "запись", "записи", true],
+    order: ["заказ", "заказ", "заказу", false],
+  } as const)[terms.lead];
+  return { one, One: one[0].toUpperCase() + one.slice(1), acc, dat, New: `${fem ? "Новая" : "Новый"} ${one}`, a: fem ? "а" : "" };
+}
+
+/** Этапы компании по порядку, только существующие. */
+export function stageList(s: Pick<CompanySettings, "stages">) {
+  return STAGE_KEYS.filter((k) => s.stages[k] !== null).map((k) => ({ key: k, label: s.stages[k] as string, type: STAGE_TYPE[k] }));
+}
+
+export function hasStage(s: Pick<CompanySettings, "stages">, key: string): key is StageKey {
+  return (STAGE_KEYS as readonly string[]).includes(key) && s.stages[key as StageKey] !== null;
+}
+
+export function isValidLostReason(code: unknown): code is string {
+  if (typeof code !== "string") return false;
+  if ((BUILTIN_LOST_REASONS as readonly string[]).includes(code)) return true;
+  return code.startsWith(CUSTOM_REASON_PREFIX) && code.length > CUSTOM_REASON_PREFIX.length && code.length <= CUSTOM_REASON_PREFIX.length + 60;
+}
+
+/**
+ * Применить шаблон: этапы, причины, термины и блок сделки из шаблона.
+ * Сроки, рабочее время и названия полей сделки остаются как были.
+ */
+export function applyTemplate(current: CompanySettings, template: Template): CompanySettings {
+  const p = TEMPLATE_PRESETS[template];
+  return {
+    ...current,
+    template,
+    stages: { ...p.stages },
+    lost_reasons: [...p.lost_reasons],
+    terms: { ...p.terms },
+    deal: { ...current.deal, enabled: p.deal ? current.deal.enabled || p.deal : false },
+  };
+}
 
 export const DEFAULT_SETTINGS: CompanySettings = {
   deal: {
@@ -37,6 +160,11 @@ export const DEFAULT_SETTINGS: CompanySettings = {
   },
   deadlines: { not_taken_minutes: 30, no_offer_hours: 24, stuck_days: 3 },
   work: { days: [1, 2, 3, 4, 5], start: "09:00", end: "18:00", tz: "Asia/Tashkent" },
+  template: null,
+  stages: DEFAULT_STAGES,
+  lost_reasons: DEFAULT_LOST_REASONS,
+  terms: DEFAULT_TERMS,
+  modules: { deadlines: false, partners: false },
 };
 
 const str = (v: unknown, fallback: string, max = 60) => {
@@ -59,7 +187,47 @@ export function normalizeSettings(raw: any): CompanySettings {
     ? [...new Set(deal.types.map((t: unknown) => str(t, "", 30)).filter(Boolean))].slice(0, 20)
     : d.deal.types;
   const days = Array.isArray(w.days) ? [...new Set(w.days.map(Number).filter((x: number) => Number.isInteger(x) && x >= 0 && x <= 6))].sort() : d.work.days;
+
+  const template: Template | null = (TEMPLATES as readonly string[]).includes(raw?.template) ? raw.template : null;
+  // Этапы: из базы, иначе из шаблона, иначе нейтральные. Название «предложения» у старых компаний — из блока сделки.
+  const baseStages: Stages = template ? TEMPLATE_PRESETS[template].stages : { ...DEFAULT_STAGES, offered: str(deal.stage_label, DEFAULT_STAGES.offered as string) };
+  const rs = raw?.stages ?? {};
+  const stageName = (k: StageKey) => {
+    if (rs[k] === null && (k === "in_progress" || k === "offered")) return null;
+    if (rs[k] === undefined) return baseStages[k];
+    return str(rs[k], baseStages[k] ?? DEFAULT_STAGES[k] ?? "", 40);
+  };
+  const stages: Stages = {
+    new: stageName("new") as string,
+    in_progress: stageName("in_progress"),
+    offered: stageName("offered"),
+    sold: stageName("sold") as string,
+    not_sold: stageName("not_sold") as string,
+  };
+
+  const reasonsBase = template ? TEMPLATE_PRESETS[template].lost_reasons : DEFAULT_LOST_REASONS;
+  let lost_reasons = Array.isArray(raw?.lost_reasons)
+    ? [...new Set(raw.lost_reasons.map((r: unknown) => (typeof r === "string" ? r.replace(/\s+/g, " ").trim() : "")).filter(isValidLostReason))].slice(0, 15) as string[]
+    : reasonsBase;
+  // «Другое» есть всегда: по нему пишут комментарий.
+  if (!lost_reasons.includes("other")) lost_reasons = [...lost_reasons, "other"];
+
+  const termsBase = template ? TEMPLATE_PRESETS[template].terms : DEFAULT_TERMS;
+  const rt = raw?.terms ?? {};
+  const pickTerm = <K extends keyof Terms>(k: K): Terms[K] =>
+    ((TERM_OPTIONS[k] as readonly string[]).includes(rt[k]) ? rt[k] : termsBase[k]) as Terms[K];
+  const terms: Terms = { lead: pickTerm("lead"), manager: pickTerm("manager"), amount: pickTerm("amount") };
+
+  const rm = raw?.modules ?? {};
+  // Контроль сроков раньше работал у всех, где были менеджеры: у старых компаний без явного выбора он включён.
+  const modules: Modules = { deadlines: rm.deadlines === undefined ? raw?.deadlines !== undefined : rm.deadlines === true, partners: rm.partners === true };
+
   return {
+    template,
+    stages,
+    lost_reasons,
+    terms,
+    modules,
     deal: {
       enabled: deal.enabled === true,
       type_label: str(deal.type_label, d.deal.type_label),

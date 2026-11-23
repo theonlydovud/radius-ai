@@ -1,5 +1,5 @@
 import { createAdminClient } from "../lib/supabase/server";
-import { fetchLeads, ownManagerFilter, STATUS_GROUPS } from "../lib/leads";
+import { fetchLeads, leadControl, ownManagerFilter, STATUS_GROUPS } from "../lib/leads";
 import { createManualLead } from "../lib/manual-lead";
 import type { RouteContext } from "../index";
 
@@ -34,7 +34,7 @@ export async function GET(req: Request, ctx?: RouteContext) {
       account: searchParams.get("account") || undefined,
       from,
       to,
-    }, { deadlines: auth.company.settings.deadlines, showMargin: auth.role === "owner" });
+    }, { control: leadControl(auth.company.settings), showMargin: auth.role === "owner" });
     return Response.json({ data });
   } catch (e: any) {
     return Response.json({ error: e?.message ?? "Не удалось загрузить заявки." }, { status: 500 });
