@@ -9,6 +9,8 @@ import type { RouteContext } from "../index";
  *   manager = id менеджера | none (без ответственного)
  *   from, to — период по дате создания (ISO)
  *   account — id Instagram-аккаунта
+ *   kind    = client (по умолчанию) | partner — партнёры (водители): вне воронки, без ответственного
+ *   q       — поиск (у партнёров — по машине и направлениям)
  * Менеджер всегда получает только свои заявки, фильтр manager для него игнорируется.
  */
 export async function GET(req: Request, ctx?: RouteContext) {
@@ -30,8 +32,11 @@ export async function GET(req: Request, ctx?: RouteContext) {
       company: auth.company.id,
       group: status === "all" ? undefined : status,
       overdue: status === "overdue",
-      manager: ownManagerFilter(ctx?.auth) ?? searchParams.get("manager") ?? undefined,
+      // Партнёры — общая база компании: их видят и менеджеры (логистам нужны водители).
+      manager: searchParams.get("kind") === "partner" ? undefined : ownManagerFilter(ctx?.auth) ?? searchParams.get("manager") ?? undefined,
       account: searchParams.get("account") || undefined,
+      kind: searchParams.get("kind") === "partner" ? "partner" : "client",
+      search: searchParams.get("q")?.trim() || undefined,
       from,
       to,
     }, { control: leadControl(auth.company.settings), showMargin: auth.role === "owner" });

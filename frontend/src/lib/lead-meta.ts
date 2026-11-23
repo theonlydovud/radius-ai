@@ -35,6 +35,8 @@ export type CompanySettings = {
   lost_reasons?: string[];
   terms?: Terms;
   modules?: { deadlines: boolean; partners: boolean };
+  /** Модуль «Партнёры»: как называть не-клиентов (у Radius — «Водитель» / «Водители»). */
+  partners?: { label: string; label_many: string };
 };
 
 export const DEFAULT_DEAL: DealSettings = {
@@ -235,6 +237,17 @@ export const TERM_CHOICES = {
   manager: (Object.keys(MANAGER_WORDS) as Terms["manager"][]).map((v) => ({ value: v, get label() { return t(MANAGER_WORDS[v].one); } })),
   amount: (Object.keys(AMOUNT_WORDS) as Terms["amount"][]).map((v) => ({ value: v, get label() { return t(AMOUNT_WORDS[v]); } })),
 };
+
+// ---------------------------------------------------------------------
+// Партнёры (водители): лиды вне воронки
+// ---------------------------------------------------------------------
+
+/** Принимает ли компания контакты партнёров. */
+export const partnersOn = () => current?.modules?.partners === true;
+/** «Водитель» / «Партнёр». */
+export const partnerLabel = () => t(current?.partners?.label ?? "Партнёр");
+/** «Водители» / «Партнёры». */
+export const partnersTitle = () => t(current?.partners?.label_many ?? "Партнёры");
 
 /** Шаблоны бизнеса для мастера «Кто вы?» и настроек. */
 export const TEMPLATE_CHOICES: { value: Template; title: string; hint: string; stages: string[] }[] = [

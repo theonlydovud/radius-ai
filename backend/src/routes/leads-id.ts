@@ -2,6 +2,7 @@ import { createAdminClient } from "../lib/supabase/server";
 import { fetchLead, leadControl } from "../lib/leads";
 import { hasStage, isValidLostReason } from "../lib/company-settings";
 import { logStatus, parseDeal, parseLostPrice } from "../lib/lead-status";
+import { assignNextManager } from "../lib/managers";
 import type { RouteContext } from "../index";
 
 const NOT_CLOSED = { closed_at: null, closed_by: null, lost_reason: null, lost_comment: null, lost_price: null, lost_currency: null };
@@ -16,6 +17,7 @@ const NOT_CLOSED = { closed_at: null, closed_by: null, lost_reason: null, lost_c
  *        «Дорого» — обязательна цена клиента/конкурента; «Другое» — обязателен комментарий
  *   { next_contact: { date: "YYYY-MM-DD", note } | null } — «Следующий контакт»
  *   { manager_id: id | null }                          — сменить ответственного (тариф с передачей заявок)
+ *   { kind: "client" | "partner" }                     — бот ошибся с типом: клиент ↔ партнёр (водитель)
  * deal = { deal_type, deal_price, deal_cost, deal_currency }.
  * Менеджер работает только со своими заявками; «кто закрыл» — всегда он сам.
  * Время каждой смены статуса пишется в журнал и в status_changed_at.
@@ -40,6 +42,21 @@ export async function PATCH(req: Request, { params, auth }: RouteContext) {
   }
 
   const updates: Record<string, unknown> = {};
+
+  // Тип: клиент ↔ партнёр (бот ошибся). Партнёр — без ответственного и вне воронки;
+  // ставший клиентом — новая заявка, ответственный из очереди (если в кабинете команда).
+  if (body.kind !== undefined && body.kind !== (lead.kind ?? "client")) {
+    if (body.kind !== "client" && body.kind !== "partner") return bad("Неизвестный тип.");
+    if (body.kind === "partner") {
+      Object.assign(updates, { kind: "partner", manager_id: null, assigned_at: null });
+    } else {
+      const manager = company.staff_count >= 2 ? await assignNextManager(supabase, company.id) : null;
+      Object.assign(updates, { kind: "client", status: "new", status_changed_at: now, manager_id: manager?.id ?? null, assigned_at: manager ? now : null }, NOT_CLOSED);
+    }
+    const { error } = await supabase.from("leads").update(updates).eq("id", lead.id).eq("company_id", company.id);
+    if (error) return Response.json({ error: /kind/.test(error.message) ? `${error.message} Выполните migration-partners.sql в Supabase.` : error.message }, { status: 500 });
+    return Response.json({ data: await fetchLead(supabase, lead.id, company.id, { control: leadControl(settings), showMargin: auth?.role === "owner" }) });
+  }
 
   // Ответственный
   if (body.manager_id !== undefined) {

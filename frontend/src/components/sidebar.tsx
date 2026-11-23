@@ -1,6 +1,7 @@
 "use client";
 
-import { leadsTitle } from "@/lib/lead-meta";
+import { leadsTitle, partnersTitle } from "@/lib/lead-meta";
+import { Truck } from "lucide-react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -27,7 +28,7 @@ import { hasFeature, logout, useCurrentUser, type Feature } from "@/components/c
 import { cn, initials } from "@/lib/utils";
 import { t } from "@/lib/i18n";
 
-type NavItem = { href: string; label: string; icon: typeof Sparkles; feature?: Feature };
+type NavItem = { href: string; label: string; icon: typeof Sparkles; feature?: Feature; partners?: boolean };
 
 /** Пункты меню. feature — закрыто тарифом: пункт скрыт, а API отвечает 403. */
 const NAV_ITEMS: NavItem[] = [
@@ -36,6 +37,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/knowledge", get label() { return t("Знания ИИ"); }, icon: BookOpen },
   { href: "/rules", get label() { return t("Правила общения"); }, icon: ShieldCheck },
   { href: "/leads", get label() { return leadsTitle(); }, icon: ClipboardList },
+  { href: "/partners", get label() { return partnersTitle(); }, icon: Truck, partners: true },
   { href: "/stats", get label() { return t("Статистика"); }, icon: BarChart3, feature: "stats" },
   { href: "/inbox", get label() { return t("История чатов"); }, icon: Inbox, feature: "chat_history" },
   { href: "/settings", get label() { return t("Настройки"); }, icon: Settings },
@@ -94,7 +96,8 @@ function UserMenu() {
 /** Содержимое меню — общее для десктопного сайдбара и мобильной шторки. */
 function useNavItems() {
   const { company } = useCurrentUser();
-  return NAV_ITEMS.filter((i) => !i.feature || hasFeature(company, i.feature));
+  // «Водители» (партнёры) — только у компаний, где включён приём контактов партнёров.
+  return NAV_ITEMS.filter((i) => (!i.feature || hasFeature(company, i.feature)) && (!i.partners || company.settings?.modules?.partners === true));
 }
 
 function NavContent({ onNavigate }: { onNavigate?: () => void }) {

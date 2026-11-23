@@ -7,7 +7,7 @@ import type { RouteContext } from "../index";
 /**
  * Настройки компании (только руководитель):
  *   GET /api/settings/company → { settings, deal_available, deadlines_available }
- *   PUT /api/settings/company { template?, stages?, lost_reasons?, terms?, modules?, deal?, deadlines?, work? }
+ *   PUT /api/settings/company { template?, stages?, lost_reasons?, terms?, modules?, partners?, deal?, deadlines?, work? }
  *
  * template — применить шаблон бизнеса (этапы, причины, термины, блок сделки берутся из него).
  * stages — только переименовать этапы, которые уже есть (добавлять и удалять — позже, этап 2 ТЗ).
@@ -59,6 +59,7 @@ export async function PUT(req: Request, ctx: RouteContext) {
     lost_reasons: body.lost_reasons ?? current.lost_reasons,
     terms: { ...current.terms, ...(body.terms ?? {}) },
     modules: { ...current.modules, ...(body.modules ?? {}) },
+    partners: { ...current.partners, ...(body.partners ?? {}) },
     deal: { ...current.deal, ...(body.deal ?? {}) },
     deadlines: { ...current.deadlines, ...(body.deadlines ?? {}) },
     work: { ...current.work, ...(body.work ?? {}) },

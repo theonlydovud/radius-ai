@@ -14,7 +14,8 @@ import { CloseLeadDialog, type CloseMode } from "@/components/close-lead-dialog"
 import { LeadChatSheet } from "@/components/crm/lead-chat-sheet";
 import { useAccountId } from "@/components/account-switcher";
 import { hasFeature, isSolo, useCurrentUser } from "@/components/current-user";
-import { hasStage, leadFlow, lostReasonLabel, managerOne, money, offerButtonLabel, STATUS_LABEL, STATUS_VARIANT } from "@/lib/lead-meta";
+import { hasStage, leadFlow, lostReasonLabel, managerOne, money, offerButtonLabel, partnerLabel, partnersOn, partnersTitle, STATUS_LABEL, STATUS_VARIANT } from "@/lib/lead-meta";
+import { Truck } from "lucide-react";
 import { DealDialog, isOverdue, LeadControlInfo, NextContactDialog, OverdueBadges } from "@/components/lead-control";
 import { HandCoins } from "lucide-react";
 import { cn, dayEndISO, dayStartISO, formatDate } from "@/lib/utils";
@@ -91,6 +92,10 @@ export function LeadsBoard({
   const transfer = hasFeature(company, "lead_transfer") && !solo;
   // Вкладки: «предложение» — если такой этап есть, «Просроченные» — если включён контроль сроков.
   const flow = (lead: Lead) => leadFlow(lead.status, solo);
+  // Бот принял водителя (партнёра) за клиента — убрать из воронки в «Водители».
+  const markPartner = (lead: Lead) => {
+    if (window.confirm(tr("Это {0}, а не клиент? Заявка уйдёт из воронки в «{1}».", partnerLabel().toLowerCase(), partnersTitle()))) patchLead(lead, { kind: "partner" });
+  };
   const TABS = ALL_TABS.filter((t) => (t.value !== "offered" || hasStage("offered")) && (t.value !== "overdue" || company?.settings?.modules?.deadlines !== false));
 
   const load = useCallback(async () => {
@@ -312,6 +317,11 @@ export function LeadsBoard({
                         <MessageCircle className="h-3.5 w-3.5" />
                         {tr("Переписка")}</Button>
                     )}
+                    {partnersOn() && !isClosed(lead) && (
+                      <Button variant="ghost" size="sm" className="text-slate-500" disabled={busy} onClick={() => markPartner(lead)}>
+                        <Truck className="h-3.5 w-3.5" />
+                        {tr("Это {0}", partnerLabel().toLowerCase())}</Button>
+                    )}
                     {isClosed(lead) ? (
                       <Button variant="outline" size="sm" disabled={busy} onClick={() => patchLead(lead, { status: flow(lead).reopenTo })}>
                         <RotateCcw className="h-3.5 w-3.5" />
@@ -499,6 +509,16 @@ export function LeadsBoard({
                     >
                       <MessageCircle className="h-3.5 w-3.5" />
                       {tr("Переписка")}</button>
+                    )}
+                    {partnersOn() && !isClosed(lead) && (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => markPartner(lead)}
+                        className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs text-slate-500 hover:bg-slate-100"
+                      >
+                        <Truck className="h-3.5 w-3.5" />
+                        {tr("Это {0}", partnerLabel().toLowerCase())}</button>
                     )}
                     </div>
                   </div>

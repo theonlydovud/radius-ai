@@ -1,6 +1,7 @@
 import { createHmac } from "node:crypto";
 import { createAdminClient } from "./supabase/server";
 import { backendUrl, frontendUrl } from "./urls";
+import { sendToEmployee } from "./dexa-bot";
 
 /**
  * Уведомления о новых заявках в Telegram.
@@ -304,5 +305,43 @@ export async function notifyNewLead(leadId: string) {
     if (error) console.error("[Lead Telegram Notify] не удалось сохранить id сообщений:", error.message);
   } catch (error: any) {
     console.error("[Lead Telegram Notify] failed:", error?.message);
+  }
+}
+
+/**
+ * Партнёр (модуль «Партнёры»), например водитель: в ту же Telegram-группу заявок,
+ * без ответственного и без кнопки «Взять в работу». У компаний без группы — руководителю
+ * в личный Telegram через бота DexaAI. Ошибка отправки партнёра не теряет — он есть в базе.
+ */
+export async function notifyPartner(leadId: string, company: { id: string; lead_kind: string; telegram_leads: boolean; settings: { partners: { label: string } } }) {
+  try {
+    const supabase = createAdminClient();
+    const { data: lead } = await supabase.from("leads").select("id, client_name, client_phone, collected_data").eq("id", leadId).maybeSingle();
+    if (!lead) return;
+    const d = lead.collected_data ?? {};
+    const cargo = company.lead_kind === "cargo";
+    const lines = [
+      `${cargo ? "🚚" : "🤝"} <b>${escapeHtml(company.settings.partners.label.toUpperCase())}</b>`,
+      `${cargo ? "Машина" : "Предлагает"}: ${escapeHtml(d.partner_offer || "—")}`,
+      `Направления: ${escapeHtml(d.partner_directions || "—")}`,
+      `Телефон: ${escapeHtml(lead.client_phone || "—")}`,
+    ];
+    if (lead.client_name) lines.push(`Имя: ${escapeHtml(lead.client_name)}`);
+    const text = lines.join("\n");
+    const keyboard = { inline_keyboard: [[{ text: "Чат", url: frontendUrl(`/partners?lead=${lead.id}`) }]] };
+
+    if (company.telegram_leads) {
+      const { token, group, owner } = resolveTarget(await getLeadNotifySettings());
+      const chat = group ?? owner;
+      if (token && chat) {
+        await tgCall(token, "sendMessage", { chat_id: chat, text, parse_mode: "HTML", disable_web_page_preview: true, reply_markup: keyboard });
+        return;
+      }
+    }
+    // Импорт здесь же: dexa-bot сам импортирует tgCall из этого файла (цикл безопасен — вызов не на верхнем уровне).
+    const { data: owners } = await supabase.from("app_users").select("telegram_id").eq("company_id", company.id).eq("role", "owner").not("telegram_id", "is", null);
+    for (const o of owners ?? []) await sendToEmployee(o.telegram_id, text, keyboard.inline_keyboard[0][0]);
+  } catch (e: any) {
+    console.error(`[Partner Notify] ${leadId.slice(0, 8)}: ${e?.message}`);
   }
 }

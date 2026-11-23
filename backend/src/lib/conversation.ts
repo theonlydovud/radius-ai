@@ -2,14 +2,16 @@ import {
   extractPhone,
   isGenericLeadComplete,
   isLeadComplete,
+  isPartnerComplete,
   sanitizeGenericLead,
+  sanitizePartner,
   sanitizeLeadFields,
   type ExtractedLeadFields,
 } from "./lead-extraction";
-import { extractGenericLeadWithGemini, extractLeadFieldsWithGemini } from "./gemini";
+import { extractGenericLeadWithGemini, extractLeadFieldsWithGemini, extractPartnerWithGemini } from "./gemini";
 import type { AuthCompany } from "./auth";
 import { companyAi, type CompanyAi } from "./ai-key";
-import { notifyNewLead } from "./lead-notify";
+import { notifyNewLead, notifyPartner } from "./lead-notify";
 import { assignNextManager } from "./managers";
 
 /**
@@ -122,6 +124,15 @@ async function extract(lines: Line[], company: AuthCompany): Promise<Extracted |
   return { complete: isGenericLeadComplete(f), phone: f.phone, data: { request: f.request } };
 }
 
+/** Партнёр (модуль «Партнёры»): водитель со своей машиной, поставщик… null — Gemini не ответил. */
+async function extractPartner(lines: Line[], company: AuthCompany) {
+  const conversation = lines.map((l) => `${l.who}: ${l.text}`).join("\n");
+  const clientText = lines.filter((l) => l.who === "Клиент").map((l) => l.text).join("\n");
+  const raw = await extractPartnerWithGemini(conversation, company.name, company.settings.partners.label, company.lead_kind === "cargo", await companyAi(company.id));
+  if (!raw) return null;
+  return sanitizePartner({ ...raw, phone: raw.phone ?? extractPhone(clientText) });
+}
+
 /**
  * Заявки диалога. В одном чате клиент может оставить несколько заявок, поэтому:
  *  - заявки ещё нет — анализируем историю, полный набор данных → новая заявка + уведомление;
@@ -146,7 +157,7 @@ export async function maybeCreateOrUpdateLead(
   try {
     const { data: lastLeads, error: selectError } = await supabase
       .from("leads")
-      .select("id, status, client_phone, collected_data, created_at")
+      .select("id, kind, status, client_phone, collected_data, created_at")
       .eq("session_id", sessionId)
       .order("created_at", { ascending: false })
       .limit(1);
@@ -212,8 +223,11 @@ export async function maybeCreateOrUpdateLead(
       return;
     }
 
+    // Не заявка клиента — может быть, пишет партнёр (водитель ищет груз). Только если модуль включён.
+    if (company.settings.modules.partners && (await handlePartner(supabase, sessionId, clientName, lines, lastLead, company))) return;
+
     // Неполный набор после существующей заявки — это уточнения к ней.
-    if (lastLead && (lastLead.status === "new" || lastLead.status === "in_progress")) {
+    if (lastLead && lastLead.kind !== "partner" && (lastLead.status === "new" || lastLead.status === "in_progress")) {
       const current = lastLead.collected_data ?? {};
       const patch: Record<string, string> = {};
       for (const [k, v] of Object.entries(fields.data)) {
@@ -234,4 +248,36 @@ export async function maybeCreateOrUpdateLead(
   } catch (error: any) {
     console.error("[Lead Extraction] Unexpected error:", error?.message);
   }
+}
+
+/**
+ * Партнёр: отдельный лид (kind = partner) — без ответственного, вне воронки и статистики,
+ * сообщение «🚚 ВОДИТЕЛЬ» в группу заявок. Уже есть партнёр в этом чате — дописываем пустые поля.
+ * true — переписка разобрана как партнёрская.
+ */
+async function handlePartner(supabase: any, sessionId: string, clientName: string, lines: Line[], lastLead: any, company: AuthCompany) {
+  const partner = await extractPartner(lines, company);
+  if (!partner || !isPartnerComplete(partner)) return false;
+  const data = { partner_offer: partner.offer, partner_directions: partner.directions };
+
+  if (lastLead?.kind === "partner") {
+    const current = lastLead.collected_data ?? {};
+    const patch: Record<string, string> = {};
+    for (const [k, v] of Object.entries(data)) if (v && !current[k]) patch[k] = v;
+    if (Object.keys(patch).length) await supabase.from("leads").update({ collected_data: { ...current, ...patch } }).eq("id", lastLead.id);
+    return true;
+  }
+
+  const { data: inserted, error } = await supabase
+    .from("leads")
+    .insert({ session_id: sessionId, company_id: company.id, client_name: clientName, client_phone: partner.phone ?? "", collected_data: data, status: "new", kind: "partner", manager_id: null })
+    .select("id")
+    .single();
+  if (error) {
+    console.error("[Partner] Error creating partner:", error.message);
+    return false;
+  }
+  console.log(`[Partner] ${company.settings.partners.label}: ${inserted.id}`);
+  await notifyPartner(inserted.id, company);
+  return true;
 }

@@ -28,7 +28,10 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { hasStage, leadFlow, lostReasonLabel, money, offerButtonLabel, STATUS_LABEL, STATUS_VARIANT } from "@/lib/lead-meta";
+import { hasStage, leadFlow, lostReasonLabel, money, offerButtonLabel, partnerLabel, partnersOn, partnersTitle, STATUS_LABEL, STATUS_VARIANT } from "@/lib/lead-meta";
+import { PartnersList } from "@/components/partners-list";
+import { Suspense } from "react";
+import { Truck } from "lucide-react";
 import { DealDialog, isOverdue, LeadControlInfo, NextContactDialog, OverdueBadges } from "@/components/lead-control";
 import { HandCoins } from "lucide-react";
 import { cn, formatDate } from "@/lib/utils";
@@ -155,6 +158,17 @@ function LeadRow({
             <Button variant="ghost" size="sm" onClick={onChat} className="text-slate-600">
               <MessageCircle className="h-3.5 w-3.5" />
               {tr("Переписка")}</Button>
+          )}
+          {partnersOn() && !isClosed(lead) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-slate-500"
+              disabled={busy}
+              onClick={() => window.confirm(tr("Это {0}, а не клиент? Заявка уйдёт из воронки в «{1}».", partnerLabel().toLowerCase(), partnersTitle())) && onPatch({ kind: "partner" })}
+            >
+              <Truck className="h-3.5 w-3.5" />
+              {tr("Это {0}", partnerLabel().toLowerCase())}</Button>
           )}
           {isClosed(lead) ? (
             <Button variant="outline" size="sm" disabled={busy} onClick={() => onPatch({ status: flow.reopenTo })}>
@@ -354,7 +368,7 @@ export default function CrmPage() {
             </Tabs>
             <div className="relative md:w-72">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={tr("Имя, телефон, город, груз")} className="h-9 pl-9" />
+              <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={company.lead_kind === "cargo" ? tr("Имя, телефон, город, груз") : tr("Имя, телефон, что хочет клиент")} className="h-9 pl-9" />
             </div>
           </div>
 
@@ -388,6 +402,19 @@ export default function CrmPage() {
             )}
           </div>
         </section>
+
+        {/* База водителей (партнёров) — общая для компании: логист ищет машину под груз. */}
+        {partnersOn() && (
+          <section className="mt-8">
+            <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-slate-900">
+              <Truck className="h-4 w-4 text-slate-400" />
+              {partnersTitle()}
+            </h2>
+            <Suspense>
+              <PartnersList canConvert={false} />
+            </Suspense>
+          </section>
+        )}
 
         {hasFeature(company, "stats") && <StatsSection title={tr("Мои показатели")} splitHint={tr("Где сейчас ваши заявки")} refreshKey={statsKey} />}
       </main>

@@ -477,3 +477,76 @@ ${conversation}
     return null;
   }
 }
+
+// ---------------------------------------------------------------------
+// Партнёр (модуль «Партнёры»): пишет не клиент, а, например, водитель со своей машиной
+// ---------------------------------------------------------------------
+
+const PARTNER_SCHEMA: ResponseSchema = {
+  type: SchemaType.OBJECT,
+  properties: {
+    is_partner: { type: SchemaType.BOOLEAN },
+    offer: nullableText,
+    directions: nullableText,
+    phone: nullableText,
+  },
+  required: ["is_partner", "offer", "directions", "phone"],
+};
+
+/**
+ * Пишет ли компании не клиент, а партнёр (label — «Водитель», «Поставщик»…): он сам предлагает
+ * свои услуги компании. cargo — компания-логист: партнёр — водитель/перевозчик, offer — машина.
+ * null — модель не ответила.
+ */
+export async function extractPartnerWithGemini(
+  conversation: string,
+  companyName: string,
+  label: string,
+  cargo: boolean,
+  ai?: CompanyAi | null
+): Promise<Record<string, unknown> | null> {
+  const model = (ai?.client ?? genAI).getGenerativeModel(
+    {
+      model: ai?.model ?? GEMINI_MODEL,
+      generationConfig: { responseMimeType: "application/json", responseSchema: PARTNER_SCHEMA, temperature: 0 },
+    },
+    { timeout: REQUEST_TIMEOUT_MS }
+  );
+
+  const who = cargo
+    ? `водитель или перевозчик, который ищет груз для своей машины (предлагает свой транспорт), а не клиент, которому нужно перевезти груз`
+    : `«${label}» — человек или компания, которые сами предлагают компании свои товары или услуги (поставщик, партнёр), а не клиент, который хочет купить`;
+  const offer = cargo
+    ? `offer — машина: тип кузова и объём/тоннаж, как написал (например «Фура тент 20 т, 82 м³», «Isuzu 5 т»)`
+    : `offer — что именно предлагает, коротко по-русски`;
+
+  const prompt = `Переписка в Instagram Direct с компанией «${companyName}».
+Строки «Клиент:» — сообщения собеседника, «Бот:» — ответы бота, «Менеджер:» — ответы сотрудника.
+
+Переписка:
+${conversation}
+
+Определи, пишет ли собеседник как ${who}.
+
+Верни JSON:
+{ "is_partner": true или false, "offer": "..." или null, "directions": "..." или null, "phone": "..." или null }
+
+ПРАВИЛА:
+- is_partner = true, только если собеседник явно предлагает себя/свой транспорт/свои услуги компании.
+  Клиент, которому что-то нужно, — false. Приветствие, вопрос, спам — false.
+- ${offer}. Не сказал — null.
+- directions — направления/города/регионы, где работает или куда готов ехать, коротко по-русски (например «Ташкент — Москва, Казахстан»). Не сказал — null.
+- phone — номер телефона, как его написали. Нет номера — null.
+- Ничего не придумывай.`;
+
+  try {
+    return await withRetry(async () => {
+      const result = await model.generateContent(prompt);
+      const raw = result.response.text();
+      return JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1));
+    });
+  } catch (err: any) {
+    console.error("[Gemini Partner] Error:", err?.message);
+    return null;
+  }
+}

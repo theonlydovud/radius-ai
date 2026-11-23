@@ -93,6 +93,7 @@ async function companyReminders(supabase: any, company: AuthCompany, now: Date) 
     .from("leads")
     .select("id, company_id, client_name, client_phone, collected_data, status, manager_id, assigned_at, taken_at, status_changed_at, created_at, next_contact_date, next_contact_note, managers(name, telegram_id)")
     .eq("company_id", company.id)
+    .eq("kind", "client") // партнёрам (водителям) напоминаний нет
     .in("status", ["new", "in_progress", "offered"]);
   if (error) {
     if (!/column/.test(error.message)) console.warn(`[reminders] ${company.name}: ${error.message}`);

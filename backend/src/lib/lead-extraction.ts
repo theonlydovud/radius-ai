@@ -110,3 +110,36 @@ export function sanitizeGenericLead(raw: Partial<Record<keyof GenericLeadFields,
 export function isGenericLeadComplete(fields: GenericLeadFields) {
   return Boolean(fields.is_lead && fields.request && fields.phone);
 }
+
+// ---------------------------------------------------------------------
+// Партнёр (модуль «Партнёры»): водитель со своей машиной, поставщик…
+// ---------------------------------------------------------------------
+
+export interface PartnerFields {
+  is_partner?: boolean;
+  /** Машина / что предлагает. */
+  offer?: string;
+  /** Направления, где работает. */
+  directions?: string;
+  phone?: string;
+}
+
+export function sanitizePartner(raw: Partial<Record<keyof PartnerFields, unknown>>): PartnerFields {
+  const phoneRaw = clean(raw.phone);
+  const digits = phoneRaw?.replace(/\D/g, "") ?? "";
+  const text = (v: unknown) => {
+    const s = clean(v);
+    return s && s.length >= 2 ? s.slice(0, 200) : undefined;
+  };
+  return {
+    is_partner: raw.is_partner === true,
+    offer: text(raw.offer),
+    directions: text(raw.directions),
+    phone: digits.length >= 7 && digits.length <= 15 ? phoneRaw : undefined,
+  };
+}
+
+/** Партнёра можно отправить в группу: понятно, кто он, и есть телефон. */
+export function isPartnerComplete(f: PartnerFields) {
+  return Boolean(f.is_partner && f.phone && (f.offer || f.directions));
+}

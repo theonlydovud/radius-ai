@@ -95,6 +95,9 @@ export interface LeadCollectedData {
   cargo_type?: string;
   /** Что хочет клиент — у компаний не из логистики вместо маршрута и груза. */
   request?: string;
+  /** Партнёр: машина / что предлагает и направления. */
+  partner_offer?: string;
+  partner_directions?: string;
   /** Комментарий к заявке, созданной вручную. */
   note?: string;
   /** Кто создал заявку вручную; нет — собрал ИИ. */
@@ -104,6 +107,8 @@ export interface LeadCollectedData {
 
 export interface Lead {
   id: string;
+  /** client — заявка клиента; partner — партнёр (водитель): вне воронки, без ответственного. */
+  kind?: "client" | "partner";
   /** NULL — заявка создана вручную, переписки нет. */
   session_id: string | null;
   client_name: string;

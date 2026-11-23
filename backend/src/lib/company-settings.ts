@@ -101,6 +101,8 @@ export type CompanySettings = {
   lost_reasons: string[];
   terms: Terms;
   modules: Modules;
+  /** Модуль «Партнёры»: как называть не-клиентов, которых распознаёт бот (у Radius — «Водитель»). */
+  partners: { label: string; label_many: string };
 };
 
 /**
@@ -165,6 +167,7 @@ export const DEFAULT_SETTINGS: CompanySettings = {
   lost_reasons: DEFAULT_LOST_REASONS,
   terms: DEFAULT_TERMS,
   modules: { deadlines: false, partners: false },
+  partners: { label: "Партнёр", label_many: "Партнёры" },
 };
 
 const str = (v: unknown, fallback: string, max = 60) => {
@@ -228,6 +231,10 @@ export function normalizeSettings(raw: any): CompanySettings {
     lost_reasons,
     terms,
     modules,
+    partners: {
+      label: str(raw?.partners?.label, "Партнёр", 30),
+      label_many: str(raw?.partners?.label_many, str(raw?.partners?.label, "Партнёр", 30) === "Партнёр" ? "Партнёры" : str(raw?.partners?.label, "Партнёр", 30), 30),
+    },
     deal: {
       enabled: deal.enabled === true,
       type_label: str(deal.type_label, d.deal.type_label),

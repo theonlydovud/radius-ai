@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useCurrentUser } from "@/components/current-user";
 import {
   BUILTIN_REASONS,
@@ -80,7 +81,13 @@ export function FunnelSettingsCard() {
     setBusy("save");
     setNotice(null);
     try {
-      const next = await saveCompanySettings({ stages: s.stages, lost_reasons: s.lost_reasons, terms: s.terms });
+      const next = await saveCompanySettings({
+        stages: s.stages,
+        lost_reasons: s.lost_reasons,
+        terms: s.terms,
+        modules: { deadlines: s.modules?.deadlines ?? false, partners: s.modules?.partners ?? false },
+        partners: s.partners,
+      });
       setS(next);
       updateSettings(next);
       setNotice({ ok: true, text: t("Сохранено") });
@@ -198,6 +205,43 @@ export function FunnelSettingsCard() {
               </Button>
             </div>
           </div>
+        </div>
+
+        {/* Партнёры (водители) */}
+        <div>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">{t("Принимать контакты партнёров")}</p>
+              <p className="text-xs text-slate-400">
+                {t("Бот распознаёт тех, кто сам предлагает услуги (например, водитель ищет груз), и отправляет в группу без ответственного. В заявки и статистику они не попадают.")}
+              </p>
+            </div>
+            <Switch checked={Boolean(s.modules?.partners)} onCheckedChange={(v) => setS({ ...s, modules: { deadlines: s.modules?.deadlines ?? false, partners: v } })} />
+          </div>
+          {s.modules?.partners && (
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>{t("Название — один")}</Label>
+                <Input
+                  value={s.partners?.label ?? ""}
+                  onChange={(e) => setS({ ...s, partners: { label: e.target.value, label_many: s.partners?.label_many ?? "" } })}
+                  placeholder={t("Водитель, Поставщик, Партнёр")}
+                  maxLength={30}
+                  className="h-9"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>{t("Название — много (меню)")}</Label>
+                <Input
+                  value={s.partners?.label_many ?? ""}
+                  onChange={(e) => setS({ ...s, partners: { label: s.partners?.label ?? "", label_many: e.target.value } })}
+                  placeholder={t("Водители, Поставщики, Партнёры")}
+                  maxLength={30}
+                  className="h-9"
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Термины */}

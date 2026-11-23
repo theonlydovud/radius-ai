@@ -21,7 +21,11 @@ export async function GET(req: Request, ctx?: RouteContext) {
       .eq("session_id", sessionId)
       .eq("manager_id", auth.manager_id ?? "00000000-0000-0000-0000-000000000000")
       .limit(1);
-    if (!own?.length) return Response.json({ error: "Это не ваш диалог." }, { status: 403 });
+    // Переписка с партнёром (водителем) — общая база компании: её видят все логисты.
+    const { data: partner } = own?.length
+      ? { data: own }
+      : await supabase.from("leads").select("id").eq("session_id", sessionId).eq("company_id", auth.company.id).eq("kind", "partner").limit(1);
+    if (!partner?.length) return Response.json({ error: "Это не ваш диалог." }, { status: 403 });
   }
 
   const { data, error } = await supabase

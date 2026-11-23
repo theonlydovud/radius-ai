@@ -20,7 +20,7 @@ export const LOST_REASONS = [
 ] as const;
 
 const SELECT =
-  "id, session_id, client_name, client_phone, collected_data, status, created_at, " +
+  "id, kind, session_id, client_name, client_phone, collected_data, status, created_at, " +
   "manager_id, closed_at, closed_by, lost_reason, lost_comment, taken_by, taken_at, " +
   "assigned_at, offered_at, status_changed_at, deal_type, deal_price, deal_cost, deal_currency, " +
   "lost_price, lost_currency, next_contact_date, next_contact_note, " +
@@ -57,6 +57,10 @@ export type LeadFilters = {
   to?: string;
   /** Только просроченные: нет ставки или зависли. */
   overdue?: boolean;
+  /** client (по умолчанию) — заявки клиентов; partner — партнёры (водители), они вне воронки и статистики. */
+  kind?: "client" | "partner";
+  /** Поиск по тексту (у партнёров — машина, направления, имя, телефон). */
+  search?: string;
 };
 
 /**
@@ -101,7 +105,7 @@ function flatten(row: any, view: LeadView = {}) {
     lost_price: n(lead.lost_price),
     // Маржа = ставка клиенту − ставка перевозчика. Видит только руководитель.
     margin: view.showMargin && price !== null && cost !== null ? Math.round((price - cost) * 100) / 100 : undefined,
-    overdue: overdueOf(lead, view.control),
+    overdue: lead.kind === "partner" ? { no_offer: false, stuck: false } : overdueOf(lead, view.control),
     manager: managers ?? null,
     // Аккаунт заявки: из переписки, у ручной заявки — тот, что был выбран при создании.
     account_id: (chat_sessions?.account_id ?? lead.collected_data?.account_id ?? null) as string | null,
@@ -127,6 +131,7 @@ export async function fetchLeads(supabase: any, filters: LeadFilters, view: Lead
       .order("id", { ascending: true })
       .range(offset, offset + PAGE_SIZE - 1);
 
+    q = q.eq("kind", filters.kind ?? "client");
     if (filters.group) q = q.in("status", STATUS_GROUPS[filters.group]);
     if (filters.manager === "none") q = q.is("manager_id", null);
     else if (filters.manager) q = q.eq("manager_id", filters.manager);
@@ -140,6 +145,14 @@ export async function fetchLeads(supabase: any, filters: LeadFilters, view: Lead
   }
   let leads = rows.map((r) => flatten(r, view));
   if (filters.overdue) leads = leads.filter((l) => l.overdue.no_offer || l.overdue.stuck);
+  if (filters.search) {
+    // «фура ташкент» — все слова должны найтись (в любом порядке, без учёта регистра).
+    const words = filters.search.toLowerCase().split(/\s+/).filter(Boolean);
+    leads = leads.filter((l) => {
+      const hay = [l.client_name, l.client_phone, ...Object.values(l.collected_data ?? {})].filter(Boolean).join(" ").toLowerCase();
+      return words.every((w) => hay.includes(w));
+    });
+  }
   // Фильтр по аккаунту — здесь, а не в запросе: у ручных заявок аккаунт лежит в collected_data.
   return filters.account ? leads.filter((l) => l.account_id === filters.account) : leads;
 }
