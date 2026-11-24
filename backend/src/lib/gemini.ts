@@ -59,6 +59,37 @@ export function invalidateAccountCache(accountId?: string | null) {
   if (!accountId) return cache.clear();
   cache.delete(`rules:${accountId}`);
   cache.delete(`kb:${accountId}`);
+  cache.delete(`prompt:${accountId}`);
+}
+
+/**
+ * «Роль ИИ» — один большой промпт аккаунта (accounts.ai_prompt). Заполнен — бот работает
+ * только по нему; пустой — по-старому, из правил и знаний. До миграции колонки нет — пусто.
+ */
+export async function loadAiPrompt(accountId?: string | null): Promise<string> {
+  if (!accountId) return "";
+  return cached(`prompt:${accountId}`, async () => {
+    const { data, error } = await createAdminClient().from("accounts").select("ai_prompt").eq("id", accountId).maybeSingle();
+    if (error) return "";
+    return String(data?.ai_prompt ?? "").trim();
+  });
+}
+
+/** Черновик «Роли ИИ» из прежних правил и знаний — чтобы при переходе ничего не потерялось. */
+export async function legacyPromptDraft(accountId: string) {
+  const supabase = createAdminClient();
+  const [{ data: rules }, { data: kb }] = await Promise.all([
+    supabase.from("system_rules").select("rule_type, title, rule_text, is_active").eq("account_id", accountId).eq("is_active", true).order("rule_type"),
+    supabase.from("knowledge").select("title, content, created_at").eq("account_id", accountId).order("created_at", { ascending: true }).limit(200),
+  ]);
+  const block = (title: string, type: string) => {
+    const list = (rules ?? []).filter((r: any) => r.rule_type === type);
+    return list.length ? `## ${title}\n` + list.map((r: any) => `- ${r.title}: ${r.rule_text}`).join("\n") : "";
+  };
+  const knowledge = (kb ?? []).length ? "## О компании и услугах\n\n" + (kb ?? []).map((k: any) => `### ${k.title}\n${k.content}`).join("\n\n") : "";
+  return [block("Как общаться", "tone"), block("Что узнать у клиента", "qualification_requirements"), block("Правила", "general"), knowledge]
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 /**
@@ -130,12 +161,14 @@ async function accountIdentity(accountId?: string | null) {
 
 export async function buildSystemInstruction(userMessage: string, sourceAccountId?: string | null) {
   const accountId = await resolveKnowledgeOwner(sourceAccountId);
+  if (!sourceAccountId) throw new Error("Не выбран Instagram-аккаунт: инструкцию без аккаунта не собираем.");
+  const rolePrompt = await loadAiPrompt(accountId);
+  // Есть «Роль ИИ» — правила и знания не грузим: всё, что нужно боту, в одном промпте.
   const [rules, knowledgeSnippets, name] = await Promise.all([
-    loadRules(accountId),
-    retrieveRelevantKnowledge(userMessage, accountId),
+    rolePrompt ? Promise.resolve([] as SystemRule[]) : loadRules(accountId),
+    rolePrompt ? Promise.resolve([] as KnowledgeItem[]) : retrieveRelevantKnowledge(userMessage, accountId),
     accountIdentity(sourceAccountId),
   ]);
-  if (!sourceAccountId) throw new Error("Не выбран Instagram-аккаунт: инструкцию без аккаунта не собираем.");
 
   const toneRules = rules.filter((r) => r.rule_type === "tone");
   const qualificationRules = rules.filter((r) => r.rule_type === "qualification_requirements");
@@ -152,6 +185,10 @@ export async function buildSystemInstruction(userMessage: string, sourceAccountI
       `Ты — консультант${company} и отвечаешь клиентам в Instagram-аккаунте ${name.account}.` +
         (name.company ? ` Говори только от имени «${name.company}». Если в знаниях или правилах упоминаются другие компании, это не ты: не представляйся ими и не предлагай их услуги.` : "")
     );
+  }
+
+  if (rolePrompt) {
+    sections.push("## Роль, правила и знания компании (главный источник фактов)\n" + rolePrompt);
   }
 
   if (toneRules.length) {

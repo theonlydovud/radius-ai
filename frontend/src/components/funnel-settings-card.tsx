@@ -16,6 +16,7 @@ import {
   STAGE_KEYS,
   STAGE_TYPE,
   TEMPLATE_CHOICES,
+  CUSTOM_B2B,
   TERM_CHOICES,
   type CompanySettings,
   type Stages,
@@ -126,7 +127,14 @@ export function FunnelSettingsCard() {
         {/* Шаблон */}
         <div>
           <p className="text-sm font-semibold text-slate-900">{t("Шаблон бизнеса")}</p>
-          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {/* Индивидуальная воронка (Radius) в выборе нет — показываем её как текущую. */}
+          {s.template === "b2b" && (
+            <div className="mt-2 rounded-xl border border-brand bg-brand-soft p-3">
+              <p className="text-sm font-semibold text-slate-900">{CUSTOM_B2B.title}</p>
+              <p className="mt-0.5 text-xs text-slate-500">{CUSTOM_B2B.stages.join(" → ")}</p>
+            </div>
+          )}
+          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
             {TEMPLATE_CHOICES.map((c) => (
               <button
                 key={c.value}

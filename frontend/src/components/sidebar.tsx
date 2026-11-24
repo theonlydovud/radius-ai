@@ -9,7 +9,6 @@ import {
   MessageSquareText,
   Sparkles,
   BookOpen,
-  ShieldCheck,
   ClipboardList,
   BarChart3,
   Inbox,
@@ -34,8 +33,8 @@ type NavItem = { href: string; label: string; icon: typeof Sparkles; feature?: F
 const NAV_ITEMS: NavItem[] = [
   { href: "/assistant", get label() { return t("ИИ ассистент"); }, icon: Sparkles, feature: "assistant" },
   { href: "/playground", get label() { return t("Диалог с ИИ"); }, icon: MessageSquareText },
-  { href: "/knowledge", get label() { return t("Знания ИИ"); }, icon: BookOpen },
-  { href: "/rules", get label() { return t("Правила общения"); }, icon: ShieldCheck },
+  // «Роль ИИ» — один промпт вместо прежних «Знаний ИИ» и «Правил общения».
+  { href: "/ai-role", get label() { return t("Роль ИИ"); }, icon: BookOpen },
   { href: "/leads", get label() { return leadsTitle(); }, icon: ClipboardList },
   { href: "/partners", get label() { return partnersTitle(); }, icon: Truck, partners: true },
   { href: "/stats", get label() { return t("Статистика"); }, icon: BarChart3, feature: "stats" },

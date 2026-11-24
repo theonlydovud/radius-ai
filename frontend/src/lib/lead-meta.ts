@@ -249,33 +249,40 @@ export const partnerLabel = () => t(current?.partners?.label ?? "Партнёр"
 /** «Водители» / «Партнёры». */
 export const partnersTitle = () => t(current?.partners?.label_many ?? "Партнёры");
 
-/** Шаблоны бизнеса для мастера «Кто вы?» и настроек. */
-export const TEMPLATE_CHOICES: { value: Template; title: string; hint: string; stages: string[] }[] = [
+type TemplateChoice = { value: Template; title: string; hint: string; stages: string[] };
+
+/**
+ * Шаблоны бизнеса для мастера «Кто вы?» и настроек: три — под них попадает почти любой бизнес.
+ * (Код «courses» — исторический: так шаблон «Образование» хранится в базе.)
+ */
+export const TEMPLATE_CHOICES: TemplateChoice[] = [
   {
     value: "goods",
     get title() { return t("Товары"); },
-    get hint() { return t("Магазин, блогер — продаёте товары"); },
+    get hint() { return t("Магазин, блогер, опт — продаёте товары"); },
     get stages() { return [t("Новый"), t("Продано"), t("Не продано")]; },
   },
   {
-    value: "courses",
-    get title() { return t("Курсы"); },
-    get hint() { return t("Обучение, курсы, консультации"); },
-    get stages() { return [t("Новый"), t("Консультация"), t("Продано"), t("Не продано")]; },
-  },
-  {
     value: "services",
-    get title() { return t("Услуги по записи"); },
-    get hint() { return t("Салон, клиника, мастер — клиенты записываются"); },
+    get title() { return t("Услуги"); },
+    get hint() { return t("Салон, клиника, ремонт, доставка — оказываете услуги"); },
     get stages() { return [t("Новый"), t("Записан"), t("Пришёл"), t("Не пришёл")]; },
   },
   {
-    value: "b2b",
-    get title() { return t("B2B с расчётом"); },
-    get hint() { return t("Считаете цену под каждую заявку: логистика, производство, опт"); },
-    get stages() { return [t("Новая"), t("В работе"), t("Ставка предложена"), t("Продано"), t("Не продано")]; },
+    value: "courses",
+    get title() { return t("Образование"); },
+    get hint() { return t("Курсы, школа, репетитор — обучаете"); },
+    get stages() { return [t("Новый"), t("Консультация"), t("Продано"), t("Не продано")]; },
   },
 ];
+
+/** Индивидуальная воронка Radius Logistics (ставки, логисты) — в выборе не показывается. */
+export const CUSTOM_B2B: TemplateChoice = {
+  value: "b2b",
+  get title() { return t("Индивидуальная воронка (B2B)"); },
+  get hint() { return t("Настроена под вашу компанию"); },
+  get stages() { return [t("Новая"), t("В работе"), t("Ставка предложена"), t("Продано"), t("Не продано")]; },
+};
 
 /** «12 500 USD» */
 export function money(value: number | null | undefined, currency?: string | null) {

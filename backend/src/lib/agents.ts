@@ -51,4 +51,7 @@ export async function handOverKnowledgeBeforeDelete(supabase: any, accountId: st
   await supabase.from("accounts").update({ knowledge_source_id: heir }).eq("knowledge_source_id", accountId);
   await supabase.from("knowledge").update({ account_id: heir }).eq("account_id", accountId);
   await supabase.from("system_rules").update({ account_id: heir }).eq("account_id", accountId);
+  // «Роль ИИ» — тоже наследнику (до миграции колонки нет — пропускаем).
+  const { data: src } = await supabase.from("accounts").select("ai_prompt").eq("id", accountId).maybeSingle();
+  if (src?.ai_prompt) await supabase.from("accounts").update({ ai_prompt: src.ai_prompt }).eq("id", heir);
 }

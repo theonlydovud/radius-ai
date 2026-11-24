@@ -76,7 +76,8 @@ export const TEMPLATE_PRESETS: Record<Template, TemplatePreset> = {
   services: {
     stages: { new: "Новый", in_progress: "Записан", offered: null, sold: "Пришёл", not_sold: "Не пришёл" },
     lost_reasons: ["no_show", "cancelled", "too_expensive", "no_response", "other"],
-    terms: { lead: "booking", manager: "master", amount: "amount" },
+    // «Услуги» шире записи к мастеру (ремонт, доставка, клиника) — нейтральные термины, их можно сменить.
+    terms: { lead: "request", manager: "manager", amount: "amount" },
     deal: false,
   },
   b2b: {

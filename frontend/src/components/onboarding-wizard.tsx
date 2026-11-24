@@ -58,12 +58,12 @@ export function OnboardingWizard() {
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && skip()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>{t("Кто вы?")}</DialogTitle>
           <DialogDescription>{t("Выберите, чем вы занимаетесь — подставим этапы заявок, причины отказа и термины. Всё можно поменять в «Настройках».")}</DialogDescription>
         </DialogHeader>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           {TEMPLATE_CHOICES.map((c) => (
             <button
               key={c.value}
