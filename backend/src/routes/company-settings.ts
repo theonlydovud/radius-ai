@@ -15,10 +15,16 @@ import type { RouteContext } from "../index";
  */
 export async function GET(_req: Request, ctx: RouteContext) {
   const company = ctx.auth!.company;
+  // Настройки — прямо из базы, не из кэша сессии: страница настроек должна видеть только что сохранённое.
+  const { data: row } = await createAdminClient().from("companies").select("settings").eq("id", company.id).maybeSingle();
+  const settings = row ? normalizeSettings(row.settings) : company.settings;
+  // Ограничения тарифа и команды — как в сессии (auth.ts publicCompany).
+  if (!company.features.deal) settings.deal.enabled = false;
+  if (!company.features.lead_transfer || company.staff_count < 2) settings.modules.deadlines = false;
   // ai: shared — общий ключ Gemini; own — свой ключ компании; broken — свой ключ не расшифровать.
   return Response.json({
     data: {
-      settings: company.settings,
+      settings,
       deal_available: company.features.deal,
       deadlines_available: company.features.lead_transfer && company.staff_count >= 2,
       ai: await companyAiStatus(company.id),

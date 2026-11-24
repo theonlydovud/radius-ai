@@ -838,4 +838,11 @@ export const en: Record<string, string> = {
   "Индивидуальная воронка (B2B)": "Custom pipeline (B2B)",
   "Настроена под вашу компанию": "Set up for your company",
   "Аккаунт заморожен администрацией DexaAI — ИИ не отвечает клиентам.": "The account is frozen by DexaAI — the AI isn’t replying to clients.",
+  "Отвязать Telegram? Напоминания перестанут приходить, пока не привяжете снова — можно сразу другой.": "Unlink Telegram? Reminders stop until you link again — you can link a different one right away.",
+  "Не удалось отвязать.": "Couldn’t unlink.",
+  "Отвязать": "Unlink",
+  "Удалить заявку «{0}»? Это нельзя отменить. Переписка с клиентом останется в «Истории чатов».": "Delete the lead “{0}”? This can’t be undone. The chat with the client stays in Chat history.",
+  "Не удалось удалить.": "Couldn’t delete.",
+  "Не удалось удалить. Проверьте соединение.": "Couldn’t delete. Check your connection.",
+  "Удалить заявку": "Delete lead",
 };

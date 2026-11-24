@@ -104,5 +104,10 @@ export async function PATCH(req: Request, ctx: RouteContext) {
 
   if (error) return Response.json({ error: nameError(error) }, { status: 400 });
   if (!data) return Response.json({ error: "Менеджер не найден." }, { status: 404 });
+  // Руководитель сменил Telegram менеджера — личная привязка менеджера (кнопкой «Подключить Telegram»)
+  // сбрасывается: напоминания пойдут на новый, а менеджер при желании привяжет его заново.
+  if (body.telegram_id !== undefined) {
+    await supabase.from("app_users").update({ telegram_id: null }).eq("manager_id", body.id).eq("company_id", ctx.auth!.company.id);
+  }
   return Response.json({ data });
 }

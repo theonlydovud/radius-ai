@@ -838,4 +838,11 @@ export const uz: Record<string, string> = {
   "Индивидуальная воронка (B2B)": "Individual voronka (B2B)",
   "Настроена под вашу компанию": "Kompaniyangiz uchun sozlangan",
   "Аккаунт заморожен администрацией DexaAI — ИИ не отвечает клиентам.": "Akkaunt DexaAI ma’muriyati tomonidan muzlatilgan — AI mijozlarga javob bermaydi.",
+  "Отвязать Telegram? Напоминания перестанут приходить, пока не привяжете снова — можно сразу другой.": "Telegram uzilsinmi? Qayta ulamaguningizcha eslatmalar kelmaydi — darhol boshqasini ulashingiz mumkin.",
+  "Не удалось отвязать.": "Uzib bo‘lmadi.",
+  "Отвязать": "Uzish",
+  "Удалить заявку «{0}»? Это нельзя отменить. Переписка с клиентом останется в «Истории чатов».": "«{0}» arizasi o‘chirilsinmi? Buni qaytarib bo‘lmaydi. Mijoz bilan yozishma «Chatlar tarixi»da qoladi.",
+  "Не удалось удалить.": "O‘chirib bo‘lmadi.",
+  "Не удалось удалить. Проверьте соединение.": "O‘chirib bo‘lmadi. Ulanishni tekshiring.",
+  "Удалить заявку": "Arizani o‘chirish",
 };

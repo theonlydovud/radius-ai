@@ -270,8 +270,10 @@ type UserRow = {
 };
 
 // Короткий кэш: проверка куки на каждый запрос не должна каждый раз ходить в БД.
+// На Vercel копий функции несколько, и сброс кэша доходит только до одной: сохранили настройки —
+// а соседняя копия 30 с отдаёт старые (и следующее «Сохранить» затирает новые). Там кэш — 3 с.
 const cache = new Map<string, { at: number; value: any }>();
-const CACHE_MS = 30_000;
+const CACHE_MS = process.env.VERCEL ? 3_000 : 30_000;
 
 async function cached<T>(key: string, load: () => Promise<T>): Promise<T> {
   const hit = cache.get(key);

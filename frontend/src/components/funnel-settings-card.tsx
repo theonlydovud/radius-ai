@@ -45,15 +45,20 @@ export async function saveCompanySettings(body: Record<string, unknown>): Promis
  * причины отказа и термины интерфейса.
  */
 export function FunnelSettingsCard() {
-  const { company, updateSettings } = useCurrentUser();
-  const [s, setS] = useState<CompanySettings | null>(company.settings?.stages ? company.settings : null);
+  const { updateSettings } = useCurrentUser();
+  const [s, setS] = useState<CompanySettings | null>(null);
   const [custom, setCustom] = useState("");
   const [busy, setBusy] = useState<"template" | "save" | null>(null);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
 
+  // Свежие настройки прямо из базы (не из сессии): иначе после сохранения могли показаться
+  // старые, и следующее «Сохранить» записывало их поверх новых.
   useEffect(() => {
-    if (company.settings?.stages) setS(company.settings);
-  }, [company.settings]);
+    fetch("/api/settings/company", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => j.data?.settings && setS(j.data.settings))
+      .catch(() => setNotice({ ok: false, text: t("Не удалось загрузить настройки.") }));
+  }, []);
 
   // Старый backend без воронки — карточку не показываем.
   if (!s?.stages || !s.terms || !s.lost_reasons) return null;

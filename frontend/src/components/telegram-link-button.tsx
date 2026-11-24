@@ -16,11 +16,35 @@ export function TelegramLinkButton({ className, compact = false }: { className?:
   const [opened, setOpened] = useState(false);
   const [error, setError] = useState("");
 
+  // Отвязать — чтобы привязать другой Telegram (сменили телефон, передали аккаунт).
+  async function unlink() {
+    if (!window.confirm(t("Отвязать Telegram? Напоминания перестанут приходить, пока не привяжете снова — можно сразу другой."))) return;
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch("/api/profile/telegram", { method: "DELETE" });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error ?? t("Не удалось отвязать."));
+      window.location.reload();
+    } catch (e: any) {
+      setError(e?.message ?? t("Не удалось отвязать."));
+      setBusy(false);
+    }
+  }
+
   if (user.telegramLinked) {
     return (
-      <span className={cn("inline-flex items-center gap-1.5 text-xs text-emerald-600", className)} title={t("Напоминания по заявкам приходят в Telegram")}>
-        <CheckCircle2 className="h-3.5 w-3.5" />
-        {!compact && t("Telegram подключён")}
+      <span className={cn("inline-flex flex-col", className)}>
+        <span className="inline-flex items-center gap-1.5 text-xs text-emerald-600" title={t("Напоминания по заявкам приходят в Telegram")}>
+          <CheckCircle2 className="h-3.5 w-3.5" />
+          {!compact && t("Telegram подключён")}
+          {!user.platform && (
+            <button type="button" onClick={unlink} disabled={busy} className="ml-1 text-slate-400 underline-offset-2 hover:text-red-600 hover:underline disabled:opacity-50">
+              {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : t("Отвязать")}
+            </button>
+          )}
+        </span>
+        {error && <span className="mt-1 text-[11px] text-red-600">{error}</span>}
       </span>
     );
   }

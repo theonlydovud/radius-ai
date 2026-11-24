@@ -159,3 +159,18 @@ export async function PATCH(req: Request, { params, auth }: RouteContext) {
 
   return Response.json({ data: await fetchLead(supabase, params.id, company.id, { control: leadControl(settings), showMargin: auth?.role === "owner" }) });
 }
+
+/**
+ * Удалить заявку — только руководитель (index.ts не пускает сюда менеджеров и супер-админа).
+ * Журнал статусов и напоминания по заявке удаляются вместе с ней (ON DELETE CASCADE);
+ * переписка с клиентом остаётся в «Истории чатов».
+ */
+export async function DELETE(_req: Request, { params, auth }: RouteContext) {
+  if (auth?.role !== "owner") return Response.json({ error: "Удалять заявки может только руководитель." }, { status: 403 });
+  const supabase = createAdminClient();
+  const { data, error } = await supabase.from("leads").delete().eq("id", params.id).eq("company_id", auth.company.id).select("id");
+  if (error) return Response.json({ error: error.message }, { status: 500 });
+  if (!data?.length) return Response.json({ error: "Заявка не найдена." }, { status: 404 });
+  console.log(`[leads] ${auth.name} удалил заявку ${params.id.slice(0, 8)} (${auth.company.name})`);
+  return Response.json({ data: { deleted: true } });
+}

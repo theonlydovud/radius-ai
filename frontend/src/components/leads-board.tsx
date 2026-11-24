@@ -15,7 +15,7 @@ import { LeadChatSheet } from "@/components/crm/lead-chat-sheet";
 import { useAccountId } from "@/components/account-switcher";
 import { hasFeature, isSolo, useCurrentUser } from "@/components/current-user";
 import { hasStage, leadFlow, lostReasonLabel, managerOne, money, offerButtonLabel, partnerLabel, partnersOn, partnersTitle, STATUS_LABEL, STATUS_VARIANT } from "@/lib/lead-meta";
-import { Truck } from "lucide-react";
+import { Trash2, Truck } from "lucide-react";
 import { DealDialog, isOverdue, LeadControlInfo, NextContactDialog, OverdueBadges } from "@/components/lead-control";
 import { HandCoins } from "lucide-react";
 import { cn, dayEndISO, dayStartISO, formatDate } from "@/lib/utils";
@@ -92,6 +92,23 @@ export function LeadsBoard({
   const transfer = hasFeature(company, "lead_transfer") && !solo;
   // Вкладки: «предложение» — если такой этап есть, «Просроченные» — если включён контроль сроков.
   const flow = (lead: Lead) => leadFlow(lead.status, solo);
+  // Удалить заявку — только руководитель (сервер проверяет то же самое).
+  const canDelete = user.role === "owner";
+  async function deleteLead(lead: Lead) {
+    if (!window.confirm(tr("Удалить заявку «{0}»? Это нельзя отменить. Переписка с клиентом останется в «Истории чатов».", lead.client_name || lead.client_phone || "—"))) return;
+    setBusyId(lead.id);
+    try {
+      const res = await fetch(`/api/leads/${lead.id}`, { method: "DELETE" });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) setError(j.error ?? tr("Не удалось удалить."));
+      else setLeads((prev) => prev.filter((l) => l.id !== lead.id));
+      onChanged?.();
+    } catch {
+      setError(tr("Не удалось удалить. Проверьте соединение."));
+    } finally {
+      setBusyId(null);
+    }
+  }
   // Бот принял водителя (партнёра) за клиента — убрать из воронки в «Водители».
   const markPartner = (lead: Lead) => {
     if (window.confirm(tr("Это {0}, а не клиент? Заявка уйдёт из воронки в «{1}».", partnerLabel().toLowerCase(), partnersTitle()))) patchLead(lead, { kind: "partner" });
@@ -322,6 +339,11 @@ export function LeadsBoard({
                         <Truck className="h-3.5 w-3.5" />
                         {tr("Это {0}", partnerLabel().toLowerCase())}</Button>
                     )}
+                    {canDelete && (
+                      <Button variant="ghost" size="sm" className="text-slate-400 hover:text-red-600" disabled={busy} onClick={() => deleteLead(lead)} aria-label={tr("Удалить заявку")}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                     {isClosed(lead) ? (
                       <Button variant="outline" size="sm" disabled={busy} onClick={() => patchLead(lead, { status: flow(lead).reopenTo })}>
                         <RotateCcw className="h-3.5 w-3.5" />
@@ -519,6 +541,17 @@ export function LeadsBoard({
                       >
                         <Truck className="h-3.5 w-3.5" />
                         {tr("Это {0}", partnerLabel().toLowerCase())}</button>
+                    )}
+                    {canDelete && (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => deleteLead(lead)}
+                        className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs text-slate-400 hover:bg-red-50 hover:text-red-600"
+                        aria-label={tr("Удалить заявку")}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
                     )}
                     </div>
                   </div>
