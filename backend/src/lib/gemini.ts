@@ -353,11 +353,13 @@ export async function withRetry<T>(call: () => Promise<T>): Promise<T> {
       const status = err?.status ?? err?.response?.status;
       const text: string = err?.message ?? "";
       const rateLimited = status === 429 || text.includes("429") || text.includes("RESOURCE_EXHAUSTED");
-      if (!rateLimited && typeof status === "number" && status >= 400 && status < 500) throw err;
-      if (attempt >= MAX_ATTEMPTS) throw rateLimited ? new GeminiRateLimitError() : err;
+      const overloaded = isOverloaded(err);
+      if (!rateLimited && !overloaded && typeof status === "number" && status >= 400 && status < 500) throw err;
+      // Перегрузку у Google пережидаем дольше: на одну попытку больше, паузы 3, 6, 9 с.
+      if (attempt >= (overloaded ? MAX_ATTEMPTS + 1 : MAX_ATTEMPTS)) throw rateLimited ? new GeminiRateLimitError() : err;
 
       const suggestedSec = Number(text.match(/retry in ([\d.]+)s/i)?.[1]);
-      const waitMs = rateLimited ? Math.min(((suggestedSec || 20) + 1) * 1000, MAX_RATE_LIMIT_WAIT_MS) : attempt * 1500;
+      const waitMs = rateLimited ? Math.min(((suggestedSec || 20) + 1) * 1000, MAX_RATE_LIMIT_WAIT_MS) : overloaded ? attempt * 3000 : attempt * 1500;
       console.warn(`[gemini] попытка ${attempt} не удалась (${status ?? text.slice(0, 120)}), повтор через ${Math.round(waitMs / 1000)} с`);
       await new Promise((resolve) => setTimeout(resolve, waitMs));
     }
@@ -375,24 +377,48 @@ export async function sendToGemini(
   const instruction = `${systemInstruction}
 
 ${replyLanguageRule(message, history)}`;
-  const model = (ai?.client ?? genAI).getGenerativeModel({ model: ai?.model ?? GEMINI_MODEL, systemInstruction: instruction }, { timeout: REQUEST_TIMEOUT_MS });
   const chatHistory = normalizeHistory(history).map((m) => ({
     role: m.role,
     parts: [{ text: m.text }],
   }));
-
-  return withRetry(async () => {
-    const chat = model.startChat({
-      history: chatHistory,
-      generationConfig: {
-        temperature: 0.6,
-        maxOutputTokens: 600,
-      },
+  const ask = (modelName: string) => {
+    const model = (ai?.client ?? genAI).getGenerativeModel({ model: modelName, systemInstruction: instruction }, { timeout: REQUEST_TIMEOUT_MS });
+    return withRetry(async () => {
+      const chat = model.startChat({ history: chatHistory, generationConfig: { temperature: 0.6, maxOutputTokens: 600 } });
+      const result = await chat.sendMessage(withLanguageHint(message, history));
+      return result.response.text();
     });
+  };
 
-    const result = await chat.sendMessage(withLanguageHint(message, history));
-    return result.response.text();
-  });
+  // Основная модель перегружена у Google — пробуем запасные: у них свои мощности.
+  const primary = ai?.model ?? GEMINI_MODEL;
+  try {
+    return await ask(primary);
+  } catch (err) {
+    if (!isOverloaded(err)) throw err;
+    for (const fallback of FALLBACK_MODELS.filter((m) => m !== primary)) {
+      console.warn(`[gemini] ${primary} перегружена — пробую ${fallback}`);
+      try {
+        return await ask(fallback);
+      } catch (e: any) {
+        if (!isOverloaded(e) && !/not found|404/i.test(String(e?.message ?? ""))) throw e;
+      }
+    }
+    throw err;
+  }
+}
+
+/** Запасные модели на случай перегрузки основной (GEMINI_FALLBACK_MODELS — через запятую). */
+const FALLBACK_MODELS = (process.env.GEMINI_FALLBACK_MODELS || "gemini-3.5-flash,gemini-2.5-flash")
+  .split(",")
+  .map((m) => m.trim())
+  .filter(Boolean);
+
+/** Модель перегружена у Google (503 «high demand» / UNAVAILABLE) — временно: лечится повтором или другой моделью. */
+export function isOverloaded(err: any) {
+  const status = err?.status ?? err?.response?.status;
+  const text: string = err?.message ?? "";
+  return status === 503 || /\b503\b|UNAVAILABLE|overloaded|high demand/i.test(text);
 }
 
 const nullableText = { type: SchemaType.STRING, nullable: true } as const;

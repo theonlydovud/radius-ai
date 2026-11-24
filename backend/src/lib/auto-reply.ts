@@ -8,12 +8,11 @@ import { notifyDexaAdmins } from "./dexa-bot";
 import { recordSecurityEvent } from "./security";
 
 /**
- * Ответ бота в Instagram: один ответ на все сообщения
- * клиента, пришедшие после последнего ответа. Если Gemini недоступен даже после
- * повторов, клиент не остаётся без ответа, а получает просьбу написать позже.
+ * Ответ бота в Instagram: один ответ на все сообщения клиента, пришедшие после
+ * последнего ответа. Если Gemini недоступен даже после повторов и запасных моделей,
+ * клиенту ничего не пишем (никаких «сервер перегружен»): сообщение остаётся без ответа,
+ * и через несколько минут его подхватит восстановление пропущенных ответов (reply-recovery).
  */
-
-const BUSY_REPLY = "Слишком большая нагрузка на сервера, повторите попытку через 1-2 минуты.";
 
 const g = globalThis as unknown as { __radiusChatQueues?: Map<string, Promise<void>> };
 const queues = (g.__radiusChatQueues ??= new Map());
@@ -65,8 +64,8 @@ export async function replyToPending(options: {
     if (/SAFETY|PROHIBITED|blocked due to/i.test(String(err?.message ?? ""))) {
       await recordSecurityEvent({ companyId: company?.id, companyName: company?.name, source: "gemini", kind: "blocked_by_ai", excerpt: pending, accountId, sessionId: session.id });
     }
-    console.error(`${tag} ИИ не ответил, отправляю просьбу написать позже: ${reason}`);
-    reply = BUSY_REPLY;
+    console.error(`${tag} ИИ не ответил — клиенту ничего не пишем, повторим через несколько минут: ${reason}`);
+    return;
   }
 
   try {
@@ -78,8 +77,6 @@ export async function replyToPending(options: {
   console.log(`${tag} ответ отправлен (${reply.length} симв., на ${pending.split("\n").length} сообщ.)`);
 
   await supabase.from("messages").insert({ session_id: session.id, sender: "ai", text: reply });
-  if (reply !== BUSY_REPLY) {
-    await countBotReply(company, notifyDexaAdmins);
-    await maybeCreateOrUpdateLead(supabase, session.id, session.client_name, [...before, { role: "user", text: pending }], reply, company);
-  }
+  await countBotReply(company, notifyDexaAdmins);
+  await maybeCreateOrUpdateLead(supabase, session.id, session.client_name, [...before, { role: "user", text: pending }], reply, company);
 }
