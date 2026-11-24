@@ -1,3 +1,4 @@
+import { screen } from "../lib/security";
 import { createAdminClient } from "../lib/supabase/server";
 import { invalidateAccountCache, legacyPromptDraft, loadAiPrompt } from "../lib/gemini";
 import { ownsAccount } from "../lib/tenant";
@@ -30,6 +31,8 @@ export async function PUT(req: Request, ctx: RouteContext) {
   const prompt = String(body.prompt ?? "").replace(/\r\n/g, "\n").trim();
   if (prompt.length > MAX_PROMPT) return Response.json({ error: `Слишком длинно: максимум ${MAX_PROMPT} символов.` }, { status: 400 });
 
+  // Роль пишет сама компания: джейлбрейк или запрещённое здесь — серьёзный сигнал (владельцу платформы — сразу).
+  if (prompt && !ctx.auth!.platform) await screen(prompt, { companyId: ctx.auth!.company.id, companyName: ctx.auth!.company.name, source: "role", accountId });
   const { error } = await createAdminClient().from("accounts").update({ ai_prompt: prompt || null }).eq("id", accountId);
   if (error) {
     const hint = /ai_prompt/.test(error.message) ? " Выполните migration-ai-role.sql в Supabase." : "";

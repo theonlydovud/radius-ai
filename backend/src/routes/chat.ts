@@ -1,3 +1,4 @@
+import { screen } from "../lib/security";
 import { buildSystemInstruction, GeminiRateLimitError, sendToGemini } from "../lib/gemini";
 import { createAdminClient } from "../lib/supabase/server";
 import type { SandboxChatMessage } from "../types";
@@ -30,6 +31,7 @@ export async function POST(req: Request, ctx: RouteContext) {
     if (!accountId) {
       return Response.json({ error: "Сначала подключите Instagram-аккаунт и заполните его базу знаний." }, { status: 400 });
     }
+    if (!ctx.auth!.platform) await screen(String(message ?? ""), { companyId: company, companyName: ctx.auth!.company.name, source: "playground", accountId });
 
     if (!message || typeof message !== "string") {
       return Response.json(

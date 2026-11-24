@@ -837,4 +837,5 @@ export const uz: Record<string, string> = {
   "Курсы, школа, репетитор — обучаете": "Kurslar, maktab, repetitor — o‘qitasiz",
   "Индивидуальная воронка (B2B)": "Individual voronka (B2B)",
   "Настроена под вашу компанию": "Kompaniyangiz uchun sozlangan",
+  "Аккаунт заморожен администрацией DexaAI — ИИ не отвечает клиентам.": "Akkaunt DexaAI ma’muriyati tomonidan muzlatilgan — AI mijozlarga javob bermaydi.",
 };

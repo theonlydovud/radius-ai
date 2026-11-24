@@ -41,6 +41,9 @@ export type SessionCompany = {
     instagram_accounts: number | null;
   };
   ai_blocked?: "limit" | "period" | null;
+  /** Решение владельца платформы: frozen — бот молчит, кабинет открыт; banned — вход закрыт. */
+  blocked?: "frozen" | "banned" | null;
+  blocked_reason?: string | null;
   /** Блок сделки, сроки, рабочее время. */
   settings?: CompanySettings;
   /** Активные сотрудники (руководитель + менеджеры). 1 — работает один человек. */
@@ -63,7 +66,7 @@ export function hasFeature(company: SessionCompany | null | undefined, feature: 
 }
 export type Session = {
   company: SessionCompany | null;
-  user: { id: string; name: string; role: Role; manager_id: string | null; telegram_linked?: boolean; platform?: boolean } | null;
+  user: { id: string; name: string; role: Role; manager_id: string | null; telegram_linked?: boolean; platform?: boolean; as_user?: string } | null;
   users: { id: string; name: string; role: Role }[];
   /** В этот аккаунт вошли с другого устройства — здесь вход закончился. */
   replaced?: boolean;
@@ -109,7 +112,7 @@ export function safeNext(next: string | null) {
   return next && next.startsWith("/") && !next.startsWith("//") ? next : null;
 }
 
-export type CurrentUser = { id: string; name: string; role: Role; roleLabel: string; managerId: string | null; telegramLinked: boolean; platform: boolean };
+export type CurrentUser = { id: string; name: string; role: Role; roleLabel: string; managerId: string | null; telegramLinked: boolean; platform: boolean; /** Владелец платформы вошёл от лица этого сотрудника. */ asUser?: string };
 
 type CurrentUserContextValue = {
   user: CurrentUser;
@@ -200,7 +203,7 @@ export function CurrentUserProvider({ role, children }: { role: Role | "cabinet"
     if (!session?.user || !session.company) return null;
     const u = session.user;
     return {
-      user: { id: u.id, name: u.name, role: u.role, roleLabel: ROLE_LABEL[u.role], managerId: u.manager_id, telegramLinked: Boolean(u.telegram_linked), platform: Boolean(u.platform) },
+      user: { id: u.id, name: u.name, role: u.role, roleLabel: ROLE_LABEL[u.role], managerId: u.manager_id, telegramLinked: Boolean(u.telegram_linked), platform: Boolean(u.platform), asUser: u.as_user },
       company: session.company,
       managers,
       ready: managersReady,

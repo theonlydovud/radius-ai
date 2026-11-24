@@ -57,6 +57,12 @@ export const me = {
   },
 };
 
+/** Компания забанена владельцем платформы: вход закрыт, причина — от него. */
+function banned(company: { blocked_reason?: string | null }) {
+  const reason = company.blocked_reason ? ` Причина: ${company.blocked_reason}` : "";
+  return { error: `Аккаунт заблокирован администрацией DexaAI.${reason}`, code: "banned" };
+}
+
 /** Вход по логину компании (дальше — выбор человека) или по личному логину (сразу внутрь). */
 export const login = {
   async POST(req: Request) {
@@ -71,6 +77,7 @@ export const login = {
     const company = await findCompanyByLogin(loginName);
     if (company && (await verifyPassword(password, company.password_hash))) {
       clearFailures(key);
+      if ((company as any).blocked === "banned") return json(banned(company), 403);
       // Новая компания на устройстве — прежний выбор человека сбрасываем.
       return json({ data: { next: "select" } }, 200, [setCookie(COMPANY_COOKIE, companyToken(company), req), ...clearCookie(USER_COOKIE, req)]);
     }
@@ -80,6 +87,7 @@ export const login = {
       clearFailures(key);
       const userCompany = await findCompany(user.company_id);
       if (!userCompany) return json({ error: WRONG }, 401);
+      if ((userCompany as any).blocked === "banned") return json(banned(userCompany), 403);
       return json({ data: { next: user.role } }, 200, [
         setCookie(COMPANY_COOKIE, companyToken(userCompany), req),
         setCookie(USER_COOKIE, await startSession(user, userCompany), req),

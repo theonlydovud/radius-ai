@@ -71,7 +71,9 @@ export async function accountCompany(accountId: string | null | undefined): Prom
  * кончился пробный период, оплаченный период или сообщения тарифа.
  * Счётчик сообщений читается из базы заново: кэш компании живёт 30 секунд.
  */
-export async function aiBlockReason(company: AuthCompany | null): Promise<"trial" | "period" | "limit" | null> {
+export async function aiBlockReason(company: AuthCompany | null): Promise<"blocked" | "trial" | "period" | "limit" | null> {
+  // Заморозка или бан владельцем платформы — бот молчит у всех, даже у безлимитных.
+  if (company?.blocked) return "blocked";
   if (!company || company.unlimited) return null;
   if (company.status === "expired") return "trial";
   if (company.ai_blocked === "period") return "period";

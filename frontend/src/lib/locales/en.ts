@@ -837,4 +837,5 @@ export const en: Record<string, string> = {
   "Курсы, школа, репетитор — обучаете": "Courses, school, tutor — you teach",
   "Индивидуальная воронка (B2B)": "Custom pipeline (B2B)",
   "Настроена под вашу компанию": "Set up for your company",
+  "Аккаунт заморожен администрацией DexaAI — ИИ не отвечает клиентам.": "The account is frozen by DexaAI — the AI isn’t replying to clients.",
 };

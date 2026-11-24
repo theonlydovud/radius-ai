@@ -1,3 +1,4 @@
+import { screen } from "./security";
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { createAdminClient } from "./supabase/server";
 import { getOrCreateSession } from "./conversation";
@@ -281,7 +282,7 @@ export function verifyWebhookSignature(rawBody: string, header: string | null) {
   });
 }
 
-type IgAccount = { id: string; account_name: string; access_token: string };
+type IgAccount = { id: string; account_name: string; access_token: string; company_id?: string | null };
 type IgEvent = {
   sender?: { id?: string };
   recipient?: { id?: string };
@@ -338,7 +339,7 @@ export async function handleInstagramWebhook(body: any, fixedAccountId?: string)
       reg.seen.add(mid);
       if (reg.seen.size > 2000) reg.seen.delete(reg.seen.values().next().value as string);
 
-      let q = supabase.from("accounts").select("id, account_name, access_token").eq("platform", "instagram");
+      let q = supabase.from("accounts").select("id, account_name, access_token, company_id").eq("platform", "instagram");
       q = fixedAccountId
         ? q.eq("id", fixedAccountId)
         : q.in("platform_account_id", [String(entry.id), event.recipient?.id].filter(Boolean));
@@ -394,6 +395,8 @@ async function receiveInstagramMessage(account: IgAccount, senderId: string, tex
     return;
   }
   console.log(`${tag} сообщение от ${senderId}: «${text.slice(0, 60)}»`);
+  // Модерация: джейлбрейк и запрещённые темы — в журнал владельца платформы (бот всё равно ответит по своим правилам).
+  await screen(text, { companyId: account.company_id, source: "client", accountId: account.id, sessionId: session.id });
   if (session.status === "manager_takeover") {
     console.log(`${tag} диалог у менеджера — ИИ не отвечает`);
     return;

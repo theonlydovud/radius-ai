@@ -37,6 +37,7 @@ import { HandCoins } from "lucide-react";
 import { cn, formatDate } from "@/lib/utils";
 import type { Lead } from "@/types";
 import { t as tr } from "@/lib/i18n";
+import { PlatformBanner } from "@/components/platform-banner";
 
 const REFRESH_MS = 30_000;
 
@@ -325,6 +326,7 @@ export default function CrmPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <PlatformBanner />
       <TopBar />
 
       <main className="mx-auto max-w-6xl px-4 py-6 md:px-8 md:py-8">

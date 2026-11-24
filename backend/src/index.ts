@@ -74,6 +74,9 @@ const PUBLIC_PATHS = new Set([
   "/api/platform/companies",
   "/api/platform/enter",
   "/api/platform/exit",
+  "/api/platform/overview",
+  "/api/platform/action",
+  "/api/platform/security",
   "/api/auth/me",
   "/api/auth/login",
   "/api/auth/select",
@@ -189,6 +192,9 @@ mount("/api/plans", plans);
 mount("/api/platform/companies", platform.companies);
 mount("/api/platform/enter", platform.enter);
 mount("/api/platform/exit", platform.exit);
+mount("/api/platform/overview", platform.overview);
+mount("/api/platform/action", platform.action);
+mount("/api/platform/security", platform.security);
 mount("/api/settings/company", companySettings);
 mount("/api/profile/telegram", profileTelegram);
 mount("/api/rules", rules);

@@ -65,6 +65,12 @@ export type AuthCompany = {
   settings: CompanySettings;
   /** Активные сотрудники (руководитель + менеджеры). 1 — «один сотрудник»: без ответственных, «Взять в работу» и эскалаций. */
   staff_count: number;
+  /**
+   * Решение владельца платформы: frozen — бот молчит, кабинет открыт с причиной сверху;
+   * banned — вход закрыт всем сотрудникам, бот молчит. null — работает.
+   */
+  blocked: "frozen" | "banned" | null;
+  blocked_reason: string | null;
 };
 export const TRIAL_DAYS = 14;
 export type AuthUser = {
@@ -77,6 +83,8 @@ export type AuthUser = {
   telegram_linked: boolean;
   /** Владелец платформы DexaAI в чужой компании («невидимка», см. lib/platform.ts). */
   platform?: boolean;
+  /** Владелец платформы вошёл от лица этого сотрудника (имя сотрудника). */
+  as_user?: string;
 };
 
 // ---------------------------------------------------------------------
@@ -147,8 +155,9 @@ export function companyToken(company: { id: string; password_hash?: string | nul
 }
 
 /** Вход владельца платформы: его Telegram ID и выбранная компания (null — ещё не выбрал). */
-export function platformToken(telegramId: string, companyId: string | null) {
-  return sign({ t: "p", tg: telegramId, c: companyId, exp: Math.floor(Date.now() / 1000) + YEAR_S });
+/** asUserId — войти от лица сотрудника (его роль и заявки), не трогая его сессию: он не вылетает. */
+export function platformToken(telegramId: string, companyId: string | null, asUserId?: string | null) {
+  return sign({ t: "p", tg: telegramId, c: companyId, ...(asUserId ? { as: asUserId } : {}), exp: Math.floor(Date.now() / 1000) + YEAR_S });
 }
 
 /** Владелец платформы по куке: Telegram ID и выбранная компания, или null. */
@@ -242,6 +251,8 @@ type CompanyRow = {
   extra_users?: number | null;
   /** Сколько активных сотрудников (руководитель + менеджеры); считается при загрузке компании. */
   staff_count?: number;
+  blocked?: string | null;
+  blocked_reason?: string | null;
 };
 type UserRow = {
   /** id текущего входа: у обычных компаний действует только последний вход (одно устройство). */
@@ -303,7 +314,7 @@ export async function sessionCompany(req: Request): Promise<AuthCompany | null> 
   const c = unsign(cookies[COMPANY_COOKIE]);
   if (c?.t === "c") {
     const company = await companyById(c.id);
-    if (company && companyStamp(company) === c.v) return describeCompany(company);
+    if (company && companyStamp(company) === c.v && company.blocked !== "banned") return describeCompany(company);
   }
   const user = await sessionUser(req);
   return user?.company ?? null;
@@ -322,6 +333,17 @@ export async function sessionState(req: Request): Promise<{ user: AuthUser | nul
     const row = await companyById(u.c);
     if (!row) return none;
     const company = await describeCompany(row);
+    // От лица сотрудника: его роль и заявки, но это всё ещё владелец платформы — session_id сотрудника
+    // не меняется (он не вылетает «вход с другого устройства»), а в действиях видно, что это DexaAI.
+    if (u.as) {
+      const as = await userById(String(u.as));
+      if (as && as.is_active && as.company_id === row.id) {
+        return {
+          user: { id: `platform:${u.tg}`, name: `${as.name} (${PLATFORM_NAME})`, role: as.role, manager_id: as.manager_id, company, telegram_linked: true, platform: true, as_user: as.name },
+          replaced: false,
+        };
+      }
+    }
     return {
       user: { id: `platform:${u.tg}`, name: PLATFORM_NAME, role: "owner", manager_id: null, company, telegram_linked: true, platform: true },
       replaced: false,
@@ -333,6 +355,8 @@ export async function sessionState(req: Request): Promise<{ user: AuthUser | nul
   const row = await companyById(user.company_id);
   if (!row) return none;
   const company = await describeCompany(row);
+  // Забаненная компания: всех сотрудников выкидывает сразу (владелец платформы входит — выше).
+  if (company.blocked === "banned") return none;
   if (!company.unlimited && !company.multi_device && (u.s ?? null) !== (user.session_id ?? null)) return { user: null, replaced: true };
   return {
     user: { id: user.id, name: user.name, role: user.role, manager_id: user.manager_id, company, telegram_linked: Boolean(user.telegram_id) },
@@ -403,6 +427,8 @@ export function publicCompany(c: CompanyRow, plans: Plan[]): AuthCompany {
       return s;
     })(),
     staff_count: c.staff_count ?? 1,
+    blocked: c.blocked === "frozen" || c.blocked === "banned" ? c.blocked : null,
+    blocked_reason: c.blocked_reason ?? null,
   };
 }
 

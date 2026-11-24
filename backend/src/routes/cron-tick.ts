@@ -4,6 +4,7 @@ import { recoverMissedReplies } from "../lib/reply-recovery";
 import { refreshInstagramTokens } from "../lib/instagram";
 import { ensureLeadsBotWebhook } from "../lib/lead-notify";
 import { ensureDexaBotWebhook } from "../lib/dexa-bot";
+import { checkTrafficSpikes } from "../lib/security";
 
 /**
  * POST /api/cron/tick — раз в минуту. На Vercel нет постоянного процесса, поэтому всё,
@@ -40,6 +41,10 @@ async function tick(req: Request) {
   const tasks: Promise<unknown>[] = [step("reminders", () => runReminders(now)), step("recovery", () => recoverMissedReplies())];
   if (now.getUTCMinutes() === 5 || force === "webhooks") {
     tasks.push(step("webhooks", () => Promise.all([ensureLeadsBotWebhook(), ensureDexaBotWebhook()])));
+  }
+  // Раз в час — всплески трафика (подозрительно много сообщений у одной компании).
+  if (now.getUTCMinutes() === 30 || force === "traffic") {
+    tasks.push(step("traffic", () => checkTrafficSpikes()));
   }
   if ((now.getUTCHours() === 2 && now.getUTCMinutes() === 0) || force === "instagram") {
     tasks.push(step("instagram-tokens", () => refreshInstagramTokens()));

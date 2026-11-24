@@ -5,6 +5,7 @@ import { splitPending } from "./burst";
 import { accountCompany, aiBlockReason, countBotReply } from "./tenant";
 import { companyAi } from "./ai-key";
 import { notifyDexaAdmins } from "./dexa-bot";
+import { recordSecurityEvent } from "./security";
 
 /**
  * Ответ бота в Instagram: один ответ на все сообщения
@@ -46,7 +47,7 @@ export async function replyToPending(options: {
   const company = await accountCompany(accountId);
   const blocked = await aiBlockReason(company);
   if (blocked) {
-    const why = { trial: "пробный период закончился", period: "оплаченный период закончился", limit: "сообщения тарифа закончились" }[blocked];
+    const why = { blocked: "компания заморожена или заблокирована DexaAI", trial: "пробный период закончился", period: "оплаченный период закончился", limit: "сообщения тарифа закончились" }[blocked];
     console.log(`${tag} компания «${company?.name}»: ${why} — ИИ не отвечает`);
     return;
   }
@@ -60,6 +61,10 @@ export async function replyToPending(options: {
     reply = await sendToGemini(systemInstruction, before, pending, await companyAi(company?.id));
   } catch (err: any) {
     const reason = err instanceof GeminiRateLimitError ? "лимит Gemini (429)" : err?.message ?? err;
+    // Gemini отказался отвечать по соображениям безопасности — это сигнал для модерации.
+    if (/SAFETY|PROHIBITED|blocked due to/i.test(String(err?.message ?? ""))) {
+      await recordSecurityEvent({ companyId: company?.id, companyName: company?.name, source: "gemini", kind: "blocked_by_ai", excerpt: pending, accountId, sessionId: session.id });
+    }
     console.error(`${tag} ИИ не ответил, отправляю просьбу написать позже: ${reason}`);
     reply = BUSY_REPLY;
   }

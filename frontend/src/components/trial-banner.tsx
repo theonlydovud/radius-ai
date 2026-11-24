@@ -12,6 +12,18 @@ import { t } from "@/lib/i18n";
  */
 export function TrialBanner() {
   const { company } = useCurrentUser();
+  // Заморозка владельцем платформы — важнее всего остального, видна даже нашим (unlimited) компаниям.
+  if (company.blocked) {
+    return (
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-sky-200 bg-sky-50 px-4 py-2.5 text-sm text-sky-900 md:px-8">
+        <AlertTriangle className="h-4 w-4 shrink-0 text-sky-600" />
+        <span className="min-w-0 flex-1">
+          {t("Аккаунт заморожен администрацией DexaAI — ИИ не отвечает клиентам.")}
+          {company.blocked_reason ? ` ${t("Причина:")} ${company.blocked_reason}` : ""}
+        </span>
+      </div>
+    );
+  }
   if (company.unlimited) return null;
 
   if (company.ai_blocked) {

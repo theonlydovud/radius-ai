@@ -1,3 +1,4 @@
+import { screen } from "../lib/security";
 import { runAssistant, transcribeAudio, type AssistantMessage } from "../lib/assistant";
 import { GeminiRateLimitError } from "../lib/gemini";
 import type { RouteContext } from "../index";
@@ -21,6 +22,7 @@ export const chat = {
       ? body.history.filter((m: any) => (m?.role === "user" || m?.role === "model") && typeof m.text === "string").map((m: any) => ({ role: m.role, text: m.text.slice(0, 4000) }))
       : [];
     const accountId = (await ownsAccount(auth.company.id, body.account_id)) ? (body.account_id as string) : null;
+    if (!auth.platform) await screen(message, { companyId: auth.company.id, companyName: auth.company.name, source: "assistant", accountId });
     try {
       return Response.json({ data: await runAssistant(auth, history, message, accountId) });
     } catch (e: any) {
