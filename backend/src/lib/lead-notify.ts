@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 import { createAdminClient } from "./supabase/server";
 import { backendUrl, frontendUrl } from "./urls";
 import { sendToEmployee } from "./dexa-bot";
+import { leadWordsRu } from "./company-settings";
 
 /**
  * Уведомления о новых заявках в Telegram.
@@ -343,5 +344,29 @@ export async function notifyPartner(leadId: string, company: { id: string; lead_
     for (const o of owners ?? []) await sendToEmployee(o.telegram_id, text, keyboard.inline_keyboard[0][0]);
   } catch (e: any) {
     console.error(`[Partner Notify] ${leadId.slice(0, 8)}: ${e?.message}`);
+  }
+}
+
+/**
+ * Новая заявка у компании без своей Telegram-группы (у всех, кроме Radius): руководителю
+ * в личный Telegram через бота DexaAI. Ответственный менеджер узнаёт о ней из напоминания
+ * «У вас новая заявка» (lib/reminders.ts). Ошибка отправки заявку не теряет — она уже в CRM.
+ */
+export async function notifyNewLeadPersonal(leadId: string, company: { id: string; settings: { terms: Parameters<typeof leadWordsRu>[0] } }) {
+  try {
+    const supabase = createAdminClient();
+    const { data: lead } = await supabase.from("leads").select("id, client_name, client_phone, collected_data").eq("id", leadId).maybeSingle();
+    if (!lead) return;
+    const d = lead.collected_data ?? {};
+    const W = leadWordsRu(company.settings.terms);
+    const lines = [`🆕 <b>${W.New}</b>`, `👤 ${escapeHtml(lead.client_name || "Клиент")}${lead.client_phone ? ` · ${escapeHtml(lead.client_phone)}` : ""}`];
+    if (d.origin_city || d.destination_city) lines.push(`🛣 ${escapeHtml(d.origin_city || "—")} → ${escapeHtml(d.destination_city || "—")}`);
+    const cargo = [d.cargo_type, d.weight].filter(Boolean).join(" · ");
+    if (cargo) lines.push(`📦 ${escapeHtml(cargo)}`);
+    if (d.request) lines.push(`📝 ${escapeHtml(d.request)}`);
+    const { data: owners } = await supabase.from("app_users").select("telegram_id").eq("company_id", company.id).eq("role", "owner").eq("is_active", true).not("telegram_id", "is", null);
+    for (const o of owners ?? []) await sendToEmployee(o.telegram_id, lines.join("\n"), { text: `Открыть ${W.acc}`, url: frontendUrl(`/leads?lead=${lead.id}`) });
+  } catch (e: any) {
+    console.error(`[Lead Notify] ${leadId.slice(0, 8)}: ${e?.message}`);
   }
 }

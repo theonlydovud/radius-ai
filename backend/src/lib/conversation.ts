@@ -11,7 +11,7 @@ import {
 import { extractGenericLeadWithGemini, extractLeadFieldsWithGemini, extractPartnerWithGemini } from "./gemini";
 import type { AuthCompany } from "./auth";
 import { companyAi, type CompanyAi } from "./ai-key";
-import { notifyNewLead, notifyPartner } from "./lead-notify";
+import { notifyNewLead, notifyNewLeadPersonal, notifyPartner } from "./lead-notify";
 import { assignNextManager } from "./managers";
 import { serverless, sleep } from "./background";
 
@@ -230,6 +230,8 @@ export async function maybeCreateOrUpdateLead(
 
       // Telegram-группа заявок есть только у компаний с подключённым ботом заявок (Radius).
       if (company.telegram_leads) await notifyNewLead(insertedLead.id);
+      // У остальных компаний своей группы нет — руководителю в личный Telegram.
+      else await notifyNewLeadPersonal(insertedLead.id, company);
       return;
     }
 
