@@ -25,3 +25,16 @@ export async function isPlatformAdmin(telegramId: number | string | null | undef
 
 /** Имя, под которым владелец платформы виден в действиях (кто закрыл заявку и т. п.). */
 export const PLATFORM_NAME = "DexaAI";
+
+/**
+ * Вход владельца платформы по логину и паролю (кроме Telegram):
+ * app_settings.platform_login = { login, password_hash, telegram_id }. Хеш — как у сотрудников (lib/auth.ts).
+ * telegram_id должен быть среди владельцев платформы — иначе вход не откроется.
+ */
+export async function platformLoginFor(login: string): Promise<{ password_hash: string; telegram_id: string } | null> {
+  const { data } = await createAdminClient().from("app_settings").select("value").eq("key", "platform_login").maybeSingle();
+  const v = data?.value as { login?: string; password_hash?: string; telegram_id?: string | number } | undefined;
+  if (!v?.login || !v.password_hash || !v.telegram_id) return null;
+  if (String(v.login).toLowerCase() !== login.toLowerCase()) return null;
+  return { password_hash: v.password_hash, telegram_id: String(v.telegram_id) };
+}

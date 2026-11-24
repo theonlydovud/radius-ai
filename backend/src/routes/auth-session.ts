@@ -14,11 +14,13 @@ import {
   sessionCompany,
   sessionState,
   platformSession,
+  platformToken,
   setCookie,
   startSession,
   USER_COOKIE,
   verifyPassword,
 } from "../lib/auth";
+import { isPlatformAdmin, platformLoginFor } from "../lib/platform";
 
 function json(data: unknown, status = 200, cookies: string[] = []) {
   const headers = new Headers({ "Content-Type": "application/json", "Cache-Control": "no-store" });
@@ -73,6 +75,13 @@ export const login = {
 
     const key = `${clientIp(req)}:${loginName}`;
     if (isLocked(key)) return json({ error: TOO_MANY }, 429);
+
+    // Владелец платформы DexaAI: сразу в панель управления, без компании.
+    const owner = await platformLoginFor(loginName);
+    if (owner && (await verifyPassword(password, owner.password_hash)) && (await isPlatformAdmin(owner.telegram_id))) {
+      clearFailures(key);
+      return json({ data: { next: "platform" } }, 200, [...clearCookie(COMPANY_COOKIE, req), setCookie(USER_COOKIE, platformToken(owner.telegram_id, null), req)]);
+    }
 
     const company = await findCompanyByLogin(loginName);
     if (company && (await verifyPassword(password, company.password_hash))) {

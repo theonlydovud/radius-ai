@@ -56,6 +56,8 @@ function LoginForm() {
         return;
       }
       const step = json.data?.next;
+      // Владелец платформы DexaAI — сразу в панель управления.
+      if (step === "platform") return router.replace("/platform");
       // Только после правильных логина и пароля — переход в рабочее место компании.
       // Адрес компании (поддомен) знает сессия — она уже открыта этим входом.
       const company = (await fetchSession().catch(() => null))?.company;
