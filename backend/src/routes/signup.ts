@@ -1,3 +1,4 @@
+import { background } from "../lib/background";
 import { timingSafeEqual } from "node:crypto";
 import { clearCookie, clientIp, COMPANY_COOKIE, companyToken, describeCompany, platformToken, setCookie, startSession, USER_COOKIE } from "../lib/auth";
 import { getPlans } from "../lib/plans";
@@ -86,7 +87,7 @@ export const webhook = {
     const expected = Buffer.from(token ? dexaBotSecret(token) : "");
     if (!token || got.length !== expected.length || !timingSafeEqual(got, expected)) return new Response("Forbidden", { status: 403 });
     const update = await req.json().catch(() => null);
-    void handleDexaBotUpdate(update).catch((e) => console.error("[dexa-bot] ошибка:", e?.message ?? e));
+    background(handleDexaBotUpdate(update), "dexa-bot");
     return Response.json({ ok: true });
   },
 };

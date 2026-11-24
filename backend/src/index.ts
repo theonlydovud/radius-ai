@@ -34,6 +34,7 @@ import * as companySettings from "./routes/company-settings";
 import * as profileTelegram from "./routes/profile-telegram";
 import * as rules from "./routes/rules";
 import * as aiRole from "./routes/ai-role";
+import * as cronTick from "./routes/cron-tick";
 import * as sessions from "./routes/sessions";
 import * as sessionsId from "./routes/sessions-id";
 import * as telegramLeadsBot from "./routes/telegram-leads-bot";
@@ -82,6 +83,8 @@ const PUBLIC_PATHS = new Set([
   "/api/instagram/data-deletion",
   "/api/telegram/leads-bot",
   "/api/telegram/dexa-bot",
+  // Планировщик Supabase; ключ проверяет сам маршрут (CRON_SECRET).
+  "/api/cron/tick",
   "/api/signup/start",
   "/api/signup/status",
   "/api/signup/complete",
@@ -190,6 +193,7 @@ mount("/api/settings/company", companySettings);
 mount("/api/profile/telegram", profileTelegram);
 mount("/api/rules", rules);
 mount("/api/ai-role", aiRole);
+mount("/api/cron/tick", cronTick);
 mount("/api/sessions", sessions);
 mount("/api/sessions/:id", sessionsId);
 mount("/api/settings/lead-notifications", settingsLeadNotifications);
@@ -204,6 +208,13 @@ app.onError((err, c) => {
   return c.json({ error: "Внутренняя ошибка сервера." }, 500);
 });
 
+// Vercel: функция без постоянного процесса — приложение отдаём как есть, а таймеры
+// (напоминания, восстановление ответов, токены, вебхуки) запускает /api/cron/tick.
+export default app;
+
+if (!process.env.VERCEL) startServer();
+
+function startServer() {
 const port = Number(process.env.PORT || 4000);
 serve({ fetch: app.fetch, port }, () => {
   console.log(`[http] backend listening on :${port}`);
@@ -225,3 +236,4 @@ serve({ fetch: app.fetch, port }, () => {
 
 process.on("SIGTERM", () => process.exit(0));
 process.on("SIGINT", () => process.exit(0));
+}

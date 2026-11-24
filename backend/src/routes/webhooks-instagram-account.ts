@@ -1,5 +1,6 @@
 import { createAdminClient } from "../lib/supabase/server";
 import { handleInstagramWebhook, verifyWebhookSignature } from "../lib/instagram";
+import { background } from "../lib/background";
 
 /**
  * Вебхук конкретного Instagram-аккаунта (старая схема, оставлена для
@@ -40,7 +41,7 @@ export async function POST(
   }
 
   try {
-    await handleInstagramWebhook(JSON.parse(raw), params.accountId);
+    background(handleInstagramWebhook(JSON.parse(raw), params.accountId), "ig");
   } catch (err) {
     console.error("[webhooks/instagram] error:", err);
   }

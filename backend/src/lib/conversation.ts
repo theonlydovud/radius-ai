@@ -13,6 +13,7 @@ import type { AuthCompany } from "./auth";
 import { companyAi, type CompanyAi } from "./ai-key";
 import { notifyNewLead, notifyPartner } from "./lead-notify";
 import { assignNextManager } from "./managers";
+import { serverless, sleep } from "./background";
 
 /**
  * Общие хелперы для вебхуков Instagram: находят или создают
@@ -184,10 +185,19 @@ export async function maybeCreateOrUpdateLead(
       // Gemini не ответил, а бот клиенту уже ответил: заявку нельзя потерять, пробуем позже.
       if (attempt < LEAD_RETRY_ATTEMPTS) {
         console.warn(`[Lead Extraction] session ${sessionId.slice(0, 8)}: Gemini не ответил, попытка ${attempt}, повтор через минуту`);
-        setTimeout(
-          () => void maybeCreateOrUpdateLead(supabase, sessionId, clientName, history, latestReply, company, attempt + 1),
-          LEAD_RETRY_DELAY_MS
-        ).unref();
+        // На Vercel таймер «через минуту» после ответа не доживёт — ждём прямо в этом вызове (он и так в фоне),
+        // попыток меньше и пауза короче, чтобы уложиться во время функции.
+        if (serverless()) {
+          if (attempt < 3) {
+            await sleep(15_000);
+            return maybeCreateOrUpdateLead(supabase, sessionId, clientName, history, latestReply, company, attempt + 1);
+          }
+        } else {
+          setTimeout(
+            () => void maybeCreateOrUpdateLead(supabase, sessionId, clientName, history, latestReply, company, attempt + 1),
+            LEAD_RETRY_DELAY_MS
+          ).unref();
+        }
       } else {
         console.error(`[Lead Extraction] session ${sessionId.slice(0, 8)}: заявка не создана, Gemini не ответил за ${attempt} попыток`);
       }

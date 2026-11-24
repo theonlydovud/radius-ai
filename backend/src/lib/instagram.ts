@@ -1,8 +1,8 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { createAdminClient } from "./supabase/server";
 import { getOrCreateSession } from "./conversation";
-import { scheduleReply } from "./burst";
-import { enqueueChat, replyToPending } from "./auto-reply";
+import { lockSession, replyAfterPause } from "./burst";
+import { replyToPending } from "./auto-reply";
 import { backendUrl, frontendUrl } from "./urls";
 
 /**
@@ -307,12 +307,13 @@ const g = globalThis as unknown as {
 const reg = (g.__radiusIg ??= { seen: new Set(), names: new Map() });
 
 /**
- * Разбирает тело вебхука и ставит сообщения в очередь. Возвращает сразу:
- * Meta ждёт 200 быстро, иначе повторяет доставку.
+ * Разбирает тело вебхука. Промис завершается, когда все сообщения сохранены и бот на них
+ * ответил (после паузы склейки) — маршрут отдаёт 200 сразу, а этот промис держит в фоне.
  */
 export async function handleInstagramWebhook(body: any, fixedAccountId?: string) {
   if (body?.object && body.object !== "instagram" && body.object !== "page") return;
   const supabase = createAdminClient();
+  const tasks: Promise<void>[] = [];
 
   for (const entry of body?.entry ?? []) {
     // Реальные события приходят в messaging[], тестовые из кабинета Meta — в changes[].
@@ -348,9 +349,10 @@ export async function handleInstagramWebhook(body: any, fixedAccountId?: string)
         continue;
       }
 
-      enqueueChat(`${account.id}:${senderId}`, () => receiveInstagramMessage(account, senderId, text));
+      tasks.push(receiveInstagramMessage(account, senderId, text, mid).catch((e) => console.error(`[ig] ${e?.message ?? e}`)));
     }
   }
+  await Promise.all(tasks);
 }
 
 async function clientName(token: string, senderId: string) {
@@ -369,32 +371,54 @@ async function clientName(token: string, senderId: string) {
   return name;
 }
 
-/** Сообщение клиента: сразу в БД, ответ — после паузы (см. burst.ts). */
-async function receiveInstagramMessage(account: IgAccount, senderId: string, text: string) {
+/**
+ * Сообщение клиента: сразу в БД, ответ — после паузы (см. burst.ts).
+ * Meta иногда присылает одно сообщение дважды: повтор узнаём по его id (messages.external_id).
+ */
+async function receiveInstagramMessage(account: IgAccount, senderId: string, text: string, mid: string) {
   const supabase = createAdminClient();
   const tag = `[ig:${account.id.slice(0, 8)}]`;
   const session = await getOrCreateSession(supabase, account.id, senderId, await clientName(account.access_token, senderId));
   if (!session) return;
 
-  await supabase.from("messages").insert({ session_id: session.id, sender: "user", text });
+  const { data: dup, error: dupError } = await supabase.from("messages").select("id").eq("session_id", session.id).eq("external_id", mid).limit(1);
+  if (!dupError && dup?.length) return;
+  let { data: inserted, error } = await supabase.from("messages").insert({ session_id: session.id, sender: "user", text, external_id: mid }).select("id").single();
+  if (error && /external_id/.test(error.message)) {
+    // До migration-serverless.sql колонки нет — сохраняем без неё.
+    ({ data: inserted, error } = await supabase.from("messages").insert({ session_id: session.id, sender: "user", text }).select("id").single());
+  }
+  if (error || !inserted) {
+    // 23505 — то же сообщение уже сохранила параллельная доставка.
+    if (error?.code !== "23505") console.error(`${tag} сообщение не сохранено: ${error?.message}`);
+    return;
+  }
   console.log(`${tag} сообщение от ${senderId}: «${text.slice(0, 60)}»`);
   if (session.status === "manager_takeover") {
     console.log(`${tag} диалог у менеджера — ИИ не отвечает`);
     return;
   }
 
-  scheduleReply(`${account.id}:${senderId}`, () => retryInstagramReply(account, senderId));
+  await replyAfterPause(session.id, inserted.id, () => replyNow(account, senderId));
 }
 
-/** Ставит ответ в очередь чата; его же вызывает восстановление пропущенных ответов. */
-export function retryInstagramReply(account: Pick<IgAccount, "id" | "access_token">, senderId: string) {
-  enqueueChat(`${account.id}:${senderId}`, () =>
-    replyToPending({
-      accountId: account.id,
-      clientId: senderId,
-      clientName: "Клиент Instagram",
-      tag: `[ig:${account.id.slice(0, 8)}]`,
-      send: (text) => sendInstagramMessage(account.access_token, senderId, text),
-    })
-  );
+function replyNow(account: Pick<IgAccount, "id" | "access_token">, senderId: string) {
+  return replyToPending({
+    accountId: account.id,
+    clientId: senderId,
+    clientName: "Клиент Instagram",
+    tag: `[ig:${account.id.slice(0, 8)}]`,
+    send: (text) => sendInstagramMessage(account.access_token, senderId, text),
+  });
 }
+
+/**
+ * Повторный ответ (восстановление пропущенных): под блокировкой диалога, чтобы не ответить
+ * одновременно с обычной паузой склейки. Блокировку не снимаем — следующая попытка
+ * восстановления по этому диалогу не раньше чем через RECOVERY_GAP_MS.
+ */
+export async function retryInstagramReply(account: Pick<IgAccount, "id" | "access_token">, senderId: string, sessionId: string, gapMs: number) {
+  if (!(await lockSession(sessionId, gapMs))) return;
+  await replyNow(account, senderId);
+}
+

@@ -1,3 +1,4 @@
+import { background } from "../lib/background";
 import { timingSafeEqual } from "node:crypto";
 import { getLeadNotifySettings, leadsBotSecret, resolveTarget } from "../lib/lead-notify";
 import { handleLeadsBotUpdate } from "../lib/leads-bot";
@@ -16,6 +17,6 @@ export async function POST(req: Request) {
   }
 
   const update = await req.json().catch(() => null);
-  void handleLeadsBotUpdate(update).catch((e) => console.error("[leads-bot] ошибка:", e?.message ?? e));
+  background(handleLeadsBotUpdate(update), "leads-bot");
   return Response.json({ ok: true });
 }

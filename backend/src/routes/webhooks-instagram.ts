@@ -1,4 +1,5 @@
 import { handleInstagramWebhook, verifyWebhookSignature } from "../lib/instagram";
+import { background } from "../lib/background";
 
 /**
  * Общий вебхук Instagram для ВСЕХ подключённых аккаунтов.
@@ -35,7 +36,8 @@ export async function POST(req: Request) {
     console.log(
       `[webhooks/instagram] получено: object=${body?.object}, аккаунт(ы)=${entries.map((e) => e.id).join(",")}, событий=${events}`
     );
-    await handleInstagramWebhook(body);
+    // Сохранение, пауза склейки и ответ — в фоне: Meta ждёт 200 быстро, иначе повторяет доставку.
+    background(handleInstagramWebhook(body), "ig");
   } catch (err) {
     console.error("[webhooks/instagram] error:", err);
   }
