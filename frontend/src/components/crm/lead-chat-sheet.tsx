@@ -19,6 +19,10 @@ export function LeadChatSheet({ lead, onClose }: { lead: Lead | null; onClose: (
     let cancelled = false;
     setMessages(null);
     setError("");
+    if (!lead.session_id) {
+      setMessages([]);
+      return;
+    }
     fetch(`/api/messages?session_id=${lead.session_id}`, { cache: "no-store" })
       .then(async (res) => {
         const json = await res.json();
@@ -62,17 +66,17 @@ export function LeadChatSheet({ lead, onClose }: { lead: Lead | null; onClose: (
                     <LeadRequest d={d} className="sm:col-span-2" />
                   ) : (
                     <>
-                      <p className="flex items-center gap-2">
-                        <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                        <span className="truncate">{d?.origin_city ?? "—"} → {d?.destination_city ?? "—"}</span>
+                      <p className="flex items-start gap-2">
+                        <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
+                        <span className="min-w-0 whitespace-pre-wrap break-words">{d?.origin_city ?? "—"} → {d?.destination_city ?? "—"}</span>
                       </p>
-                      <p className="flex items-center gap-2">
-                        <Weight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                        <span className="truncate">{d?.weight ?? t("вес не указан")}</span>
+                      <p className="flex items-start gap-2">
+                        <Weight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
+                        <span className="min-w-0 whitespace-pre-wrap break-words">{d?.weight ?? t("вес не указан")}</span>
                       </p>
-                      <p className="flex items-center gap-2">
-                        <Package className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                        <span className="truncate">{d?.cargo_type ?? t("груз не указан")}</span>
+                      <p className="flex items-start gap-2">
+                        <Package className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
+                        <span className="min-w-0 whitespace-pre-wrap break-words">{d?.cargo_type ?? t("груз не указан")}</span>
                       </p>
                     </>
                   )}

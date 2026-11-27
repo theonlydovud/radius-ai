@@ -101,11 +101,22 @@ function LeadRow({
     <Card
       id={`lead-${lead.id}`}
       className={cn(
-        "relative overflow-hidden p-4 transition-shadow hover:shadow-md",
+        "relative cursor-pointer overflow-hidden p-4 transition-shadow hover:shadow-md",
         focused && "ring-2 ring-brand",
         lead.status === "new" && "border-[#eda100]/40",
         isOverdue(lead) && "border-red-300 bg-red-50/40 dark:bg-red-500/5"
       )}
+      role="button"
+      tabIndex={0}
+      onClick={(e) => {
+        if (!(e.target as HTMLElement).closest("button,a,input,select")) onChat();
+      }}
+      onKeyDown={(e) => {
+        if ((e.key === "Enter" || e.key === " ") && !(e.target as HTMLElement).closest("button,a,input,select")) {
+          e.preventDefault();
+          onChat();
+        }
+      }}
     >
       <span
         aria-hidden
@@ -136,21 +147,21 @@ function LeadRow({
             <LeadRequest d={d} />
           </div>
         ) : (
-          <div className="min-w-0 flex-1 space-y-1 text-sm">
-            <p className="flex min-w-0 items-start gap-2 text-slate-800">
+          <div className="min-w-0 flex-1 space-y-1 text-sm text-slate-600">
+            <p className="flex min-w-0 items-start gap-2">
               <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
-              <span className="min-w-0 break-words">
-                {d?.origin_city ?? tr("откуда не указано")} <span className="text-slate-400">→</span> {d?.destination_city ?? tr("куда не указано")}
+              <span className="line-clamp-2 min-w-0 break-words">
+                {d?.origin_city ?? tr("откуда не указано")}{" → "}{d?.destination_city ?? tr("куда не указано")}
               </span>
             </p>
-            <p className="flex min-w-0 flex-wrap items-start gap-x-4 gap-y-1 text-slate-600">
+            <p className="flex min-w-0 flex-wrap items-start gap-x-4 gap-y-1">
               <span className="inline-flex min-w-0 items-start gap-1.5">
                 <Weight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
-                <span className="break-words">{tr("Вес / объём")}: <b className="font-medium text-slate-800">{d?.weight ?? tr("не указан")}</b></span>
+                <span className="line-clamp-2 min-w-0 break-words">{d?.weight ?? tr("вес не указан")}</span>
               </span>
               <span className="inline-flex min-w-0 items-start gap-1.5">
                 <Package className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
-                <span className="break-words">{tr("Тип груза")}: <b className="font-medium text-slate-800">{d?.cargo_type ?? tr("не указан")}</b></span>
+                <span className="line-clamp-2 min-w-0 break-words">{d?.cargo_type ?? tr("груз не указан")}</span>
               </span>
             </p>
           </div>
