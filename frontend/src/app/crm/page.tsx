@@ -157,11 +157,11 @@ function LeadRow({
             <p className="flex min-w-0 flex-wrap items-start gap-x-4 gap-y-1">
               <span className="inline-flex min-w-0 items-start gap-1.5">
                 <Weight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
-                <span className="line-clamp-2 min-w-0 break-words">{d?.weight ?? tr("вес не указан")}</span>
+                <span className="truncate">{d?.weight ?? tr("вес не указан")}</span>
               </span>
               <span className="inline-flex min-w-0 items-start gap-1.5">
                 <Package className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
-                <span className="line-clamp-2 min-w-0 break-words">{d?.cargo_type ?? tr("груз не указан")}</span>
+                <span className="truncate" title={d?.cargo_type ?? tr("груз не указан")}>{d?.cargo_type ?? tr("груз не указан")}</span>
               </span>
             </p>
           </div>

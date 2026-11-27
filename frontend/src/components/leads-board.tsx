@@ -308,7 +308,7 @@ export function LeadsBoard({
                         </p>
                         <p className="flex min-w-0 items-center gap-2 text-slate-500">
                           <Package className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                          <span className="truncate">{[d?.weight, d?.cargo_type].filter(Boolean).join(" · ") || tr("груз не указан")}</span>
+                          <span className="truncate" title={[d?.weight, d?.cargo_type].filter(Boolean).join(" · ") || tr("груз не указан")}>{[d?.weight, d?.cargo_type].filter(Boolean).join(" · ") || tr("груз не указан")}</span>
                         </p>
                       </>
                     )}
@@ -420,11 +420,11 @@ export function LeadsBoard({
                         </p>
                         <p className="flex items-center gap-2">
                           <Weight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                          {lead.collected_data?.weight ?? tr("не указан вес")}
+                          <span className="truncate" title={lead.collected_data?.weight ?? tr("не указан вес")}>{lead.collected_data?.weight ?? tr("не указан вес")}</span>
                         </p>
                         <p className="flex items-center gap-2">
                           <Package className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                          {lead.collected_data?.cargo_type ?? tr("не указан тип груза")}
+                          <span className="truncate" title={[lead.collected_data?.weight, lead.collected_data?.cargo_type].filter(Boolean).join(" · ") || tr("груз не указан")}>{[lead.collected_data?.weight, lead.collected_data?.cargo_type].filter(Boolean).join(" · ") || tr("груз не указан")}</span>
                         </p>
                       </>
                     )}
