@@ -348,3 +348,16 @@ export async function transcribeAudio(base64: string, mimeType: string, companyI
   );
   return res.response.text().trim();
 }
+
+/** Фото или документ → текст: изображение с грузом, накладной или другим текстом распознаёт Gemini. */
+export async function describeImage(base64: string, mimeType: string, companyId?: string) {
+  const own = await companyAi(companyId);
+  const model = (own?.client ?? genAI).getGenerativeModel({ model: own?.model ?? GEMINI_MODEL }, { timeout: 30_000 });
+  const res = await withRetry(() =>
+    model.generateContent([
+      { inlineData: { mimeType, data: base64 } },
+      { text: "Опиши, что видно на этом изображении. Если это груз, укажи тип, примерный вес или объём только если это можно разумно определить. Если это документ или товарная накладная, кратко назови важные видимые поля. Верни одну краткую фразу на русском." },
+    ])
+  );
+  return res.response.text().trim();
+}

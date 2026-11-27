@@ -5,6 +5,8 @@ import { getOrCreateSession } from "./conversation";
 import { lockSession, replyAfterPause } from "./burst";
 import { replyToPending } from "./auto-reply";
 import { backendUrl, frontendUrl } from "./urls";
+import { describeImage, transcribeAudio } from "./assistant";
+import { invalidateAccountCache } from "./gemini";
 
 /**
  * Instagram Direct через «Instagram API with Instagram Login» (graph.instagram.com).
@@ -327,17 +329,11 @@ export async function handleInstagramWebhook(body: any, fixedAccountId?: string)
     for (const event of events) {
       const senderId = event.sender?.id;
       const text = event.message?.text;
-      if (event.message?.is_echo) continue; // echo = наш же ответ
-      if (!senderId || !text) {
-        console.log(`[ig] пропущено (нет текста): ${describeEvent(event)}`);
+      const attachments = Array.isArray(event.message?.attachments) ? event.message.attachments : [];
+      if (!senderId || (!text && attachments.length === 0)) {
+        console.log(`[ig] пропущено (нет текста и вложений): ${describeEvent(event)}`);
         continue;
       }
-      if (senderId === String(entry.id)) continue;
-
-      const mid = event.message?.mid ?? `${senderId}:${text}`;
-      if (reg.seen.has(mid)) continue;
-      reg.seen.add(mid);
-      if (reg.seen.size > 2000) reg.seen.delete(reg.seen.values().next().value as string);
 
       let q = supabase.from("accounts").select("id, account_name, access_token, company_id").eq("platform", "instagram");
       q = fixedAccountId
@@ -350,7 +346,24 @@ export async function handleInstagramWebhook(body: any, fixedAccountId?: string)
         continue;
       }
 
-      tasks.push(receiveInstagramMessage(account, senderId, text, mid).catch((e) => console.error(`[ig] ${e?.message ?? e}`)));
+      const mid = event.message?.mid ?? `${senderId}:${text ?? "attachment"}`;
+      if (reg.seen.has(mid)) continue;
+      reg.seen.add(mid);
+      if (reg.seen.size > 2000) reg.seen.delete(reg.seen.values().next().value as string);
+
+      if (event.message?.is_echo) {
+        const clientId = event.recipient?.id;
+        if (clientId) {
+          tasks.push(receiveManagerEcho(account, clientId, text ?? "", attachments, mid).catch((e) => console.error(`[ig] echo: ${e?.message ?? e}`)));
+        }
+        continue;
+      }
+      if (senderId === String(entry.id)) continue;
+
+      const mediaText = attachments.length ? await attachmentText(attachments, account.access_token, account.company_id) : "";
+      const combined = [text, mediaText].filter(Boolean).join("\n");
+      if (!combined) continue;
+      tasks.push(receiveInstagramMessage(account, senderId, combined, mid).catch((e) => console.error(`[ig] ${e?.message ?? e}`)));
     }
   }
   await Promise.all(tasks);
@@ -373,8 +386,45 @@ async function clientName(token: string, senderId: string) {
 }
 
 /**
+ * Перехватываю echo-ответы менеджера, включаю молчание ИИ и сохраняю пару вопрос-ответ в знания.
+ */
+async function receiveManagerEcho(account: IgAccount, clientId: string, text: string, attachments: unknown[], mid: string) {
+  const supabase = createAdminClient();
+  const session = await getOrCreateSession(supabase, account.id, clientId, await clientName(account.access_token, clientId));
+  if (!session) return;
+
+  const mediaText = attachments.length ? await attachmentText(attachments, account.access_token, account.company_id) : "";
+  const reply = [text, mediaText].filter(Boolean).join("\n").trim();
+  if (!reply) return;
+
+  await supabase.from("chat_sessions").update({ status: "manager_takeover" }).eq("id", session.id);
+
+  const { data: dup } = await supabase.from("messages").select("id").eq("session_id", session.id).eq("external_id", mid).limit(1);
+  if (!dup?.length) {
+    let result = await supabase.from("messages").insert({ session_id: session.id, sender: "manager", text: reply, external_id: mid }).select("id").single();
+    if (result.error && /external_id/.test(result.error.message)) {
+      result = await supabase.from("messages").insert({ session_id: session.id, sender: "manager", text: reply }).select("id").single();
+    }
+  }
+
+  const { data: lastUser } = await supabase
+    .from("messages")
+    .select("text")
+    .eq("session_id", session.id)
+    .eq("sender", "user")
+    .order("created_at", { ascending: false })
+    .limit(1);
+  const question = lastUser?.[0]?.text?.trim();
+  if (question) {
+    const content = `Вопрос клиента: ${question}\nПравильный ответ менеджера: ${reply}`;
+    await supabase.from("knowledge").insert({ account_id: account.id, title: "Эталонный ответ менеджера", content });
+    invalidateAccountCache(account.id);
+  }
+}
+
+/**
  * Сообщение клиента: сразу в БД, ответ — после паузы (см. burst.ts).
- * Meta иногда присылает одно сообщение дважды: повтор узнаём по его id (messages.external_id).
+ * Meta иногда присылает одно сообщение дважды: повтор узнаём по mid.
  */
 async function receiveInstagramMessage(account: IgAccount, senderId: string, text: string, mid: string) {
   const supabase = createAdminClient();
@@ -386,16 +436,13 @@ async function receiveInstagramMessage(account: IgAccount, senderId: string, tex
   if (!dupError && dup?.length) return;
   let { data: inserted, error } = await supabase.from("messages").insert({ session_id: session.id, sender: "user", text, external_id: mid }).select("id").single();
   if (error && /external_id/.test(error.message)) {
-    // До migration-serverless.sql колонки нет — сохраняем без неё.
     ({ data: inserted, error } = await supabase.from("messages").insert({ session_id: session.id, sender: "user", text }).select("id").single());
   }
   if (error || !inserted) {
-    // 23505 — то же сообщение уже сохранила параллельная доставка.
     if (error?.code !== "23505") console.error(`${tag} сообщение не сохранено: ${error?.message}`);
     return;
   }
   console.log(`${tag} сообщение от ${senderId}: «${text.slice(0, 60)}»`);
-  // Модерация: джейлбрейк и запрещённые темы — в журнал владельца платформы (бот всё равно ответит по своим правилам).
   await screen(text, { companyId: account.company_id, source: "client", accountId: account.id, sessionId: session.id });
   if (session.status === "manager_takeover") {
     console.log(`${tag} диалог у менеджера — ИИ не отвечает`);
@@ -415,13 +462,42 @@ function replyNow(account: Pick<IgAccount, "id" | "access_token">, senderId: str
   });
 }
 
-/**
- * Повторный ответ (восстановление пропущенных): под блокировкой диалога, чтобы не ответить
- * одновременно с обычной паузой склейки. Блокировку не снимаем — следующая попытка
- * восстановления по этому диалогу не раньше чем через RECOVERY_GAP_MS.
- */
 export async function retryInstagramReply(account: Pick<IgAccount, "id" | "access_token">, senderId: string, sessionId: string, gapMs: number) {
   if (!(await lockSession(sessionId, gapMs))) return;
   await replyNow(account, senderId);
+}
+
+/**
+ * Скачиваю вложения Instagram и передаю голосовые/фото в Gemini для расшифровки и описания.
+ */
+async function attachmentText(attachments: unknown[], token: string, companyId?: string | null) {
+  const pieces: string[] = [];
+  for (const raw of attachments) {
+    const a = raw as { type?: string; payload?: { url?: string; mime_type?: string } };
+    const url = a.payload?.url;
+    if (!url) continue;
+    try {
+      const mediaUrl = new URL(url);
+      mediaUrl.searchParams.set("access_token", token);
+      const res = await fetch(mediaUrl.toString());
+      if (!res.ok) continue;
+      const mime = a.payload?.mime_type || res.headers.get("content-type")?.split(";")[0] || "";
+      const buf = Buffer.from(await res.arrayBuffer());
+      if (buf.length > 10_000_000) continue;
+      const base64 = buf.toString("base64");
+      if (/^(audio|voice)\//.test(mime) || a.type === "audio" || a.type === "voice") {
+        const text = await transcribeAudio(base64, mime || "audio/mpeg", companyId ?? undefined);
+        if (text) pieces.push(`[голосовое сообщение: ${text}]`);
+      } else if (/^image\//.test(mime) || a.type === "image") {
+        const text = await describeImage(base64, mime || "image/jpeg", companyId ?? undefined);
+        if (text) pieces.push(`[изображение: ${text}]`);
+      } else if (a.type === "video") {
+        pieces.push("[клиент отправил видео]");
+      }
+    } catch (e: any) {
+      console.warn(`[ig] не удалось обработать вложение: ${e?.message ?? e}`);
+    }
+  }
+  return pieces.join("\n");
 }
 

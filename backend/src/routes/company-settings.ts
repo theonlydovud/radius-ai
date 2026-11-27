@@ -3,6 +3,8 @@ import { invalidateAuthCache } from "../lib/auth";
 import { applyTemplate, normalizeSettings, STAGE_KEYS, TEMPLATES, type Template } from "../lib/company-settings";
 import { companyAiStatus } from "../lib/ai-key";
 import type { RouteContext } from "../index";
+import { createHash, randomBytes } from "node:crypto";
+import { frontendUrl } from "../lib/urls";
 
 /**
  * Настройки компании (только руководитель):
@@ -28,6 +30,13 @@ export async function GET(_req: Request, ctx: RouteContext) {
       deal_available: company.features.deal,
       deadlines_available: company.features.lead_transfer && company.staff_count >= 2,
       ai: await companyAiStatus(company.id),
+      mcp: {
+        endpoint: frontendUrl("/api/mcp"),
+        key_preview: typeof (row?.settings as any)?.mcp?.key_hash === "string"
+          ? `${String((row?.settings as any).mcp.key_hash).slice(0, 8)}••••••••`
+          : null,
+        enabled: Boolean((row?.settings as any)?.mcp?.key_hash),
+      },
     },
   });
 }
@@ -78,6 +87,23 @@ export async function PUT(req: Request, ctx: RouteContext) {
   if (next.modules.deadlines && !current.modules.deadlines) {
     if (!company.features.lead_transfer) return bad("Контроль сроков доступен в тарифе Business.", { code: "plan_required", feature: "lead_transfer" });
     if (company.staff_count < 2) return bad("Контроль сроков нужен, когда в кабинете 2 и больше сотрудников.");
+  }
+
+  if (body.mcp_action === "generate") {
+    const key = `dexa_mcp_${randomBytes(24).toString("base64url")}`;
+    const keyHash = createHash("sha256").update(key).digest("hex");
+    const settings = { ...(row?.settings ?? {}), mcp: { key_hash: keyHash, created_at: new Date().toISOString() } };
+    const { error } = await supabase.from("companies").update({ settings }).eq("id", company.id);
+    if (error) return bad("Не удалось создать MCP ключ.");
+    invalidateAuthCache();
+    return Response.json({ data: { mcp: { endpoint: frontendUrl("/api/mcp"), key_preview: `${keyHash.slice(0, 8)}••••••••`, enabled: true, key } } });
+  }
+  if (body.mcp_action === "revoke") {
+    const settings = { ...(row?.settings ?? {}) }; delete (settings as any).mcp;
+    const { error } = await supabase.from("companies").update({ settings }).eq("id", company.id);
+    if (error) return bad("Не удалось отозвать MCP ключ.");
+    invalidateAuthCache();
+    return Response.json({ data: { mcp: { endpoint: frontendUrl("/api/mcp"), key_preview: null, enabled: false } } });
   }
 
   // Остальное в settings (например, свой ключ Gemini — ai) не трогаем.

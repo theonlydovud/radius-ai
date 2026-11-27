@@ -3,7 +3,7 @@
 import { isGenericLead, LeadRequest } from "@/components/lead-request";
 import { useEffect, useRef, useState } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { Bot, Loader2, MapPin, Package, Phone, Weight, X } from "lucide-react";
+import { Bot, Loader2, MapPin, Package, Phone, Send, Weight, X } from "lucide-react";
 import { cn, dayKey, formatDay, formatTime } from "@/lib/utils";
 import type { Lead, Message } from "@/types";
 import { t } from "@/lib/i18n";
@@ -12,6 +12,8 @@ import { t } from "@/lib/i18n";
 export function LeadChatSheet({ lead, onClose }: { lead: Lead | null; onClose: () => void }) {
   const [messages, setMessages] = useState<Message[] | null>(null);
   const [error, setError] = useState("");
+  const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -40,6 +42,29 @@ export function LeadChatSheet({ lead, onClose }: { lead: Lead | null; onClose: (
   }, [messages]);
 
   const d = lead?.collected_data;
+
+  async function sendManagerReply() {
+    if (!lead?.session_id || !draft.trim() || sending) return;
+    setSending(true);
+    setError("");
+    try {
+      const res = await fetch("/api/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: lead.session_id, sender: "manager", text: draft.trim() }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      setDraft("");
+      const refresh = await fetch(`/api/messages?session_id=${lead.session_id}`, { cache: "no-store" });
+      const list = await refresh.json();
+      setMessages(list.data ?? []);
+    } catch (e: any) {
+      setError(e?.message || t("Не удалось отправить ответ."));
+    } finally {
+      setSending(false);
+    }
+  }
 
   return (
     <DialogPrimitive.Root open={!!lead} onOpenChange={(open) => !open && onClose()}>
@@ -123,6 +148,37 @@ export function LeadChatSheet({ lead, onClose }: { lead: Lead | null; onClose: (
                   </div>
                 )}
               </div>
+
+              {lead.session_id && (
+                <div className="border-t border-slate-100 bg-surface p-3">
+                  {error && <p className="mb-2 text-xs text-red-600">{error}</p>}
+                  <div className="flex items-end gap-2">
+                    <textarea
+                      value={draft}
+                      onChange={(e) => setDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          void sendManagerReply();
+                        }
+                      }}
+                      rows={2}
+                      maxLength={1000}
+                      placeholder={t("Ответить клиенту...")}
+                      className="max-h-32 min-h-10 flex-1 resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand"
+                    />
+                    <button
+                      type="button"
+                      disabled={!draft.trim() || sending}
+                      onClick={() => void sendManagerReply()}
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand text-white disabled:opacity-50"
+                      aria-label={t("Отправить")}
+                    >
+                      {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </DialogPrimitive.Content>

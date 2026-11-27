@@ -11,6 +11,7 @@ import { ManagersCard } from "@/components/managers-card";
 import { InstagramAccountsCard } from "@/components/instagram-accounts-card";
 import { DealSettingsCard } from "@/components/deal-settings-card";
 import { FunnelSettingsCard } from "@/components/funnel-settings-card";
+import { McpConnectorCard } from "@/components/mcp-connector-card";
 import { hasFeature, useCurrentUser } from "@/components/current-user";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
@@ -42,6 +43,7 @@ export default function SettingsPage() {
         <p className="mt-1 text-sm text-slate-500">{t("Instagram, менеджеры и очередь заявок.")}</p>
       </div>
       <InstagramAccountsCard />
+      <McpConnectorCard />
       <FunnelSettingsCard />
       <DealSettingsCard />
       <Card className="max-w-2xl">
@@ -173,6 +175,7 @@ function TelegramSettingsPage() {
       </div>
 
       <InstagramAccountsCard />
+      <McpConnectorCard />
       <FunnelSettingsCard />
       <DealSettingsCard />
       <Card className="max-w-2xl">

@@ -41,6 +41,7 @@ import * as telegramLeadsBot from "./routes/telegram-leads-bot";
 import * as settingsLeadNotifications from "./routes/settings-lead-notifications";
 import * as webhooksInstagram from "./routes/webhooks-instagram";
 import * as webhooksInstagramAccount from "./routes/webhooks-instagram-account";
+import * as mcp from "./routes/mcp";
 
 /**
  * Backend DexaAI (деплой на Render). Хендлеры в routes/* — в формате Route Handlers:
@@ -206,6 +207,7 @@ mount("/api/settings/lead-notifications", settingsLeadNotifications);
 mount("/api/telegram/leads-bot", telegramLeadsBot);
 mount("/api/webhooks/instagram", webhooksInstagram);
 mount("/api/webhooks/instagram/:accountId", webhooksInstagramAccount);
+mount("/api/mcp", mcp);
 
 app.get("/", (c) => c.json({ ok: true, service: "dexa-ai-backend" }));
 app.notFound((c) => c.json({ error: "Not found" }, 404));
