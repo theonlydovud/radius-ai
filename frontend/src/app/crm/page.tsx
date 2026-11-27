@@ -200,12 +200,14 @@ function LeadRow({
                   <HandCoins className="h-3.5 w-3.5" />
                   {offerButtonLabel()}</Button>
               )}
-              <Button size="sm" disabled={busy} onClick={() => onClose("sold")}>
-                <Check className="h-3.5 w-3.5" />
-                {STATUS_LABEL.sold}</Button>
-              <Button variant="outline" size="sm" disabled={busy} onClick={() => onClose("not_sold")}>
-                <X className="h-3.5 w-3.5" />
-                {STATUS_LABEL.not_sold}</Button>
+              <div className="flex flex-col gap-1.5">
+                <Button size="sm" disabled={busy} onClick={() => onClose("sold")}>
+                  <Check className="h-3.5 w-3.5" />
+                  {STATUS_LABEL.sold}</Button>
+                <Button variant="outline" size="sm" disabled={busy} onClick={() => onClose("not_sold")}>
+                  <X className="h-3.5 w-3.5" />
+                  {STATUS_LABEL.not_sold}</Button>
+              </div>
             </>
           )}
         </div>

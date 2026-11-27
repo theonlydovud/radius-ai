@@ -360,12 +360,20 @@ export function LeadsBoard({
                             <HandCoins className="h-3.5 w-3.5" />
                             {offerButtonLabel()}</Button>
                         )}
-                        <Button size="sm" disabled={busy} onClick={() => setClosing({ lead, mode: "sold" })}>
-                          <Check className="h-3.5 w-3.5" />
-                          {STATUS_LABEL.sold}</Button>
-                        <Button variant="outline" size="sm" disabled={busy} onClick={() => setClosing({ lead, mode: "not_sold" })}>
-                          <X className="h-3.5 w-3.5" />
-                          {STATUS_LABEL.not_sold}</Button>
+                        <div className="flex flex-col gap-1.5">
+                          <Button size="sm" className="w-full" disabled={busy} onClick={() => setClosing({ lead, mode: "sold" })}>
+                            <Check className="h-3.5 w-3.5" />
+                            {STATUS_LABEL.sold}</Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full"
+                            disabled={busy}
+                            onClick={() => setClosing({ lead, mode: "not_sold" })}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                            {STATUS_LABEL.not_sold}</Button>
+                        </div>
                       </>
                     )}
                   </div>
@@ -502,18 +510,20 @@ export function LeadsBoard({
                             <HandCoins className="h-3.5 w-3.5" />
                             {offerButtonLabel()}</Button>
                         )}
-                        <Button size="sm" className="flex-1" disabled={busy} onClick={() => setClosing({ lead, mode: "sold" })}>
-                          <Check className="h-3.5 w-3.5" />
-                          {STATUS_LABEL.sold}</Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex-1"
-                          disabled={busy}
-                          onClick={() => setClosing({ lead, mode: "not_sold" })}
-                        >
-                          <X className="h-3.5 w-3.5" />
-                          {STATUS_LABEL.not_sold}</Button>
+                        <div className="flex flex-col gap-1.5">
+                          <Button size="sm" className="w-full" disabled={busy} onClick={() => setClosing({ lead, mode: "sold" })}>
+                            <Check className="h-3.5 w-3.5" />
+                            {STATUS_LABEL.sold}</Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full"
+                            disabled={busy}
+                            onClick={() => setClosing({ lead, mode: "not_sold" })}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                            {STATUS_LABEL.not_sold}</Button>
+                        </div>
                       </div>
                     )}
 
