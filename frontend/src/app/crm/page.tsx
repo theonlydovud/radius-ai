@@ -95,17 +95,13 @@ function LeadRow({
   onNextContact: () => void;
 }) {
   const d = lead.collected_data;
-  const origin = d?.origin_city?.trim();
-  const destination = d?.destination_city?.trim();
-  const weight = d?.weight?.trim();
-  const cargo = d?.cargo_type?.trim();
   // Экран менеджера: в компании 2+ сотрудника, поэтому «Взять в работу» есть.
   const flow = leadFlow(lead.status, false);
   return (
     <Card
       id={`lead-${lead.id}`}
       className={cn(
-        "relative overflow-hidden p-5 transition-shadow hover:shadow-md",
+        "relative overflow-hidden p-4 transition-shadow hover:shadow-md",
         focused && "ring-2 ring-brand",
         lead.status === "new" && "border-[#eda100]/40",
         isOverdue(lead) && "border-red-300 bg-red-50/40 dark:bg-red-500/5"
@@ -116,117 +112,93 @@ function LeadRow({
         className="absolute inset-y-0 left-0 w-1"
         style={{ background: SERIES[lead.status].color }}
       />
-      <div className="grid gap-4 md:grid-cols-[minmax(220px,0.34fr)_minmax(0,1fr)] md:items-stretch">
-        <div className="min-w-0 rounded-xl border border-slate-100 bg-white px-4 py-3 md:border-0 md:border-r md:bg-transparent md:px-0 md:pr-5">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <p className="min-w-0 break-words text-[15px] font-semibold leading-5 text-slate-900">{lead.client_name}</p>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-6">
+        <div className="min-w-0 lg:w-56">
+          <div className="flex items-center gap-2">
+            <p className="truncate text-sm font-semibold text-slate-900">{lead.client_name}</p>
             <Badge variant={STATUS_VARIANT[lead.status]} className="shrink-0">
               {STATUS_LABEL[lead.status]}
             </Badge>
           </div>
-          <a href={`tel:${lead.client_phone.replace(/[^\d+]/g, "")}`} className="mt-2 inline-flex items-center gap-2 rounded-md text-sm font-medium text-brand hover:underline">
-            <Phone className="h-4 w-4" />
+          <a href={`tel:${lead.client_phone.replace(/[^\d+]/g, "")}`} className="mt-0.5 inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline">
+            <Phone className="h-3.5 w-3.5" />
             {lead.client_phone}
           </a>
           <OverdueBadges lead={lead} />
-          <p className="mt-1.5 text-xs text-slate-400">
+          <p className="mt-0.5 text-xs text-slate-400">
             {ago(lead.created_at)}
             {d?.created_by ? tr(" · вручную, {0}", d.created_by) : ""}
           </p>
         </div>
 
         {isGenericLead(d) ? (
-          <div className="min-w-0 rounded-xl border border-slate-100 bg-slate-50/80 px-4 py-3 text-sm text-slate-700">
-            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{tr("Запрос")}</p>
-            <LeadRequest d={d} className="leading-5" />
+          <div className="min-w-0 flex-1 text-sm text-slate-600">
+            <LeadRequest d={d} />
           </div>
         ) : (
-          <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-3">
-            <div className="min-w-0 rounded-xl border border-slate-100 bg-slate-50/80 px-3.5 py-3">
-              <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                <MapPin className="h-3.5 w-3.5" />
-                {tr("Маршрут")}
-              </p>
-              <p className="break-words text-sm font-semibold leading-5 text-slate-800">
-                {origin || "—"} <span className="px-1 text-slate-400">→</span> {destination || "—"}
-              </p>
-            </div>
-            <div className="min-w-0 rounded-xl border border-slate-100 bg-slate-50/80 px-3.5 py-3">
-              <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                <Weight className="h-3.5 w-3.5" />
-                {tr("Вес / объём")}
-              </p>
-              <p className="break-words text-sm font-semibold leading-5 text-slate-800">
-                {weight || tr("не указан")}
-              </p>
-            </div>
-            <div className="min-w-0 rounded-xl border border-slate-100 bg-slate-50/80 px-3.5 py-3">
-              <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                <Package className="h-3.5 w-3.5" />
-                {tr("Тип груза")}
-              </p>
-              <p className="break-words text-sm font-semibold leading-5 text-slate-800">
-                {cargo || tr("не указан")}
-              </p>
-            </div>
+          <div className="min-w-0 flex-1 space-y-1 text-sm">
+            <p className="flex min-w-0 items-start gap-2 text-slate-800">
+              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
+              <span className="min-w-0 break-words">
+                {d?.origin_city ?? tr("откуда не указано")} <span className="text-slate-400">→</span> {d?.destination_city ?? tr("куда не указано")}
+              </span>
+            </p>
+            <p className="flex min-w-0 flex-wrap items-start gap-x-4 gap-y-1 text-slate-600">
+              <span className="inline-flex min-w-0 items-start gap-1.5">
+                <Weight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
+                <span className="break-words">{tr("Вес / объём")}: <b className="font-medium text-slate-800">{d?.weight ?? tr("не указан")}</b></span>
+              </span>
+              <span className="inline-flex min-w-0 items-start gap-1.5">
+                <Package className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
+                <span className="break-words">{tr("Тип груза")}: <b className="font-medium text-slate-800">{d?.cargo_type ?? tr("не указан")}</b></span>
+              </span>
+            </p>
           </div>
         )}
+
+        <div className="flex flex-wrap items-center gap-2 lg:flex-nowrap lg:justify-end">
+          {lead.session_id && (
+            <Button variant="ghost" size="sm" onClick={onChat} className="text-slate-600">
+              <MessageCircle className="h-3.5 w-3.5" />
+              {tr("Переписка")}</Button>
+          )}
+          {partnersOn() && !isClosed(lead) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-slate-500"
+              disabled={busy}
+              onClick={() => window.confirm(tr("Это {0}, а не клиент? Заявка уйдёт из воронки в «{1}».", partnerLabel().toLowerCase(), partnersTitle())) && onPatch({ kind: "partner" })}
+            >
+              <Truck className="h-3.5 w-3.5" />
+              {tr("Это {0}", partnerLabel().toLowerCase())}</Button>
+          )}
+          {isClosed(lead) ? (
+            <Button variant="outline" size="sm" disabled={busy} onClick={() => onPatch({ status: flow.reopenTo })}>
+              <RotateCcw className="h-3.5 w-3.5" />
+              {flow.reopenLabel}</Button>
+          ) : (
+            <>
+              {flow.take && (
+                <Button variant="outline" size="sm" disabled={busy} onClick={() => onPatch({ status: "in_progress" })}>
+                  <Play className="h-3.5 w-3.5" />
+                  {flow.takeLabel}</Button>
+              )}
+              {flow.offer && (
+                <Button variant="outline" size="sm" disabled={busy} onClick={onOffer}>
+                  <HandCoins className="h-3.5 w-3.5" />
+                  {offerButtonLabel()}</Button>
+              )}
+              <Button size="sm" disabled={busy} onClick={() => onClose("sold")}>
+                <Check className="h-3.5 w-3.5" />
+                {STATUS_LABEL.sold}</Button>
+              <Button variant="outline" size="sm" disabled={busy} onClick={() => onClose("not_sold")}>
+                <X className="h-3.5 w-3.5" />
+                {STATUS_LABEL.not_sold}</Button>
+            </>
+          )}
+        </div>
       </div>
-
-      <div className="mt-4 flex flex-col gap-2 border-t border-slate-100 pt-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
-        {lead.session_id && (
-          <Button variant="ghost" size="sm" onClick={onChat} className="mr-auto text-slate-600">
-            <MessageCircle className="h-3.5 w-3.5" />
-            {tr("Переписка")}</Button>
-        )}
-        {partnersOn() && !isClosed(lead) && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-slate-500"
-            disabled={busy}
-            onClick={() => window.confirm(tr("Это {0}, а не клиент? Заявка уйдёт из воронки в «{1}».", partnerLabel().toLowerCase(), partnersTitle())) && onPatch({ kind: "partner" })}
-          >
-            <Truck className="h-3.5 w-3.5" />
-            {tr("Это {0}", partnerLabel().toLowerCase())}</Button>
-        )}
-        {isClosed(lead) ? (
-          <Button variant="outline" size="sm" disabled={busy} onClick={() => onPatch({ status: flow.reopenTo })}>
-            <RotateCcw className="h-3.5 w-3.5" />
-            {flow.reopenLabel}</Button>
-        ) : (
-          <>
-            {flow.take && (
-              <Button variant="outline" size="sm" disabled={busy} onClick={() => onPatch({ status: "in_progress" })}>
-                <Play className="h-3.5 w-3.5" />
-                {flow.takeLabel}</Button>
-            )}
-            {flow.offer && (
-              <Button variant="outline" size="sm" disabled={busy} onClick={onOffer}>
-                <HandCoins className="h-3.5 w-3.5" />
-                {offerButtonLabel()}</Button>
-            )}
-            <Button size="sm" disabled={busy} onClick={() => onClose("sold")}>
-              <Check className="h-3.5 w-3.5" />
-              {STATUS_LABEL.sold}</Button>
-            <Button variant="outline" size="sm" disabled={busy} onClick={() => onClose("not_sold")}>
-              <X className="h-3.5 w-3.5" />
-              {STATUS_LABEL.not_sold}</Button>
-          </>
-        )}
-      </div>
-
-      {d?.note && <p className="mt-3 whitespace-pre-wrap break-words rounded-lg bg-amber-50/60 px-3 py-2 text-xs text-slate-700">💬 {d.note}</p>}
-      <LeadControlInfo lead={lead} closed={isClosed(lead)} onEditDeal={onEditDeal} onNextContact={onNextContact} />
-
-      {isClosed(lead) && (
-        <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
-          {lead.status === "sold" ? STATUS_LABEL.sold : `${STATUS_LABEL.not_sold} · ${lostReasonLabel(lead.lost_reason)}`}
-          {lead.closed_at ? ` · ${formatDate(lead.closed_at)}` : ""}
-          {lead.lost_reason === "too_expensive" && lead.lost_price != null ? ` · ${tr("Цена клиента / конкурента:")} ${money(lead.lost_price, lead.lost_currency)}` : ""}
-          {lead.lost_comment ? ` · ${lead.lost_comment}` : ""}
-        </p>
-      )}
     </Card>
   );
 }

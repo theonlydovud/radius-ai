@@ -15,7 +15,7 @@ export function LeadRequest({ d, className, iconClassName = "h-3.5 w-3.5" }: { d
   return (
     <p className={cn("flex min-w-0 items-start gap-2", className)}>
       <MessageSquareText className={cn("mt-0.5 shrink-0 text-slate-400", iconClassName)} />
-      <span className="min-w-0 whitespace-pre-wrap break-words">{d?.request || t("запрос не указан")}</span>
+      <span className="line-clamp-2 min-w-0 break-words">{d?.request || t("запрос не указан")}</span>
     </p>
   );
 }
