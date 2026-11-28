@@ -89,6 +89,8 @@ const PUBLIC_PATHS = new Set([
   "/api/telegram/dexa-bot",
   // Планировщик Supabase; ключ проверяет сам маршрут (CRON_SECRET).
   "/api/cron/tick",
+  // MCP (Claude): вход по ключу компании в заголовке Authorization, проверяет сам маршрут.
+  "/api/mcp",
   "/api/signup/start",
   "/api/signup/status",
   "/api/signup/complete",
@@ -98,6 +100,8 @@ const PUBLIC_PREFIXES = ["/api/webhooks/"];
 /** Заявки и статистика: всё, что есть у менеджера и супер-админа. Чьи именно заявки — решают сами хендлеры. */
 function leadsAllowed(method: string, path: string) {
   if (method === "GET" && (path === "/api/leads" || path === "/api/leads/stats" || path === "/api/messages")) return true;
+  // Ответить клиенту из чата заявки (только в своих диалогах — проверяет routes/messages.ts).
+  if (method === "POST" && path === "/api/messages") return true;
   if (method === "POST" && path === "/api/leads") return true;
   return method === "PATCH" && /^\/api\/leads\/[^/]+$/.test(path) && path !== "/api/leads/stats";
 }

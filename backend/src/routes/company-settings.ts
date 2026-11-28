@@ -32,9 +32,8 @@ export async function GET(_req: Request, ctx: RouteContext) {
       ai: await companyAiStatus(company.id),
       mcp: {
         endpoint: frontendUrl("/api/mcp"),
-        key_preview: typeof (row?.settings as any)?.mcp?.key_hash === "string"
-          ? `${String((row?.settings as any).mcp.key_hash).slice(0, 8)}••••••••`
-          : null,
+        // Начало самого ключа (не хеша) — чтобы узнать, какой ключ выдан. Целиком ключ показывается один раз.
+        key_preview: (row?.settings as any)?.mcp?.key_prefix ? `${(row?.settings as any).mcp.key_prefix}••••••••` : (row?.settings as any)?.mcp?.key_hash ? "dexa_mcp_••••••••" : null,
         enabled: Boolean((row?.settings as any)?.mcp?.key_hash),
       },
     },
@@ -92,11 +91,11 @@ export async function PUT(req: Request, ctx: RouteContext) {
   if (body.mcp_action === "generate") {
     const key = `dexa_mcp_${randomBytes(24).toString("base64url")}`;
     const keyHash = createHash("sha256").update(key).digest("hex");
-    const settings = { ...(row?.settings ?? {}), mcp: { key_hash: keyHash, created_at: new Date().toISOString() } };
+    const settings = { ...(row?.settings ?? {}), mcp: { key_hash: keyHash, key_prefix: key.slice(0, 14), created_at: new Date().toISOString() } };
     const { error } = await supabase.from("companies").update({ settings }).eq("id", company.id);
     if (error) return bad("Не удалось создать MCP ключ.");
     invalidateAuthCache();
-    return Response.json({ data: { mcp: { endpoint: frontendUrl("/api/mcp"), key_preview: `${keyHash.slice(0, 8)}••••••••`, enabled: true, key } } });
+    return Response.json({ data: { mcp: { endpoint: frontendUrl("/api/mcp"), key_preview: `${key.slice(0, 14)}••••••••`, enabled: true, key } } });
   }
   if (body.mcp_action === "revoke") {
     const settings = { ...(row?.settings ?? {}) }; delete (settings as any).mcp;
