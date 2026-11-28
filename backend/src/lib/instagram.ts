@@ -353,6 +353,8 @@ export async function handleInstagramWebhook(body: any, fixedAccountId?: string)
 
       if (event.message?.is_echo) {
         const clientId = event.recipient?.id;
+        // app_id — сообщение отправило приложение через API (наш бот или панель), а не человек в Instagram.
+        if ((event.message as any)?.app_id) continue;
         if (clientId) {
           tasks.push(receiveManagerEcho(account, clientId, text ?? "", attachments, mid).catch((e) => console.error(`[ig] echo: ${e?.message ?? e}`)));
         }
@@ -385,8 +387,22 @@ async function clientName(token: string, senderId: string) {
   return name;
 }
 
+const normText = (t: string) => t.replace(/\s+/g, " ").trim();
+
+/** Echo своего же сообщения: ответа бота или ответа из панели DexaAI за последние 10 минут (целиком или частью). */
+async function isOwnReply(supabase: any, sessionId: string, echo: string) {
+  const since = new Date(Date.now() - 10 * 60_000).toISOString();
+  const { data } = await supabase.from("messages").select("text").eq("session_id", sessionId).in("sender", ["ai", "manager"]).gte("created_at", since);
+  const e = normText(echo);
+  return (data ?? []).some((m: { text: string }) => {
+    const t = normText(m.text ?? "");
+    return t && (t === e || t.includes(e) || e.includes(t));
+  });
+}
+
 /**
- * Перехватываю echo-ответы менеджера, включаю молчание ИИ и сохраняю пару вопрос-ответ в знания.
+ * Echo ответа, который менеджер написал сам в Instagram: включаю молчание ИИ в этом чате
+ * и сохраняю пару «вопрос — ответ менеджера» в знания. Свои ответы (бота и из панели) — пропускаю.
  */
 async function receiveManagerEcho(account: IgAccount, clientId: string, text: string, attachments: unknown[], mid: string) {
   const supabase = createAdminClient();
@@ -396,6 +412,12 @@ async function receiveManagerEcho(account: IgAccount, clientId: string, text: st
   const mediaText = attachments.length ? await attachmentText(attachments, account.access_token, account.company_id) : "";
   const reply = [text, mediaText].filter(Boolean).join("\n").trim();
   if (!reply) return;
+
+  // Echo приходит на КАЖДОЕ сообщение с аккаунта — и на ответы самого бота, и на ответы из панели.
+  // Это не менеджер: иначе бот после первого же своего ответа замолкал в чате и учился сам на себе.
+  // Ответ бота сохраняется уже после отправки — подождём его и сверим текст (длинный ответ уходит частями).
+  await new Promise((r) => setTimeout(r, 4000));
+  if (await isOwnReply(supabase, session.id, reply)) return;
 
   await supabase.from("chat_sessions").update({ status: "manager_takeover" }).eq("id", session.id);
 
